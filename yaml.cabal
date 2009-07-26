@@ -1,0 +1,26 @@
+name:            yaml
+version:         0.0.0
+license:         BSD3
+license-file:    LICENSE
+author:          Michael Snoyman <michael@snoyman.com>
+maintainer:      Michael Snoyman <michael@snoyman.com>
+synopsis:        Support for serialising Haskell to and from Yaml.
+description:     Binds to the libyaml library
+category:        Web
+stability:       unstable
+cabal-version:   >= 1.2
+build-type:      Simple
+homepage:        http://github.com/snoyberg/yaml/tree/master
+
+library
+    build-depends:   base >= 4 && < 5,
+                     bytestring-class,
+                     data-object,
+                     bytestring >= 0.9.1.4 && < 1,
+                     haskell98
+    exposed-modules: Text.Yaml
+    other-modules:   Text.Libyaml,
+                     C2HS
+    ghc-options:     -Wall
+    c-sources:       c/helper.c
+    extra-libraries: yaml
