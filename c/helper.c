@@ -31,6 +31,14 @@ int buffer_append(void *ext, unsigned char *str, size_t size)
 	return 1;
 }
 
+void print_parser_error(yaml_parser_t *p)
+{
+	fprintf(stderr, "Problem: %s\nContext: %s\nOffset: %u\n",
+		p->problem,
+		p->context,
+		(unsigned int) p->problem_offset);
+}
+
 void print_emitter_error(yaml_emitter_t *e)
 {
 	fprintf(stderr, "%s\n", e->problem);

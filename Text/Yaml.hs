@@ -20,31 +20,38 @@ module Text.Yaml
     , decodeFile
     ) where
 
+import Prelude hiding (readList)
 import Text.Libyaml
 import qualified Data.ByteString as B
 import Data.ByteString.Class
 import Data.Object
 import System.IO.Unsafe
 
-encodeFile :: IsObject o => FilePath -> o -> IO ()
-encodeFile path o = B.writeFile path $ encode o
+encode :: (StrictByteString bs, ToObject o) => o -> bs
+encode = unsafePerformIO . encode'
 
-decodeFile :: (Monad m, IsObject o) => FilePath -> IO (m o)
-decodeFile path = decode `fmap` B.readFile path
+decode :: (Monad m, StrictByteString bs, FromObject o) => bs -> m o
+decode = unsafePerformIO . decode'
 
-encode :: (StrictByteString bs, IsObject o) => o -> bs
-encode o =
+encodeFile :: ToObject o => FilePath -> o -> IO ()
+encodeFile path o = encode' o >>= B.writeFile path
+
+decodeFile :: (Monad m, FromObject o) => FilePath -> IO (m o)
+decodeFile path = do
+    c <- B.readFile path
+    decode' c
+
+encode' :: (StrictByteString bs, ToObject o) => o -> IO bs
+encode' o =
     let events = objectToEvents $ toObject o
         result = withEmitter $ flip emitEvents $ events
-     in fromStrictByteString $ unsafePerformIO result
+     in fromStrictByteString `fmap` result
 
-decode :: (Monad m, StrictByteString bs, IsObject o) => bs -> m o
-decode bs = do
-    let eventsIO = withParser $ \p -> do
-                        parserSetInputString p $ toStrictByteString bs
-                        parserParse p
-        events = unsafePerformIO eventsIO
-    fromObject $ eventsToObject events
+decode' :: (Monad m, StrictByteString bs, FromObject o) => bs -> IO (m o)
+decode' bs = do
+    let bs' = toStrictByteString bs
+        events = withParser bs' parserParse
+    (fromObject . eventsToObject) `fmap` events
 
 objectToEvents :: Object -> [Event]
 objectToEvents y = concat
@@ -75,7 +82,7 @@ eventsToObject = fst . readSingle . dropWhile isIgnored where
     readSingle (EventScalar bs:rest) = (Scalar bs, rest)
     readSingle (EventSequenceStart:rest) = readList [] rest
     readSingle (EventMappingStart:rest) = readMap [] rest
-    readSingle (x:rest) = error $ "readSingle: " ++ show x
+    readSingle (x:_) = error $ "readSingle: " ++ show x
     readList :: [Object] -> [Event] -> (Object, [Event])
     readList nodes (EventSequenceEnd:rest) =
         (Sequence $ reverse nodes, rest)
@@ -87,3 +94,5 @@ eventsToObject = fst . readSingle . dropWhile isIgnored where
     readMap pairs (EventScalar bs:events) =
         let (next, rest) = readSingle events
          in readMap ((fromStrictByteString bs, next) : pairs) rest
+    readMap _ (e:_) = error $ "Unexpected event in readMap: " ++ show e
+    readMap _ [] = error "Unexpected empty event list in readMap"

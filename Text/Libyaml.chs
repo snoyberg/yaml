@@ -1,5 +1,11 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Text.Libyaml where
+module Text.Libyaml
+    ( Event (..)
+    , parserParse
+    , withParser
+    , emitEvents
+    , withEmitter
+    ) where
 
 #include <yaml.h>
 #include "../../../c/helper.h"
@@ -26,15 +32,21 @@ eventSize = {#sizeof yaml_event_t#}
     { id `Parser'
     } -> `()' #}
 
-withParser :: (Parser -> IO a) -> IO a
-withParser f = do
-    allocaBytes parserSize $ \p -> do
-		let p' = Parser p
-		res <- yaml_parser_initialize p'
-		-- FIXME check res
-		ret <- f p'
-		yaml_parser_delete p'
-		return ret
+withParser :: B.ByteString -> (Parser -> IO a) -> IO a
+withParser bs f = do
+    allocaBytes parserSize $ \p ->
+      do
+        let p' = Parser p
+        _res <- yaml_parser_initialize p'
+        -- FIXME check res
+        let (fptr, offset, len) = B.toForeignPtr bs
+        ret <- withForeignPtr fptr $ \ptr ->
+                do
+                    let ptr' = castPtr ptr `plusPtr` offset
+                    yaml_parser_set_input_string p' ptr' len
+                    f p'
+        yaml_parser_delete p'
+        return ret
 
 withEventRaw :: (EventRaw -> IO a) -> IO a
 withEventRaw f = allocaBytes eventSize $ f . EventRaw
@@ -44,14 +56,6 @@ withEventRaw f = allocaBytes eventSize $ f . EventRaw
     , id `Ptr CUChar'
     , `Int'
     } -> `()' #}
-
-parserSetInputString :: Parser -> B.ByteString -> IO ()
-parserSetInputString parser bs = do
-    let (fptr, offset, len) = B.toForeignPtr bs
-    let fptr' = castForeignPtr fptr
-    withForeignPtr fptr' $ \ptr -> do
-    let ptr' = ptr `plusPtr` offset
-    yaml_parser_set_input_string parser ptr' len
 
 {#fun unsafe yaml_parser_parse
     { id `Parser'
@@ -71,10 +75,15 @@ parserParse parser = do
 			rest <- parserParse parser
 			return $! event : rest
 
+{#fun unsafe print_parser_error
+    { id `Parser'
+    } -> `()' #}
+
 parserParseOne :: Parser -> IO Event
 parserParseOne parser = withEventRaw $ \er -> do
     res <- yaml_parser_parse parser er
-    when (res == 0) $ fail $ "parserParse: " ++ show res
+    when (res == 0) $
+        print_parser_error parser >> fail "yaml_parser_parse failed"
     event <- getEvent er
     yaml_event_delete er
     return event
@@ -95,8 +104,8 @@ data Event =
 
 {#enum yaml_event_type_e as EventType {underscoreToCase} deriving (Show) #}
 getEvent :: EventRaw -> IO Event
-getEvent (EventRaw ptr) = do
-    et <- {#get yaml_event_t.type#} ptr
+getEvent (EventRaw ptr') = do
+    et <- {#get yaml_event_t.type#} ptr'
     case toEnum $ fromEnum et of
 		YamlNoEvent -> return EventNone
 		YamlStreamStartEvent -> return EventStreamStart
@@ -105,8 +114,8 @@ getEvent (EventRaw ptr) = do
 		YamlDocumentEndEvent -> return EventDocumentEnd
 		YamlAliasEvent -> return EventAlias
 		YamlScalarEvent -> do
-			yvalue <- {#get yaml_event_t.data.scalar.value#} ptr
-			ylen <- {#get yaml_event_t.data.scalar.length#} ptr
+			yvalue <- {#get yaml_event_t.data.scalar.value#} ptr'
+			ylen <- {#get yaml_event_t.data.scalar.length#} ptr'
 			let yvalue' = castPtr yvalue
 			let ylen' = fromEnum ylen
 			let ylen'' = toEnum $ fromEnum ylen
@@ -144,9 +153,9 @@ withBuffer f = do
         let b' = Buffer b
         buffer_init b'
         f b'
-        ptr <- {#get buffer_t.buff#} b
+        ptr' <- {#get buffer_t.buff#} b
         len <- {#get buffer_t.used#} b
-        fptr <- newForeignPtr_ $ castPtr ptr
+        fptr <- newForeignPtr_ $ castPtr ptr'
         return $! B.fromForeignPtr fptr 0 $ fromIntegral len
 
 {#fun unsafe yaml_emitter_set_output
@@ -162,7 +171,7 @@ withEmitter :: (Emitter -> IO ()) -> IO B.ByteString
 withEmitter f = do
     allocaBytes emitterSize $ \e -> do
         let e' = Emitter e
-        res <- yaml_emitter_initialize e'
+        _res <- yaml_emitter_initialize e'
         -- FIXME check res
         bs <- withBuffer $ \(Buffer b) -> do
                 let fun = buffer_append
@@ -181,23 +190,16 @@ withEmitter f = do
     } -> `()' #}
 
 emitEvents :: Emitter -> [Event] -> IO ()
-emitEvents emitter [] = return ()
+emitEvents _ [] = return ()
 emitEvents emitter (e:rest) = do
     res <- toEventRaw e $ yaml_emitter_emit emitter
     when (res == 0) $
         print_emitter_error emitter >> fail "yaml_emitter_emit failed"
     emitEvents emitter rest
 
-{#enum yaml_encoding_e as YamlEncoding {underscoreToCase} deriving (Show) #}
-{#enum yaml_scalar_style_e as ScalarStyle {underscoreToCase}
-    deriving (Show) #}
-
-enumToIntegral :: (Enum e, Integral i) => e -> i
-enumToIntegral = fromIntegral . fromEnum
-
 {#fun unsafe yaml_stream_start_event_initialize
     { id `EventRaw'
-    , enumToIntegral `YamlEncoding'
+    , `Int'
     } -> `Int' #}
 
 {#fun unsafe yaml_stream_end_event_initialize
@@ -212,7 +214,7 @@ enumToIntegral = fromIntegral . fromEnum
     , `Int'
     , `Int'
     , `Int'
-    , enumToIntegral `ScalarStyle'
+    , `Int'
     } -> `Int' #}
 
 {#fun unsafe simple_document_start
@@ -252,7 +254,9 @@ toEventRaw :: Event -> (EventRaw -> IO a) -> IO a
 toEventRaw e f = withEventRaw $ \er -> do
     case e of
         EventStreamStart ->
-            yaml_stream_start_event_initialize er YamlUtf8Encoding
+            yaml_stream_start_event_initialize
+                er
+                0 -- YAML_ANY_ENCODING
         EventStreamEnd ->
             yaml_stream_end_event_initialize er
         EventDocumentStart ->
@@ -271,7 +275,7 @@ toEventRaw e f = withEventRaw $ \er -> do
                     len
                     0
                     1
-                    YamlAnyScalarStyle
+                    0 -- YAML_ANY_SCALAR_STYLE
         EventSequenceStart ->
             yaml_sequence_start_event_initialize
                 er
@@ -290,4 +294,6 @@ toEventRaw e f = withEventRaw $ \er -> do
                 0 -- YAML_ANY_SEQUENCE_STYLE
         EventMappingEnd ->
             yaml_mapping_end_event_initialize er
+        EventAlias -> error "toEventRaw: EventAlias not supported"
+        EventNone -> error "toEventRaw: EventNone not supported"
     f er

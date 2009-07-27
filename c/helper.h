@@ -10,6 +10,7 @@ typedef struct buffer_s {
 void buffer_init(buffer_t *buffer);
 int buffer_append(void *ext, unsigned char *str, size_t size);
 
+void print_parser_error(yaml_parser_t *p);
 void print_emitter_error(yaml_emitter_t *e);
 int simple_document_start(yaml_event_t *e);
 
