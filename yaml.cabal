@@ -11,6 +11,9 @@ stability:       unstable
 cabal-version:   >= 1.2
 build-type:      Simple
 homepage:        http://github.com/snoyberg/yaml/tree/master
+extra-source-files: c/helper.h,
+                    c/yaml_private.h,
+                    c/yaml.h
 
 library
     build-depends:   base >= 4 && < 5,
@@ -22,8 +25,14 @@ library
     other-modules:   Text.Libyaml,
                      C2HS
     ghc-options:     -Wall
-    c-sources:       c/helper.c
+    c-sources:       c/helper.c,
+                     c/api.c,
+                     c/dumper.c,
+                     c/emitter.c,
+                     c/loader.c,
+                     c/parser.c,
+                     c/reader.c,
+                     c/scanner.c,
+                     c/writer.c
     include-dirs:    c
-    includes:        c/helper.h
-    extra-libraries: yaml
     build-tools:     c2hs
