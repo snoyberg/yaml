@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.0.0
+version:         0.0.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -23,4 +23,7 @@ library
                      C2HS
     ghc-options:     -Wall
     c-sources:       c/helper.c
+    include-dirs:    c
+    includes:        c/helper.h
     extra-libraries: yaml
+    build-tools:     c2hs

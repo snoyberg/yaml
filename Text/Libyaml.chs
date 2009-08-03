@@ -8,7 +8,7 @@ module Text.Libyaml
     ) where
 
 #include <yaml.h>
-#include "../../../c/helper.h"
+#include <helper.h>
 
 import C2HS
 import qualified Data.ByteString.Internal as B
