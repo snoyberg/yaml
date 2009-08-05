@@ -31,6 +31,21 @@ int buffer_append(void *ext, unsigned char *str, size_t size)
 	return 1;
 }
 
+unsigned char * get_buffer_buff(buffer_t *b)
+{
+	return b->buff;
+}
+
+unsigned int get_buffer_used(buffer_t *b)
+{
+	return b->used;
+}
+
+void my_emitter_set_output(yaml_emitter_t *e, buffer_t *b)
+{
+	yaml_emitter_set_output(e, buffer_append, b);
+}
+
 void print_parser_error(yaml_parser_t *p)
 {
 	fprintf(stderr, "Problem: %s\nContext: %s\nOffset: %u\n",
@@ -52,4 +67,19 @@ int simple_document_start(yaml_event_t *e)
 		 0,
 		 0,
 		 1);
+}
+
+int get_event_type(yaml_event_t *e)
+{
+	return e->type;
+}
+
+unsigned char * get_scalar_value(yaml_event_t *e)
+{
+	return e->data.scalar.value;
+}
+
+unsigned long get_scalar_length(yaml_event_t *e)
+{
+	return e->data.scalar.length;
 }
