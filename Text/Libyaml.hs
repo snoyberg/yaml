@@ -274,15 +274,19 @@ toEventRaw e f = withEventRaw $ \er -> do
         EventDocumentEnd ->
             c_yaml_document_end_event_initialize er 1
         EventScalar bs -> do
+            putStrLn $ "EventScalar " ++ show bs
             let (fvalue, offset, len) = B.toForeignPtr bs
             withForeignPtr fvalue $ \value -> do
                 let value' = value `plusPtr` offset
                     len' = fromIntegral len
+                    value'' = if ptrToIntPtr value' == 0
+                                then intPtrToPtr 1 -- c/api.c:827
+                                else value'
                 c_yaml_scalar_event_initialize
                     er
                     nullPtr
                     nullPtr
-                    value'
+                    value''
                     len'
                     0
                     1
