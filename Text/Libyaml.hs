@@ -274,7 +274,6 @@ toEventRaw e f = withEventRaw $ \er -> do
         EventDocumentEnd ->
             c_yaml_document_end_event_initialize er 1
         EventScalar bs -> do
-            putStrLn $ "EventScalar " ++ show bs
             let (fvalue, offset, len) = B.toForeignPtr bs
             withForeignPtr fvalue $ \value -> do
                 let value' = value `plusPtr` offset
