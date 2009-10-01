@@ -23,9 +23,11 @@ module Text.Yaml
 import Prelude hiding (readList)
 import Text.Libyaml
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Class
 import Data.Object
 import System.IO.Unsafe
+import Control.Arrow (first)
 
 encode :: (StrictByteString bs, ToObject o) => o -> bs
 encode = unsafePerformIO . encode'
@@ -59,14 +61,14 @@ objectToEvents y = concat
                     , writeSingle y
                     , [EventDocumentEnd, EventStreamEnd]] where
     writeSingle :: Object -> [Event]
-    writeSingle (Scalar bs) = [EventScalar bs]
+    writeSingle (Scalar bs) = [EventScalar $ fromLazyByteString bs]
     writeSingle (Sequence ys) =
         (EventSequenceStart : concatMap writeSingle ys)
         ++ [EventSequenceEnd]
     writeSingle (Mapping pairs) =
         EventMappingStart : concatMap writePair pairs ++ [EventMappingEnd]
-    writePair :: (B.ByteString, Object) -> [Event]
-    writePair (k, v) = EventScalar k : writeSingle v
+    writePair :: (BL.ByteString, Object) -> [Event]
+    writePair (k, v) = EventScalar (fromLazyByteString k) : writeSingle v
 
 eventsToObject :: [Event] -> Object
 eventsToObject = fst . readSingle . dropWhile isIgnored where
@@ -79,7 +81,7 @@ eventsToObject = fst . readSingle . dropWhile isIgnored where
     isIgnored _ = True
     readSingle :: [Event] -> (Object, [Event])
     readSingle [] = error "readSingle: no more events"
-    readSingle (EventScalar bs:rest) = (Scalar bs, rest)
+    readSingle (EventScalar bs:rest) = (Scalar $ toLazyByteString bs, rest)
     readSingle (EventSequenceStart:rest) = readList [] rest
     readSingle (EventMappingStart:rest) = readMap [] rest
     readSingle (x:_) = error $ "readSingle: " ++ show x
@@ -90,7 +92,8 @@ eventsToObject = fst . readSingle . dropWhile isIgnored where
         let (next, rest) = readSingle events
          in readList (next : nodes) rest
     readMap :: [(B.ByteString, Object)] -> [Event] -> (Object, [Event])
-    readMap pairs (EventMappingEnd:rest) = (Mapping $ reverse pairs, rest)
+    readMap pairs (EventMappingEnd:rest) =
+        (Mapping $ map (first toLazyByteString) $ reverse pairs, rest)
     readMap pairs (EventScalar bs:events) =
         let (next, rest) = readSingle events
          in readMap ((fromStrictByteString bs, next) : pairs) rest
