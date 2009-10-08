@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 ---------------------------------------------------------
 --
 -- Module        : Text.Yaml
@@ -18,6 +20,7 @@ module Text.Yaml
     , encodeFile
     , decode
     , decodeFile
+    , testSuite
     ) where
 
 import Prelude hiding (readList)
@@ -25,53 +28,62 @@ import Text.Libyaml
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Class
-import Data.Object
+import Data.Object hiding (testSuite)
 import System.IO.Unsafe
-import Control.Arrow (first)
+import Control.Arrow (first, (***))
+import Control.Monad (replicateM)
 
-encode :: (StrictByteString bs, ToObject o) => o -> bs
+import Test.Framework (testGroup, Test)
+import Test.Framework.Providers.HUnit
+import Test.Framework.Providers.QuickCheck (testProperty)
+import Test.HUnit hiding (Test, path)
+import Test.QuickCheck
+
+encode :: (StrictByteString bs, ToRawObject o) => o -> bs
 encode = unsafePerformIO . encode'
 
-decode :: (Monad m, StrictByteString bs, FromObject o) => bs -> m o
+decode :: (MonadFail m, StrictByteString bs, FromRawObject o) => bs -> m o
 decode = unsafePerformIO . decode'
 
-encodeFile :: ToObject o => FilePath -> o -> IO ()
+encodeFile :: ToRawObject o => FilePath -> o -> IO ()
 encodeFile path o = encode' o >>= B.writeFile path
 
-decodeFile :: (Monad m, FromObject o) => FilePath -> IO (m o)
+decodeFile :: (MonadFail m, FromRawObject o) => FilePath -> IO (m o)
 decodeFile path = do
     c <- B.readFile path
     decode' c
 
-encode' :: (StrictByteString bs, ToObject o) => o -> IO bs
+encode' :: (StrictByteString bs, ToRawObject o) => o -> IO bs
 encode' o =
-    let events = objectToEvents $ toObject o
+    let events = objectToEvents $ toRawObject o
         result = withEmitter $ flip emitEvents $ events
      in fromStrictByteString `fmap` result
 
-decode' :: (Monad m, StrictByteString bs, FromObject o) => bs -> IO (m o)
+decode' :: (MonadFail m, StrictByteString bs, FromRawObject o)
+        => bs
+        -> IO (m o)
 decode' bs = do
     let bs' = toStrictByteString bs
         events = withParser bs' parserParse
-    (fromObject . eventsToObject) `fmap` events
+    (fromRawObject . eventsToRawObject) `fmap` events
 
-objectToEvents :: Object -> [Event]
+objectToEvents :: RawObject -> [Event]
 objectToEvents y = concat
                     [ [EventStreamStart, EventDocumentStart]
                     , writeSingle y
                     , [EventDocumentEnd, EventStreamEnd]] where
-    writeSingle :: Object -> [Event]
+    writeSingle :: RawObject -> [Event]
     writeSingle (Scalar bs) = [EventScalar $ fromLazyByteString bs]
     writeSingle (Sequence ys) =
         (EventSequenceStart : concatMap writeSingle ys)
         ++ [EventSequenceEnd]
     writeSingle (Mapping pairs) =
         EventMappingStart : concatMap writePair pairs ++ [EventMappingEnd]
-    writePair :: (BL.ByteString, Object) -> [Event]
+    writePair :: (BL.ByteString, RawObject) -> [Event]
     writePair (k, v) = EventScalar (fromLazyByteString k) : writeSingle v
 
-eventsToObject :: [Event] -> Object
-eventsToObject = fst . readSingle . dropWhile isIgnored where
+eventsToRawObject :: [Event] -> RawObject
+eventsToRawObject = fst . readSingle . dropWhile isIgnored where
     isIgnored EventAlias = False
     isIgnored (EventScalar _) = False
     isIgnored EventSequenceStart = False
@@ -79,19 +91,21 @@ eventsToObject = fst . readSingle . dropWhile isIgnored where
     isIgnored EventMappingStart = False
     isIgnored EventMappingEnd = False
     isIgnored _ = True
-    readSingle :: [Event] -> (Object, [Event])
+    readSingle :: [Event] -> (RawObject, [Event])
     readSingle [] = error "readSingle: no more events"
     readSingle (EventScalar bs:rest) = (Scalar $ toLazyByteString bs, rest)
     readSingle (EventSequenceStart:rest) = readList [] rest
     readSingle (EventMappingStart:rest) = readMap [] rest
     readSingle (x:_) = error $ "readSingle: " ++ show x
-    readList :: [Object] -> [Event] -> (Object, [Event])
+    readList :: [RawObject] -> [Event] -> (RawObject, [Event])
     readList nodes (EventSequenceEnd:rest) =
         (Sequence $ reverse nodes, rest)
     readList nodes events =
         let (next, rest) = readSingle events
          in readList (next : nodes) rest
-    readMap :: [(B.ByteString, Object)] -> [Event] -> (Object, [Event])
+    readMap :: [(B.ByteString, RawObject)]
+            -> [Event]
+            -> (RawObject, [Event])
     readMap pairs (EventMappingEnd:rest) =
         (Mapping $ map (first toLazyByteString) $ reverse pairs, rest)
     readMap pairs (EventScalar bs:events) =
@@ -99,3 +113,41 @@ eventsToObject = fst . readSingle . dropWhile isIgnored where
          in readMap ((fromStrictByteString bs, next) : pairs) rest
     readMap _ (e:_) = error $ "Unexpected event in readMap: " ++ show e
     readMap _ [] = error "Unexpected empty event list in readMap"
+
+newtype MyString = MyString String
+    deriving (Eq, Show, ToRaw, FromRaw, ToRawObject, FromRawObject)
+propEncodeDecode :: Object MyString MyString -> Bool
+propEncodeDecode o = decode (encode o :: B.ByteString) == Just o
+
+caseEmptyStrings :: Assertion
+caseEmptyStrings = do
+    let m =
+            [ ("foo", "bar")
+            , ("baz", "")
+            , ("bin", "")
+            ]
+    let m' = map (toStrictByteString *** toStrictByteString) m
+    let m'' = map (toLazyByteString *** toLazyByteString) m
+    Just m @=? decode (encode m :: String)
+    Just m' @=? decode (encode m' :: String)
+    Just m'' @=? decode (encode m'' :: String)
+
+testSuite :: Test
+testSuite = testGroup "Text.Yaml"
+    [ testProperty "propEncodeDecode" propEncodeDecode
+    , testCase "empty strings" caseEmptyStrings
+    ]
+
+instance Arbitrary (Object MyString MyString) where
+    coarbitrary = undefined
+    arbitrary = oneof [arbS, arbL, arbM] where
+        arbS = Scalar `fmap` (arbitrary :: Gen MyString)
+        arbL = Sequence `fmap` vector 1
+        arbM = Mapping `fmap` vector 1
+
+instance Arbitrary MyString where
+    coarbitrary = undefined
+    arbitrary = do
+        size <- arbitrary
+        s <- replicateM (size `mod` 5) $ elements ['A'..'Z']
+        return $! MyString s

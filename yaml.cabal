@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.0.4
+version:         0.2.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -18,9 +18,14 @@ extra-source-files: c/helper.h,
 library
     build-depends:   base >= 4 && < 5,
                      bytestring-class,
-                     data-object >= 0.0.2,
+                     data-object == 0.2.0,
                      bytestring >= 0.9.1.4 && < 1,
-                     haskell98
+                     haskell98,
+                     test-framework,
+                     test-framework-quickcheck,
+                     test-framework-hunit,
+                     HUnit,
+                     QuickCheck >= 1 && < 2
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall
@@ -34,3 +39,17 @@ library
                      c/scanner.c,
                      c/writer.c
     include-dirs:    c
+
+executable           yamltest
+    ghc-options:     -Wall
+    c-sources:       c/helper.c,
+                     c/api.c,
+                     c/dumper.c,
+                     c/emitter.c,
+                     c/loader.c,
+                     c/parser.c,
+                     c/reader.c,
+                     c/scanner.c,
+                     c/writer.c
+    include-dirs:    c
+    main-is:         Test.hs
