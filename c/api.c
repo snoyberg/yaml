@@ -824,6 +824,8 @@ yaml_scalar_event_initialize(yaml_event_t *event,
     yaml_char_t *value_copy = NULL;
 
     assert(event);      /* Non-NULL event object is expected. */
+    /* following line added for Haskell yaml library */
+    if (!value && !length) value = "";
     assert(value);      /* Non-NULL anchor is expected. */
 
     if (anchor) {
