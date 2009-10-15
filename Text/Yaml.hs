@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 ---------------------------------------------------------
 --
 -- Module        : Text.Yaml
@@ -26,9 +27,9 @@ module Text.Yaml
 import Prelude hiding (readList)
 import Text.Libyaml
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Class
-import Data.Object hiding (testSuite)
+import Data.Object
+import Data.Object.Raw
 import System.IO.Unsafe
 import Control.Arrow (first, (***))
 import Control.Monad (replicateM)
@@ -39,33 +40,35 @@ import Test.Framework.Providers.QuickCheck (testProperty)
 import Test.HUnit hiding (Test, path)
 import Test.QuickCheck
 
-encode :: (StrictByteString bs, ToRawObject o) => o -> bs
+encode :: (StrictByteString bs, ToObject o Raw Raw) => o -> bs
 encode = unsafePerformIO . encode'
 
-decode :: (MonadFail m, StrictByteString bs, FromRawObject o) => bs -> m o
+decode :: (MonadFail m, StrictByteString bs, FromObject o Raw Raw)
+       => bs
+       -> m o
 decode = unsafePerformIO . decode'
 
-encodeFile :: ToRawObject o => FilePath -> o -> IO ()
+encodeFile :: ToObject o Raw Raw => FilePath -> o -> IO ()
 encodeFile path o = encode' o >>= B.writeFile path
 
-decodeFile :: (MonadFail m, FromRawObject o) => FilePath -> IO (m o)
+decodeFile :: (MonadFail m, FromObject o Raw Raw) => FilePath -> IO (m o)
 decodeFile path = do
     c <- B.readFile path
     decode' c
 
-encode' :: (StrictByteString bs, ToRawObject o) => o -> IO bs
+encode' :: (StrictByteString bs, ToObject o Raw Raw) => o -> IO bs
 encode' o =
-    let events = objectToEvents $ toRawObject o
+    let events = objectToEvents $ toObject o
         result = withEmitter $ flip emitEvents $ events
      in fromStrictByteString `fmap` result
 
-decode' :: (MonadFail m, StrictByteString bs, FromRawObject o)
+decode' :: (MonadFail m, StrictByteString bs, FromObject o Raw Raw)
         => bs
         -> IO (m o)
 decode' bs = do
     let bs' = toStrictByteString bs
         events = withParser bs' parserParse
-    (fromRawObject . eventsToRawObject) `fmap` events
+    (fromObject . eventsToRawObject) `fmap` events
 
 objectToEvents :: RawObject -> [Event]
 objectToEvents y = concat
@@ -73,14 +76,14 @@ objectToEvents y = concat
                     , writeSingle y
                     , [EventDocumentEnd, EventStreamEnd]] where
     writeSingle :: RawObject -> [Event]
-    writeSingle (Scalar bs) = [EventScalar $ fromLazyByteString bs]
+    writeSingle (Scalar (Raw bs)) = [EventScalar $ toStrictByteString bs]
     writeSingle (Sequence ys) =
         (EventSequenceStart : concatMap writeSingle ys)
         ++ [EventSequenceEnd]
     writeSingle (Mapping pairs) =
         EventMappingStart : concatMap writePair pairs ++ [EventMappingEnd]
-    writePair :: (BL.ByteString, RawObject) -> [Event]
-    writePair (k, v) = EventScalar (fromLazyByteString k) : writeSingle v
+    writePair :: (Raw, RawObject) -> [Event]
+    writePair (Raw k, v) = EventScalar (fromLazyByteString k) : writeSingle v
 
 eventsToRawObject :: [Event] -> RawObject
 eventsToRawObject = fst . readSingle . dropWhile isIgnored where
@@ -93,7 +96,8 @@ eventsToRawObject = fst . readSingle . dropWhile isIgnored where
     isIgnored _ = True
     readSingle :: [Event] -> (RawObject, [Event])
     readSingle [] = error "readSingle: no more events"
-    readSingle (EventScalar bs:rest) = (Scalar $ toLazyByteString bs, rest)
+    readSingle (EventScalar bs:rest) =
+        (Scalar $ Raw $ toLazyByteString bs, rest)
     readSingle (EventSequenceStart:rest) = readList [] rest
     readSingle (EventMappingStart:rest) = readMap [] rest
     readSingle (x:_) = error $ "readSingle: " ++ show x
@@ -107,7 +111,7 @@ eventsToRawObject = fst . readSingle . dropWhile isIgnored where
             -> [Event]
             -> (RawObject, [Event])
     readMap pairs (EventMappingEnd:rest) =
-        (Mapping $ map (first toLazyByteString) $ reverse pairs, rest)
+        (Mapping $ map (first $ Raw . toLazyByteString) $ reverse pairs, rest)
     readMap pairs (EventScalar bs:events) =
         let (next, rest) = readSingle events
          in readMap ((fromStrictByteString bs, next) : pairs) rest
@@ -115,7 +119,12 @@ eventsToRawObject = fst . readSingle . dropWhile isIgnored where
     readMap _ [] = error "Unexpected empty event list in readMap"
 
 newtype MyString = MyString String
-    deriving (Eq, Show, ToRaw, FromRaw, ToRawObject, FromRawObject)
+    deriving (Eq, Show)
+instance ToScalar MyString Raw where
+    toScalar (MyString s) = toScalar s
+instance FromScalar MyString Raw where
+    fromScalar raw = MyString `fmap` fromScalar raw
+
 propEncodeDecode :: Object MyString MyString -> Bool
 propEncodeDecode o = decode (encode o :: B.ByteString) == Just o
 
@@ -126,9 +135,10 @@ caseEmptyStrings = do
             , ("baz", "")
             , ("bin", "")
             ]
+        ma = m
     let m' = map (toStrictByteString *** toStrictByteString) m
     let m'' = map (toLazyByteString *** toLazyByteString) m
-    Just m @=? decode (encode m :: String)
+    Just ma @=? decode (encode ma :: String)
     Just m' @=? decode (encode m' :: String)
     Just m'' @=? decode (encode m'' :: String)
 

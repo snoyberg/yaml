@@ -25,6 +25,8 @@ library
                      test-framework-quickcheck,
                      test-framework-hunit,
                      HUnit,
+                     safe,
+                     time,
                      QuickCheck >= 1 && < 2
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
