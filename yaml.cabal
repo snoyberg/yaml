@@ -25,9 +25,10 @@ library
                      test-framework-quickcheck,
                      test-framework-hunit,
                      HUnit,
-                     safe,
                      time,
-                     QuickCheck >= 1 && < 2
+                     QuickCheck >= 1 && < 2,
+                     attempt,
+                     transformers >= 0.1.4.0
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall

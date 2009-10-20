@@ -33,6 +33,10 @@ import Data.Object.Raw
 import System.IO.Unsafe
 import Control.Arrow (first, (***))
 import Control.Monad (replicateM)
+import Data.Attempt
+import Control.Monad.Trans
+import Control.Monad.Attempt
+import Control.Monad.Attempt.Class
 
 import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
@@ -43,18 +47,22 @@ import Test.QuickCheck
 encode :: (StrictByteString bs, ToObject o Raw Raw) => o -> bs
 encode = unsafePerformIO . encode'
 
-decode :: (MonadFail m, StrictByteString bs, FromObject o Raw Raw)
+decode :: (StrictByteString bs, FromObject o Raw Raw, MonadAttempt m)
        => bs
        -> m o
-decode = unsafePerformIO . decode'
+decode bs = unsafePerformIO $ do
+    a <- runAttemptT $ decode' bs -- FIXME
+    case a of
+        Success s -> return $ success s
+        Failure e -> return $ failure e
 
 encodeFile :: ToObject o Raw Raw => FilePath -> o -> IO ()
 encodeFile path o = encode' o >>= B.writeFile path
 
-decodeFile :: (MonadFail m, FromObject o Raw Raw) => FilePath -> IO (m o)
-decodeFile path = do
-    c <- B.readFile path
-    decode' c
+decodeFile :: (FromObject o Raw Raw, MonadAttempt m, MonadIO m)
+           => FilePath
+           -> m o
+decodeFile path = liftIO (B.readFile path) >>= decode'
 
 encode' :: (StrictByteString bs, ToObject o Raw Raw) => o -> IO bs
 encode' o =
@@ -62,13 +70,15 @@ encode' o =
         result = withEmitter $ flip emitEvents $ events
      in fromStrictByteString `fmap` result
 
-decode' :: (MonadFail m, StrictByteString bs, FromObject o Raw Raw)
+decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
+            MonadAttempt m)
         => bs
-        -> IO (m o)
+        -> m o
 decode' bs = do
-    let bs' = toStrictByteString bs
-        events = withParser bs' parserParse
-    (fromObject . eventsToRawObject) `fmap` events
+    events <- liftIO $ withParser (toStrictByteString bs) parserParse
+    case fromObject $ eventsToRawObject events of -- FIXME something better in attempt
+        Failure e -> failure e
+        Success s -> success s
 
 objectToEvents :: RawObject -> [Event]
 objectToEvents y = concat
@@ -126,7 +136,8 @@ instance FromScalar MyString Raw where
     fromScalar raw = MyString `fmap` fromScalar raw
 
 propEncodeDecode :: Object MyString MyString -> Bool
-propEncodeDecode o = decode (encode o :: B.ByteString) == Just o
+propEncodeDecode o = fromAttempt (decode (encode o :: B.ByteString))
+                     == Just o
 
 caseEmptyStrings :: Assertion
 caseEmptyStrings = do
@@ -135,12 +146,12 @@ caseEmptyStrings = do
             , ("baz", "")
             , ("bin", "")
             ]
-        ma = m
     let m' = map (toStrictByteString *** toStrictByteString) m
     let m'' = map (toLazyByteString *** toLazyByteString) m
-    Just ma @=? decode (encode ma :: String)
-    Just m' @=? decode (encode m' :: String)
-    Just m'' @=? decode (encode m'' :: String)
+    let test' x = Just x @=? fromAttempt (decode (encode x :: String))
+    test' m
+    test' m'
+    test' m''
 
 testSuite :: Test
 testSuite = testGroup "Text.Yaml"

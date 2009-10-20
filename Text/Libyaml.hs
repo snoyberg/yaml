@@ -70,6 +70,7 @@ foreign import ccall unsafe "yaml_event_delete"
 foreign import ccall "print_parser_error"
     c_print_parser_error :: Parser -> IO ()
 
+-- FIXME more grace error handling
 parserParseOne :: Parser -> IO Event
 parserParseOne parser = withEventRaw $ \er -> do
     res <- c_yaml_parser_parse parser er
@@ -204,6 +205,7 @@ foreign import ccall unsafe "yaml_emitter_emit"
 foreign import ccall unsafe "print_emitter_error"
     c_print_emitter_error :: Emitter -> IO ()
 
+-- FIXME more graceful error handling
 emitEvents :: Emitter -> [Event] -> IO ()
 emitEvents _ [] = return ()
 emitEvents emitter (e:rest) = do
