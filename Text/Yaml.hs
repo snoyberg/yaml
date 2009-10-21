@@ -34,6 +34,7 @@ import System.IO.Unsafe
 import Control.Arrow (first, (***))
 import Control.Monad (replicateM)
 import Data.Attempt
+import qualified Data.Attempt.Helper as A
 import Control.Monad.Trans
 import Control.Monad.Attempt
 import Control.Monad.Attempt.Class
@@ -53,7 +54,7 @@ decode :: (StrictByteString bs, FromObject o Raw Raw, MonadAttempt m)
 decode bs = unsafePerformIO $ do
     a <- runAttemptT $ decode' bs -- FIXME
     case a of
-        Success s -> return $ success s
+        Success s -> return $ return s
         Failure e -> return $ failure e
 
 encodeFile :: ToObject o Raw Raw => FilePath -> o -> IO ()
@@ -68,7 +69,7 @@ encode' :: (StrictByteString bs, ToObject o Raw Raw) => o -> IO bs
 encode' o =
     let events = objectToEvents $ toObject o
         result = withEmitter $ flip emitEvents $ events
-     in fromStrictByteString `fmap` result
+     in fromStrictByteString `fmap` A.join result
 
 decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
             MonadAttempt m)
@@ -76,9 +77,7 @@ decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
         -> m o
 decode' bs = do
     events <- liftIO $ withParser (toStrictByteString bs) parserParse
-    case fromObject $ eventsToRawObject events of -- FIXME something better in attempt
-        Failure e -> failure e
-        Success s -> success s
+    attempt failure (fromObject . eventsToRawObject) events
 
 objectToEvents :: RawObject -> [Event]
 objectToEvents y = concat

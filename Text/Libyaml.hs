@@ -20,6 +20,9 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
+import Data.Attempt
+import Control.Monad.Attempt.Class
+
 data ParserStruct
 type Parser = Ptr ParserStruct
 parserSize :: Int
@@ -70,13 +73,13 @@ foreign import ccall unsafe "yaml_event_delete"
 foreign import ccall "print_parser_error"
     c_print_parser_error :: Parser -> IO ()
 
--- FIXME more grace error handling
-parserParseOne :: Parser -> IO Event
+parserParseOne :: Parser -> IO (Attempt Event)
 parserParseOne parser = withEventRaw $ \er -> do
     res <- c_yaml_parser_parse parser er
-    when (res == 0) $
-        c_print_parser_error parser >> fail "yaml_parser_parse failed"
-    event <- getEvent er
+    event <-
+        if res == 0
+            then c_print_parser_error parser >> return (failureString "yaml_parser_parse failed") -- FIXME get the actual error message
+            else return `fmap` getEvent er
     c_yaml_event_delete er
     return event
 
@@ -139,14 +142,19 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-parserParse :: Parser -> IO [Event]
+parserParse :: Parser -> IO (Attempt [Event])
 parserParse parser = do
-    event <- parserParseOne parser
-    case event of
-        EventStreamEnd -> return [event]
-        _ -> do
-            rest <- parserParse parser
-            return $! event : rest
+    event' <- parserParseOne parser
+    case event' of
+        Failure e -> return $ Failure e
+        Success event ->
+            case event of
+                EventStreamEnd -> return $ Success [event]
+                _ -> do
+                    rest <- parserParse parser
+                    case rest of
+                        Failure e -> return $ Failure e
+                        Success rest' -> return $ Success $ event : rest'
 
 -- Emitter
 
@@ -175,20 +183,23 @@ foreign import ccall unsafe "get_buffer_buff"
 foreign import ccall unsafe "get_buffer_used"
     c_get_buffer_used :: Buffer -> IO CULong
 
-withBuffer :: (Buffer -> IO ()) -> IO B.ByteString
+withBuffer :: (Buffer -> IO (Attempt ())) -> IO (Attempt B.ByteString)
 withBuffer f = do
     allocaBytes bufferSize $ \b -> do
         c_buffer_init b
-        f b
-        ptr' <- c_get_buffer_buff b
-        len <- c_get_buffer_used b
-        fptr <- newForeignPtr_ $ castPtr ptr'
-        return $! B.fromForeignPtr fptr 0 $ fromIntegral len
+        aRes <- f b
+        case aRes of
+            Failure e -> return $ Failure e
+            Success () -> do
+                ptr' <- c_get_buffer_buff b
+                len <- c_get_buffer_used b
+                fptr <- newForeignPtr_ $ castPtr ptr'
+                return $ Success $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
 foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
-withEmitter :: (Emitter -> IO ()) -> IO B.ByteString
+withEmitter :: (Emitter -> IO (Attempt ())) -> IO (Attempt B.ByteString)
 withEmitter f = do
     allocaBytes emitterSize $ \e -> do
         _res <- c_yaml_emitter_initialize e
@@ -205,14 +216,13 @@ foreign import ccall unsafe "yaml_emitter_emit"
 foreign import ccall unsafe "print_emitter_error"
     c_print_emitter_error :: Emitter -> IO ()
 
--- FIXME more graceful error handling
-emitEvents :: Emitter -> [Event] -> IO ()
-emitEvents _ [] = return ()
+emitEvents :: Emitter -> [Event] -> IO (Attempt ())
+emitEvents _ [] = return $ Success ()
 emitEvents emitter (e:rest) = do
     res <- toEventRaw e $ c_yaml_emitter_emit emitter
-    when (res == 0) $
-        c_print_emitter_error emitter >> fail "yaml_emitter_emit failed"
-    emitEvents emitter rest
+    if res == 0
+        then c_print_emitter_error emitter >> return (failureString "yaml_emitter_emit failed") -- FIXME get the actual error message
+        else emitEvents emitter rest
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
     c_yaml_stream_start_event_initialize :: EventRaw -> CInt -> IO CInt
