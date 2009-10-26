@@ -32,8 +32,7 @@ import Data.Object
 import Data.Object.Raw
 import System.IO.Unsafe
 import Control.Arrow (first, (***))
-import Control.Monad (replicateM)
-import Data.Attempt
+import Control.Monad (replicateM, liftM)
 import qualified Data.Attempt.Helper as A
 import Control.Monad.Trans
 import Control.Monad.Attempt
@@ -68,7 +67,7 @@ decodeFile path = liftIO (B.readFile path) >>= decode'
 encode' :: (StrictByteString bs, ToObject o Raw Raw) => o -> IO bs
 encode' o =
     let events = objectToEvents $ toObject o
-        result = withEmitter $ flip emitEvents $ events
+        result = withEmitter $ flip emitEvents events
      in fromStrictByteString `fmap` A.join result
 
 decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
@@ -77,7 +76,11 @@ decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
         -> m o
 decode' bs = do
     events <- liftIO $ withParser (toStrictByteString bs) parserParse
-    attempt failure (fromObject . eventsToRawObject) events
+    attempt failure (myFA . fromObject . eventsToRawObject) events
+    where
+        myFA :: MonadAttempt m => Attempt v -> m v
+        myFA (Success v) = return v
+        myFA (Failure e) = failure e
 
 objectToEvents :: RawObject -> [Event]
 objectToEvents y = concat
@@ -132,7 +135,7 @@ newtype MyString = MyString String
 instance ToScalar MyString Raw where
     toScalar (MyString s) = toScalar s
 instance FromScalar MyString Raw where
-    fromScalar raw = MyString `fmap` fromScalar raw
+    fromScalar raw = MyString `liftM` fromScalar raw
 
 propEncodeDecode :: Object MyString MyString -> Bool
 propEncodeDecode o = fromAttempt (decode (encode o :: B.ByteString))

@@ -46,8 +46,7 @@ foreign import ccall unsafe "yaml_parser_set_input_string"
                                    -> IO ()
 
 withParser :: B.ByteString -> (Parser -> IO a) -> IO a
-withParser bs f = do
-    allocaBytes parserSize $ \p ->
+withParser bs f = allocaBytes parserSize $ \p ->
       do
         _res <- c_yaml_parser_initialize p
         -- FIXME check res
@@ -62,7 +61,7 @@ withParser bs f = do
         return ret
 
 withEventRaw :: (EventRaw -> IO a) -> IO a
-withEventRaw f = allocaBytes eventSize $ f
+withEventRaw = allocaBytes eventSize
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -184,8 +183,7 @@ foreign import ccall unsafe "get_buffer_used"
     c_get_buffer_used :: Buffer -> IO CULong
 
 withBuffer :: (Buffer -> IO (Attempt ())) -> IO (Attempt B.ByteString)
-withBuffer f = do
-    allocaBytes bufferSize $ \b -> do
+withBuffer f = allocaBytes bufferSize $ \b -> do
         c_buffer_init b
         aRes <- f b
         case aRes of
@@ -200,8 +198,7 @@ foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
 withEmitter :: (Emitter -> IO (Attempt ())) -> IO (Attempt B.ByteString)
-withEmitter f = do
-    allocaBytes emitterSize $ \e -> do
+withEmitter f = allocaBytes emitterSize $ \e -> do
         _res <- c_yaml_emitter_initialize e
         -- FIXME check res
         bs <- withBuffer $ \b -> do
