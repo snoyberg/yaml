@@ -28,7 +28,9 @@ library
                      time,
                      QuickCheck >= 1 && < 2,
                      attempt,
-                     transformers >= 0.1.4.0
+                     safe-failure,
+                     transformers >= 0.1.4.0,
+                     control-monad-failure
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall

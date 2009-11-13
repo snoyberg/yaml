@@ -21,7 +21,6 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
 import Data.Attempt
-import Control.Monad.Attempt.Class
 
 data ParserStruct
 type Parser = Ptr ParserStruct

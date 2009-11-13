@@ -33,10 +33,8 @@ import Data.Object.Raw
 import System.IO.Unsafe
 import Control.Arrow (first, (***))
 import Control.Monad (replicateM, liftM)
-import qualified Data.Attempt.Helper as A
 import Control.Monad.Trans
 import Control.Monad.Attempt
-import Control.Monad.Attempt.Class
 
 import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
@@ -44,10 +42,12 @@ import Test.Framework.Providers.QuickCheck (testProperty)
 import Test.HUnit hiding (Test, path)
 import Test.QuickCheck
 
+import Control.Exception
+
 encode :: (StrictByteString bs, ToObject o Raw Raw) => o -> bs
 encode = unsafePerformIO . encode'
 
-decode :: (StrictByteString bs, FromObject o Raw Raw, MonadAttempt m)
+decode :: (StrictByteString bs, FromObject o Raw Raw, MonadFailure SomeException m)
        => bs
        -> m o
 decode bs = unsafePerformIO $ do
@@ -59,7 +59,7 @@ decode bs = unsafePerformIO $ do
 encodeFile :: ToObject o Raw Raw => FilePath -> o -> IO ()
 encodeFile path o = encode' o >>= B.writeFile path
 
-decodeFile :: (FromObject o Raw Raw, MonadAttempt m, MonadIO m)
+decodeFile :: (FromObject o Raw Raw, MonadFailure SomeException m, MonadIO m)
            => FilePath
            -> m o
 decodeFile path = liftIO (B.readFile path) >>= decode'
@@ -68,19 +68,19 @@ encode' :: (StrictByteString bs, ToObject o Raw Raw) => o -> IO bs
 encode' o =
     let events = objectToEvents $ toObject o
         result = withEmitter $ flip emitEvents events
-     in fromStrictByteString `fmap` A.join result
+     in fromStrictByteString `fmap` joinAttempt result
 
 decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
-            MonadAttempt m)
+            MonadFailure SomeException m)
         => bs
         -> m o
 decode' bs = do
     events <- liftIO $ withParser (toStrictByteString bs) parserParse
-    attempt failure (myFA . fromObject . eventsToRawObject) events
+    attempt failure' (myFA . fromObject . eventsToRawObject) events
     where
-        myFA :: MonadAttempt m => Attempt v -> m v
-        myFA (Success v) = return v
-        myFA (Failure e) = failure e
+        myFA = attempt failure' return
+        failure' :: (MonadFailure SomeException m, Exception e) => e -> m a
+        failure' = failure . SomeException
 
 objectToEvents :: RawObject -> [Event]
 objectToEvents y = concat
