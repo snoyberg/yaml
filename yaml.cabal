@@ -29,7 +29,6 @@ library
                      bytestring >= 0.9.1.4 && < 1,
                      haskell98,
                      time,
-                     attempt >= 0.0.2,
                      safe-failure,
                      transformers >= 0.1.4.0,
                      control-monad-failure >= 0.4,

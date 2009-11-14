@@ -43,8 +43,8 @@ import System.IO.Unsafe
 import Control.Arrow (first)
 import Control.Monad (liftM, join)
 import Control.Monad.Trans
-import Control.Monad.Attempt
 import Data.Convertible
+import Control.Monad.Failure
 
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as LT
@@ -62,13 +62,15 @@ import Control.Arrow ((***))
 #endif
 
 -- Low level, non-exported functions
-encode' :: ConvertSuccess B.ByteString a
+encode' :: (ConvertSuccess B.ByteString a, MonadFailure YamlException m)
         => TextObject
-        -> IO a
-encode' o =
+        -> IO (m a)
+encode' o = do
     let events = objectToEvents o
-        result = withEmitter $ flip emitEvents events
-     in convertSuccess `fmap` joinAttempt result
+    result <- withEmitter $ flip emitEvents events
+    return $ do
+        result' <- result
+        return $ convertSuccess result'
 
 decode' :: (ConvertSuccess a B.ByteString,
             MonadFailure YamlException m
@@ -80,10 +82,11 @@ decode' bs = do
     return $ liftM eventsToTextObject events
 
 -- Text API
+-- FIXME: this *should* be in a MonadFailure
 encodeText :: ConvertSuccess B.ByteString a
            => TextObject
            -> a
-encodeText = unsafePerformIO . encode'
+encodeText = unsafePerformIO . join . encode'
 
 decodeText :: (ConvertSuccess a B.ByteString,
                MonadFailure YamlException m)
@@ -92,10 +95,11 @@ decodeText :: (ConvertSuccess a B.ByteString,
 decodeText = unsafePerformIO . decode'
 
 -- Scalar API
+-- FIXME: this *should* be in a MonadFailure...
 encodeScalar :: ConvertSuccess B.ByteString a
              => ScalarObject
              -> a
-encodeScalar = unsafePerformIO . encode' . toTextObject
+encodeScalar = unsafePerformIO . join . encode' . toTextObject
 
 decodeScalar :: (ConvertSuccess a B.ByteString,
                  MonadFailure YamlException m)
@@ -104,8 +108,14 @@ decodeScalar :: (ConvertSuccess a B.ByteString,
 decodeScalar = liftM toScalarObject . unsafePerformIO . decode'
 
 -- File API
-encodeFile :: ToObject o Text Text => FilePath -> o -> IO ()
-encodeFile path o = encode' (toTextObject o) >>= ltWriteFile path
+encodeFile :: (ToObject o Text Text, MonadIO m, MonadFailure YamlException m)
+           => FilePath
+           -> o
+           -> m ()
+encodeFile path o = do
+    content <- liftIO $ encode' $ toTextObject o
+    content' <- content
+    liftIO $ ltWriteFile path content'
 
 ltWriteFile :: FilePath -> Text -> IO ()
 ltWriteFile fp = BL.writeFile fp . LTE.encodeUtf8
