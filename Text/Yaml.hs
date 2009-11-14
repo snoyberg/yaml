@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE CPP #-}
 ---------------------------------------------------------
 --
 -- Module        : Text.Yaml
@@ -21,84 +22,97 @@ module Text.Yaml
     , encodeFile
     , decode
     , decodeFile
+#if TEST
     , testSuite
+#endif
     ) where
 
 import Prelude hiding (readList)
 import Text.Libyaml
 import qualified Data.ByteString as B
-import Data.ByteString.Class
+import qualified Data.ByteString.Lazy as BL
 import Data.Object
-import Data.Object.Raw
+import Data.Object.Text
 import System.IO.Unsafe
-import Control.Arrow (first, (***))
-import Control.Monad (replicateM, liftM)
+import Control.Arrow (first)
+import Control.Monad (liftM, join)
 import Control.Monad.Trans
 import Control.Monad.Attempt
+import Data.Convertible
 
+import Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Encoding as LTE
+
+#if TEST
 import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck (testProperty)
 import Test.HUnit hiding (Test, path)
 import Test.QuickCheck
+#endif
 
-import Control.Exception
-
-encode :: (StrictByteString bs, ToObject o Raw Raw) => o -> bs
+encode :: (ConvertSuccess B.ByteString a, ToObject o Text Text) => o -> a
 encode = unsafePerformIO . encode'
 
-decode :: (StrictByteString bs, FromObject o Raw Raw, MonadFailure SomeException m)
-       => bs
-       -> m o
-decode bs = unsafePerformIO $ do
-    a <- runAttemptT $ decode' bs -- FIXME
-    case a of
-        Success s -> return $ return s
-        Failure e -> return $ failure e
+decode :: (ConvertSuccess a B.ByteString,
+           MonadFailure YamlException m)
+       => a
+       -> m TextObject
+decode = unsafePerformIO . decode'
 
-encodeFile :: ToObject o Raw Raw => FilePath -> o -> IO ()
-encodeFile path o = encode' o >>= B.writeFile path
+encodeFile :: ToObject o Text Text => FilePath -> o -> IO ()
+encodeFile path o = encode' o >>= ltWriteFile path
 
-decodeFile :: (FromObject o Raw Raw, MonadFailure SomeException m, MonadIO m)
+ltWriteFile :: FilePath -> Text -> IO ()
+ltWriteFile fp = BL.writeFile fp . LTE.encodeUtf8
+
+decodeFile :: (MonadFailure YamlException m,
+               MonadIO m)
            => FilePath
-           -> m o
-decodeFile path = liftIO (B.readFile path) >>= decode'
+           -> m TextObject
+decodeFile path = do
+    contents <- liftIO (ltReadFile path)
+    join $ liftIO $ decode' contents
 
-encode' :: (StrictByteString bs, ToObject o Raw Raw) => o -> IO bs
+ltReadFile :: FilePath -> IO Text
+ltReadFile = fmap LTE.decodeUtf8 . BL.readFile
+
+encode' :: (ConvertSuccess B.ByteString a,
+            ToObject o Text Text)
+        => o
+        -> IO a
 encode' o =
     let events = objectToEvents $ toObject o
         result = withEmitter $ flip emitEvents events
-     in fromStrictByteString `fmap` joinAttempt result
+     in convertSuccess `fmap` joinAttempt result
 
-decode' :: (StrictByteString bs, FromObject o Raw Raw, MonadIO m,
-            MonadFailure SomeException m)
-        => bs
-        -> m o
+decode' :: (ConvertSuccess a B.ByteString,
+            MonadFailure YamlException m
+           )
+        => a
+        -> IO (m TextObject)
 decode' bs = do
-    events <- liftIO $ withParser (toStrictByteString bs) parserParse
-    attempt failure' (myFA . fromObject . eventsToRawObject) events
-    where
-        myFA = attempt failure' return
-        failure' :: (MonadFailure SomeException m, Exception e) => e -> m a
-        failure' = failure . SomeException
+    events <- withParser (convertSuccess bs) parserParse
+    return $ liftM eventsToTextObject events
 
-objectToEvents :: RawObject -> [Event]
+objectToEvents :: TextObject -> [Event]
 objectToEvents y = concat
                     [ [EventStreamStart, EventDocumentStart]
                     , writeSingle y
                     , [EventDocumentEnd, EventStreamEnd]] where
-    writeSingle :: RawObject -> [Event]
-    writeSingle (Scalar (Raw bs)) = [EventScalar $ toStrictByteString bs]
+    writeSingle :: TextObject -> [Event]
+    writeSingle (Scalar text) = [EventScalar $ convertSuccess text]
     writeSingle (Sequence ys) =
         (EventSequenceStart : concatMap writeSingle ys)
         ++ [EventSequenceEnd]
     writeSingle (Mapping pairs) =
         EventMappingStart : concatMap writePair pairs ++ [EventMappingEnd]
-    writePair :: (Raw, RawObject) -> [Event]
-    writePair (Raw k, v) = EventScalar (fromLazyByteString k) : writeSingle v
+    writePair :: (Text, TextObject) -> [Event]
+    writePair (k, v) = EventScalar (convertSuccess k) : writeSingle v
 
-eventsToRawObject :: [Event] -> RawObject
-eventsToRawObject = fst . readSingle . dropWhile isIgnored where
+eventsToTextObject :: [Event] -> TextObject
+eventsToTextObject = fst . readSingle . dropWhile isIgnored where
     isIgnored EventAlias = False
     isIgnored (EventScalar _) = False
     isIgnored EventSequenceStart = False
@@ -106,37 +120,40 @@ eventsToRawObject = fst . readSingle . dropWhile isIgnored where
     isIgnored EventMappingStart = False
     isIgnored EventMappingEnd = False
     isIgnored _ = True
-    readSingle :: [Event] -> (RawObject, [Event])
+    readSingle :: [Event] -> (TextObject, [Event])
     readSingle [] = error "readSingle: no more events"
     readSingle (EventScalar bs:rest) =
-        (Scalar $ Raw $ toLazyByteString bs, rest)
+        (Scalar $ convertSuccess bs, rest)
     readSingle (EventSequenceStart:rest) = readList [] rest
     readSingle (EventMappingStart:rest) = readMap [] rest
     readSingle (x:_) = error $ "readSingle: " ++ show x
-    readList :: [RawObject] -> [Event] -> (RawObject, [Event])
+    readList :: [TextObject] -> [Event] -> (TextObject, [Event])
     readList nodes (EventSequenceEnd:rest) =
         (Sequence $ reverse nodes, rest)
     readList nodes events =
         let (next, rest) = readSingle events
          in readList (next : nodes) rest
-    readMap :: [(B.ByteString, RawObject)]
+    readMap :: [(B.ByteString, TextObject)]
             -> [Event]
-            -> (RawObject, [Event])
+            -> (TextObject, [Event])
     readMap pairs (EventMappingEnd:rest) =
-        (Mapping $ map (first $ Raw . toLazyByteString) $ reverse pairs, rest)
+        (Mapping $ map (first convertSuccess) $ reverse pairs, rest)
     readMap pairs (EventScalar bs:events) =
         let (next, rest) = readSingle events
-         in readMap ((fromStrictByteString bs, next) : pairs) rest
+         in readMap ((bs, next) : pairs) rest
     readMap _ (e:_) = error $ "Unexpected event in readMap: " ++ show e
     readMap _ [] = error "Unexpected empty event list in readMap"
 
 newtype MyString = MyString String
     deriving (Eq, Show)
-instance ToScalar MyString Raw where
-    toScalar (MyString s) = toScalar s
-instance FromScalar MyString Raw where
-    fromScalar raw = MyString `liftM` fromScalar raw
+instance ConvertAttempt MyString Text where
+    convertAttempt = return . convertSuccess
+instance ConvertSuccess MyString Text where
+    convertSuccess (MyString s) = convertSuccess s
+instance ConvertAttempt Text MyString where
+    convertAttempt raw = MyString `liftM` convertAttempt raw
 
+#if TEST
 propEncodeDecode :: Object MyString MyString -> Bool
 propEncodeDecode o = fromAttempt (decode (encode o :: B.ByteString))
                      == Just o
@@ -174,3 +191,4 @@ instance Arbitrary MyString where
         size <- arbitrary
         s <- replicateM (size `mod` 5) $ elements ['A'..'Z']
         return $! MyString s
+#endif

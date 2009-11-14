@@ -1,5 +1,8 @@
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 {-# INCLUDE <yaml.h> #-}
 {-# INCLUDE <helper.h> #-}
@@ -20,7 +23,9 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
-import Data.Attempt
+import Control.Monad.Failure
+import Data.Typeable (Typeable)
+import Control.Exception (Exception)
 
 data ParserStruct
 type Parser = Ptr ParserStruct
@@ -71,12 +76,21 @@ foreign import ccall unsafe "yaml_event_delete"
 foreign import ccall "print_parser_error"
     c_print_parser_error :: Parser -> IO ()
 
-parserParseOne :: Parser -> IO (Attempt Event)
+data YamlException =
+    YamlParserException String
+    | YamlEmitterException String
+    deriving (Show, Typeable)
+instance Exception YamlException
+
+parserParseOne :: MonadFailure YamlException m
+               => Parser
+               -> IO (m Event)
 parserParseOne parser = withEventRaw $ \er -> do
     res <- c_yaml_parser_parse parser er
     event <-
         if res == 0
-            then c_print_parser_error parser >> return (failureString "yaml_parser_parse failed") -- FIXME get the actual error message
+            then c_print_parser_error parser
+                  >> return (failure $ YamlParserException "FIXME")
             else return `fmap` getEvent er
     c_yaml_event_delete er
     return event
@@ -140,19 +154,29 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-parserParse :: Parser -> IO (Attempt [Event])
+data YAttempt v = YSuccess v | YFailure YamlException -- FIXME use c-m-e?
+instance Monad YAttempt where
+    return = YSuccess
+    YSuccess v >>= f = f v
+    YFailure e >>= _ = YFailure e
+instance MonadFailure YamlException YAttempt where
+    failure = YFailure
+
+parserParse :: MonadFailure YamlException m
+            => Parser
+            -> IO (m [Event])
 parserParse parser = do
     event' <- parserParseOne parser
     case event' of
-        Failure e -> return $ Failure e
-        Success event ->
+        YFailure e -> return $ failure e
+        YSuccess event ->
             case event of
-                EventStreamEnd -> return $ Success [event]
+                EventStreamEnd -> return $ return [event]
                 _ -> do
                     rest <- parserParse parser
                     case rest of
-                        Failure e -> return $ Failure e
-                        Success rest' -> return $ Success $ event : rest'
+                        YFailure e -> return $ failure e
+                        YSuccess rest' -> return $ return $ event : rest'
 
 -- Emitter
 
@@ -181,22 +205,26 @@ foreign import ccall unsafe "get_buffer_buff"
 foreign import ccall unsafe "get_buffer_used"
     c_get_buffer_used :: Buffer -> IO CULong
 
-withBuffer :: (Buffer -> IO (Attempt ())) -> IO (Attempt B.ByteString)
+withBuffer :: MonadFailure YamlException m
+           => (Buffer -> IO (YAttempt ()))
+           -> IO (m B.ByteString)
 withBuffer f = allocaBytes bufferSize $ \b -> do
         c_buffer_init b
         aRes <- f b
         case aRes of
-            Failure e -> return $ Failure e
-            Success () -> do
+            YFailure e -> return $ failure e
+            YSuccess () -> do
                 ptr' <- c_get_buffer_buff b
                 len <- c_get_buffer_used b
                 fptr <- newForeignPtr_ $ castPtr ptr'
-                return $ Success $ B.fromForeignPtr fptr 0 $ fromIntegral len
+                return $ return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
 foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
-withEmitter :: (Emitter -> IO (Attempt ())) -> IO (Attempt B.ByteString)
+withEmitter :: MonadFailure YamlException m
+            => (Emitter -> IO (YAttempt ()))
+            -> IO (m B.ByteString)
 withEmitter f = allocaBytes emitterSize $ \e -> do
         _res <- c_yaml_emitter_initialize e
         -- FIXME check res
@@ -212,12 +240,16 @@ foreign import ccall unsafe "yaml_emitter_emit"
 foreign import ccall unsafe "print_emitter_error"
     c_print_emitter_error :: Emitter -> IO ()
 
-emitEvents :: Emitter -> [Event] -> IO (Attempt ())
-emitEvents _ [] = return $ Success ()
+emitEvents :: MonadFailure YamlException m
+           => Emitter
+           -> [Event]
+           -> IO (m ())
+emitEvents _ [] = return $ return ()
 emitEvents emitter (e:rest) = do
     res <- toEventRaw e $ c_yaml_emitter_emit emitter
     if res == 0
-        then c_print_emitter_error emitter >> return (failureString "yaml_emitter_emit failed") -- FIXME get the actual error message
+        then c_print_emitter_error emitter
+                >> return (failure $ YamlEmitterException "FIXME")
         else emitEvents emitter rest
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"

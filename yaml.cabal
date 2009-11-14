@@ -15,22 +15,22 @@ extra-source-files: c/helper.h,
                     c/yaml_private.h,
                     c/yaml.h
 
+flag buildtests
+  description: Build the executable to run unit tests
+  default: False
+
 library
     build-depends:   base >= 4 && < 5,
-                     bytestring-class,
                      data-object == 0.2.0,
                      bytestring >= 0.9.1.4 && < 1,
                      haskell98,
-                     test-framework,
-                     test-framework-quickcheck,
-                     test-framework-hunit,
-                     HUnit,
                      time,
-                     QuickCheck >= 1 && < 2,
-                     attempt,
+                     attempt >= 0.0.2,
                      safe-failure,
                      transformers >= 0.1.4.0,
-                     control-monad-failure
+                     control-monad-failure >= 0.4,
+                     text >= 0.5,
+                     convertible >= 1.2.0
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall
@@ -46,6 +46,16 @@ library
     include-dirs:    c
 
 executable           yamltest
+    if flag(buildtests)
+        Buildable: True
+        cpp-options:     -DTEST
+        build-depends:   test-framework,
+                         test-framework-quickcheck,
+                         test-framework-hunit,
+                         HUnit,
+                         QuickCheck >= 1 && < 2
+    else
+        Buildable: False
     ghc-options:     -Wall
     c-sources:       c/helper.c,
                      c/api.c,
