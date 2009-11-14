@@ -17,10 +17,15 @@
 ---------------------------------------------------------
 
 module Text.Yaml
-    ( module Data.Object
-    , encode
+    (
+      -- * Converting to/from 'TextObject's
+      encodeText
+    , decodeText
+      -- * Convert to/from 'ScalarObejct's
+    , encodeScalar
+    , decodeScalar
+      -- * Files
     , encodeFile
-    , decode
     , decodeFile
 #if TEST
     , testSuite
@@ -33,6 +38,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Object
 import Data.Object.Text
+import Data.Object.Scalar
 import System.IO.Unsafe
 import Control.Arrow (first)
 import Control.Monad (liftM, join)
@@ -50,19 +56,56 @@ import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck (testProperty)
 import Test.HUnit hiding (Test, path)
 import Test.QuickCheck
+
+import Control.Monad (replicateM)
+import Control.Arrow ((***))
 #endif
 
-encode :: (ConvertSuccess B.ByteString a, ToObject o Text Text) => o -> a
-encode = unsafePerformIO . encode'
+-- Low level, non-exported functions
+encode' :: ConvertSuccess B.ByteString a
+        => TextObject
+        -> IO a
+encode' o =
+    let events = objectToEvents o
+        result = withEmitter $ flip emitEvents events
+     in convertSuccess `fmap` joinAttempt result
 
-decode :: (ConvertSuccess a B.ByteString,
-           MonadFailure YamlException m)
-       => a
-       -> m TextObject
-decode = unsafePerformIO . decode'
+decode' :: (ConvertSuccess a B.ByteString,
+            MonadFailure YamlException m
+           )
+        => a
+        -> IO (m TextObject)
+decode' bs = do
+    events <- withParser (convertSuccess bs) parserParse
+    return $ liftM eventsToTextObject events
 
+-- Text API
+encodeText :: ConvertSuccess B.ByteString a
+           => TextObject
+           -> a
+encodeText = unsafePerformIO . encode'
+
+decodeText :: (ConvertSuccess a B.ByteString,
+               MonadFailure YamlException m)
+           => a
+           -> m TextObject
+decodeText = unsafePerformIO . decode'
+
+-- Scalar API
+encodeScalar :: ConvertSuccess B.ByteString a
+             => ScalarObject
+             -> a
+encodeScalar = unsafePerformIO . encode' . toTextObject
+
+decodeScalar :: (ConvertSuccess a B.ByteString,
+                 MonadFailure YamlException m)
+             => a
+             -> m ScalarObject
+decodeScalar = liftM toScalarObject . unsafePerformIO . decode'
+
+-- File API
 encodeFile :: ToObject o Text Text => FilePath -> o -> IO ()
-encodeFile path o = encode' o >>= ltWriteFile path
+encodeFile path o = encode' (toTextObject o) >>= ltWriteFile path
 
 ltWriteFile :: FilePath -> Text -> IO ()
 ltWriteFile fp = BL.writeFile fp . LTE.encodeUtf8
@@ -78,24 +121,7 @@ decodeFile path = do
 ltReadFile :: FilePath -> IO Text
 ltReadFile = fmap LTE.decodeUtf8 . BL.readFile
 
-encode' :: (ConvertSuccess B.ByteString a,
-            ToObject o Text Text)
-        => o
-        -> IO a
-encode' o =
-    let events = objectToEvents $ toObject o
-        result = withEmitter $ flip emitEvents events
-     in convertSuccess `fmap` joinAttempt result
-
-decode' :: (ConvertSuccess a B.ByteString,
-            MonadFailure YamlException m
-           )
-        => a
-        -> IO (m TextObject)
-decode' bs = do
-    events <- withParser (convertSuccess bs) parserParse
-    return $ liftM eventsToTextObject events
-
+-- The real worker functions
 objectToEvents :: TextObject -> [Event]
 objectToEvents y = concat
                     [ [EventStreamStart, EventDocumentStart]
@@ -144,6 +170,7 @@ eventsToTextObject = fst . readSingle . dropWhile isIgnored where
     readMap _ (e:_) = error $ "Unexpected event in readMap: " ++ show e
     readMap _ [] = error "Unexpected empty event list in readMap"
 
+#if TEST
 newtype MyString = MyString String
     deriving (Eq, Show)
 instance ConvertAttempt MyString Text where
@@ -151,12 +178,53 @@ instance ConvertAttempt MyString Text where
 instance ConvertSuccess MyString Text where
     convertSuccess (MyString s) = convertSuccess s
 instance ConvertAttempt Text MyString where
-    convertAttempt raw = MyString `liftM` convertAttempt raw
+    convertAttempt = return . convertSuccess
+instance ConvertSuccess Text MyString where
+    convertSuccess = MyString . convertSuccess
 
-#if TEST
+myEquals :: Eq v => Attempt v -> Attempt v -> Bool
+myEquals (Success v1) (Success v2) = v1 == v2
+myEquals _ _ = False
+
+instance ConvertSuccess B.ByteString B.ByteString where -- FIXME belongs elsewhere
+    convertSuccess = id
+instance ConvertAttempt B.ByteString B.ByteString where -- FIXME belongs elsewhere
+    convertAttempt = return
+
 propEncodeDecode :: Object MyString MyString -> Bool
-propEncodeDecode o = fromAttempt (decode (encode o :: B.ByteString))
-                     == Just o
+propEncodeDecode o =
+        fmap h2 (decodeText (encodeText (h1 o) :: B.ByteString))
+          `myEquals` Success o
+    where
+        h1 = mapKeysValues convertSuccess convertSuccess
+        h2 = mapKeysValues convertSuccess convertSuccess
+
+toSBS :: ConvertSuccess a B.ByteString => a -> B.ByteString
+toSBS = convertSuccess
+
+toLBS :: ConvertSuccess a BL.ByteString => a -> BL.ByteString
+toLBS = convertSuccess
+
+instance ToObject (Object Text Text) Text Text where -- FIXME belongs elsewhere
+    toObject = id
+
+instance ConvertSuccess B.ByteString [Char] where -- FIXME belongs elsewhere
+    convertSuccess = convertSuccess . (convertSuccess :: B.ByteString -> Text)
+instance ConvertAttempt B.ByteString [Char] where -- FIXME belongs elsewhere
+    convertAttempt = return . convertSuccess
+instance ConvertSuccess [Char] B.ByteString where -- FIXME belongs elsewhere
+    convertSuccess = convertSuccess . (convertSuccess :: String -> Text)
+instance ConvertAttempt [Char] B.ByteString where -- FIXME belongs elsewhere
+    convertAttempt = return . convertSuccess
+
+instance ConvertSuccess BL.ByteString [Char] where -- FIXME belongs elsewhere
+    convertSuccess = convertSuccess . (convertSuccess :: BL.ByteString -> Text)
+instance ConvertAttempt BL.ByteString [Char] where -- FIXME belongs elsewhere
+    convertAttempt = return . convertSuccess
+instance ConvertSuccess [Char] BL.ByteString where -- FIXME belongs elsewhere
+    convertSuccess = convertSuccess . (convertSuccess :: String -> Text)
+instance ConvertAttempt [Char] BL.ByteString where -- FIXME belongs elsewhere
+    convertAttempt = return . convertSuccess
 
 caseEmptyStrings :: Assertion
 caseEmptyStrings = do
@@ -165,9 +233,14 @@ caseEmptyStrings = do
             , ("baz", "")
             , ("bin", "")
             ]
-    let m' = map (toStrictByteString *** toStrictByteString) m
-    let m'' = map (toLazyByteString *** toLazyByteString) m
-    let test' x = Just x @=? fromAttempt (decode (encode x :: String))
+    let m' = map (toSBS *** toSBS) m
+    let m'' = map (toLBS *** toLBS) m
+    let test' :: (ToObject x Text Text, FromObject x Text Text, Eq x, Show x)
+              => x
+              -> Assertion
+        test' x = Just x @=?
+                  fa (decodeText (encodeText (toTextObject x) :: String)
+                        >>= fromTextObject)
     test' m
     test' m'
     test' m''
