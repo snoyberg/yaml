@@ -14,8 +14,12 @@ unsigned int get_buffer_used(buffer_t *b);
 
 void my_emitter_set_output(yaml_emitter_t *e, buffer_t *b);
 
-void print_parser_error(yaml_parser_t *p);
-void print_emitter_error(yaml_emitter_t *e);
+unsigned char const * get_parser_error_problem(yaml_parser_t *p);
+unsigned char const * get_parser_error_context(yaml_parser_t *p);
+unsigned int    get_parser_error_offset(yaml_parser_t *p);
+
+unsigned char const * get_emitter_error(yaml_emitter_t *e);
+
 int simple_document_start(yaml_event_t *e);
 
 int get_event_type(yaml_event_t *e);

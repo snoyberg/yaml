@@ -27,6 +27,10 @@ import Control.Monad.Failure
 import Data.Typeable (Typeable)
 import Control.Exception (Exception)
 
+import Data.Convertible
+import Data.Text.Lazy (Text)
+import Data.Object.Text ()
+
 data ParserStruct
 type Parser = Ptr ParserStruct
 parserSize :: Int
@@ -73,14 +77,31 @@ foreign import ccall unsafe "yaml_parser_parse"
 foreign import ccall unsafe "yaml_event_delete"
     c_yaml_event_delete :: EventRaw -> IO ()
 
-foreign import ccall "print_parser_error"
-    c_print_parser_error :: Parser -> IO ()
+foreign import ccall "get_parser_error_problem"
+    c_get_parser_error_problem :: Parser -> IO (Ptr CUChar)
+
+foreign import ccall "get_parser_error_context"
+    c_get_parser_error_context :: Parser -> IO (Ptr CUChar)
+
+foreign import ccall unsafe "get_parser_error_offset"
+    c_get_parser_error_offset :: Parser -> IO CULong
 
 data YamlException =
-    YamlParserException String
-    | YamlEmitterException String
+    YamlParserException
+        { parserProblem :: String
+        , parserContext :: String
+        , parserOffset :: Int
+        }
+    | YamlEmitterException { emitterProblem :: String }
     deriving (Show, Typeable)
 instance Exception YamlException
+
+makeString :: (a -> IO (Ptr CUChar)) -> a -> IO String
+makeString f a = do
+    cchar <- castPtr `fmap` f a
+    len <- fromIntegral `fmap` B.c_strlen cchar
+    bs <- B.create len $ \dest -> B.memcpy dest (castPtr cchar) (fromIntegral len)
+    return $ (convertSuccess :: Text -> String) $ convertSuccess bs
 
 parserParseOne :: MonadFailure YamlException m
                => Parser
@@ -89,8 +110,13 @@ parserParseOne parser = withEventRaw $ \er -> do
     res <- c_yaml_parser_parse parser er
     event <-
         if res == 0
-            then c_print_parser_error parser
-                  >> return (failure $ YamlParserException "FIXME")
+            then do
+                    problem <- makeString c_get_parser_error_problem parser
+                    context <- makeString c_get_parser_error_context parser
+                    offset <- fromIntegral `fmap`
+                                c_get_parser_error_offset parser
+                    return $ failure $
+                        YamlParserException problem context offset
             else return `fmap` getEvent er
     c_yaml_event_delete er
     return event
@@ -154,7 +180,7 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-data YAttempt v = YSuccess v | YFailure YamlException -- FIXME use c-m-e?
+data YAttempt v = YSuccess v | YFailure YamlException
 instance Monad YAttempt where
     return = YSuccess
     YSuccess v >>= f = f v
@@ -237,8 +263,8 @@ withEmitter f = allocaBytes emitterSize $ \e -> do
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
 
-foreign import ccall unsafe "print_emitter_error"
-    c_print_emitter_error :: Emitter -> IO ()
+foreign import ccall unsafe "get_emitter_error"
+    c_get_emitter_error :: Emitter -> IO (Ptr CUChar)
 
 emitEvents :: MonadFailure YamlException m
            => Emitter
@@ -248,8 +274,9 @@ emitEvents _ [] = return $ return ()
 emitEvents emitter (e:rest) = do
     res <- toEventRaw e $ c_yaml_emitter_emit emitter
     if res == 0
-        then c_print_emitter_error emitter
-                >> return (failure $ YamlEmitterException "FIXME")
+        then do
+                problem <- makeString c_get_emitter_error emitter
+                return $ failure $ YamlEmitterException problem
         else emitEvents emitter rest
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"

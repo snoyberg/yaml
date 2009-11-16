@@ -46,17 +46,24 @@ void my_emitter_set_output(yaml_emitter_t *e, buffer_t *b)
 	yaml_emitter_set_output(e, buffer_append, b);
 }
 
-void print_parser_error(yaml_parser_t *p)
+unsigned char const * get_parser_error_problem(yaml_parser_t *p)
 {
-	fprintf(stderr, "Problem: %s\nContext: %s\nOffset: %u\n",
-		p->problem,
-		p->context,
-		(unsigned int) p->problem_offset);
+	return p->problem;
 }
 
-void print_emitter_error(yaml_emitter_t *e)
+unsigned char const * get_parser_error_context(yaml_parser_t *p)
 {
-	fprintf(stderr, "%s\n", e->problem);
+	return p->context;
+}
+
+unsigned int    get_parser_error_offset(yaml_parser_t *p)
+{
+	return p->offset;
+}
+
+unsigned char const * get_emitter_error(yaml_emitter_t *e)
+{
+	return e->problem;
 }
 
 int simple_document_start(yaml_event_t *e)

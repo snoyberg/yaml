@@ -196,11 +196,6 @@ myEquals :: Eq v => Attempt v -> Attempt v -> Bool
 myEquals (Success v1) (Success v2) = v1 == v2
 myEquals _ _ = False
 
-instance ConvertSuccess B.ByteString B.ByteString where -- FIXME belongs elsewhere
-    convertSuccess = id
-instance ConvertAttempt B.ByteString B.ByteString where -- FIXME belongs elsewhere
-    convertAttempt = return
-
 propEncodeDecode :: Object MyString MyString -> Bool
 propEncodeDecode o =
         fmap h2 (decodeText (encodeText (h1 o) :: B.ByteString))
@@ -214,27 +209,6 @@ toSBS = convertSuccess
 
 toLBS :: ConvertSuccess a BL.ByteString => a -> BL.ByteString
 toLBS = convertSuccess
-
-instance ToObject (Object Text Text) Text Text where -- FIXME belongs elsewhere
-    toObject = id
-
-instance ConvertSuccess B.ByteString [Char] where -- FIXME belongs elsewhere
-    convertSuccess = convertSuccess . (convertSuccess :: B.ByteString -> Text)
-instance ConvertAttempt B.ByteString [Char] where -- FIXME belongs elsewhere
-    convertAttempt = return . convertSuccess
-instance ConvertSuccess [Char] B.ByteString where -- FIXME belongs elsewhere
-    convertSuccess = convertSuccess . (convertSuccess :: String -> Text)
-instance ConvertAttempt [Char] B.ByteString where -- FIXME belongs elsewhere
-    convertAttempt = return . convertSuccess
-
-instance ConvertSuccess BL.ByteString [Char] where -- FIXME belongs elsewhere
-    convertSuccess = convertSuccess . (convertSuccess :: BL.ByteString -> Text)
-instance ConvertAttempt BL.ByteString [Char] where -- FIXME belongs elsewhere
-    convertAttempt = return . convertSuccess
-instance ConvertSuccess [Char] BL.ByteString where -- FIXME belongs elsewhere
-    convertSuccess = convertSuccess . (convertSuccess :: String -> Text)
-instance ConvertAttempt [Char] BL.ByteString where -- FIXME belongs elsewhere
-    convertAttempt = return . convertSuccess
 
 caseEmptyStrings :: Assertion
 caseEmptyStrings = do
