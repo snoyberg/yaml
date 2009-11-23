@@ -33,7 +33,8 @@ library
                      transformers >= 0.1.4.0,
                      control-monad-failure >= 0.4,
                      text >= 0.5,
-                     convertible >= 1.2.0
+                     convertible >= 1.2.0,
+                     attempt >= 0.0.2
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall

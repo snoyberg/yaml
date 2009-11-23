@@ -18,15 +18,21 @@
 
 module Text.Yaml
     (
+      -- * Exceptions
+      YamlException (..)
+    ,
       -- * Converting to/from 'TextObject's
       encodeText
     , decodeText
+    , decodeFromText
+    , decodeFromTextWrap
       -- * Convert to/from 'ScalarObejct's
     , encodeScalar
     , decodeScalar
       -- * Files
     , encodeFile
     , decodeFile
+    , decodeFileFromTextWrap
 #if TEST
     , testSuite
 #endif
@@ -44,7 +50,7 @@ import Control.Arrow (first)
 import Control.Monad (liftM, join)
 import Control.Monad.Trans
 import Data.Convertible
-import Control.Monad.Failure
+import Data.Attempt
 
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as LT
@@ -94,6 +100,21 @@ decodeText :: (ConvertSuccess a B.ByteString,
            -> m TextObject
 decodeText = unsafePerformIO . decode'
 
+decodeFromText :: (ConvertSuccess a B.ByteString,
+                   FromObject x Text Text)
+               => a
+               -> Attempt x
+decodeFromText a = decodeText a >>= fromObject
+
+decodeFromTextWrap :: (ConvertSuccess a B.ByteString,
+                       FromObject x Text Text,
+                       MonadFailure YamlException m,
+                       MonadFailure FromObjectException m
+                      )
+                   => a
+                   -> m x
+decodeFromTextWrap a = decodeText a >>= fromObjectWrap
+
 -- Scalar API
 -- FIXME: this *should* be in a MonadFailure...
 encodeScalar :: ConvertSuccess B.ByteString a
@@ -130,6 +151,15 @@ decodeFile path = do
 
 ltReadFile :: FilePath -> IO Text
 ltReadFile = fmap LTE.decodeUtf8 . BL.readFile
+
+decodeFileFromTextWrap :: (MonadFailure YamlException m,
+                           MonadFailure FromObjectException m,
+                           MonadIO m,
+                           FromObject x Text Text
+                          )
+                       => FilePath
+                       -> m x
+decodeFileFromTextWrap path = decodeFile path >>= fromObjectWrap
 
 -- The real worker functions
 objectToEvents :: TextObject -> [Event]
