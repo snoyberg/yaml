@@ -23,6 +23,7 @@ module Text.Yaml
     ,
       -- * Converting to/from 'TextObject's
       encodeText
+    , encodeToText
     , decodeText
     , decodeFromText
     , decodeFromTextWrap
@@ -31,6 +32,7 @@ module Text.Yaml
     , decodeScalar
       -- * Files
     , encodeFile
+    , encodeFileToText
     , decodeFile
     , decodeFileFromTextWrap
 #if TEST
@@ -94,6 +96,11 @@ encodeText :: ConvertSuccess B.ByteString a
            -> a
 encodeText = unsafePerformIO . join . encode'
 
+encodeToText :: (ConvertSuccess B.ByteString a, ToObject x Text Text)
+             => x
+             -> a
+encodeToText = unsafePerformIO . join . encode' . toTextObject
+
 decodeText :: (ConvertSuccess a B.ByteString,
                MonadFailure YamlException m)
            => a
@@ -129,14 +136,23 @@ decodeScalar :: (ConvertSuccess a B.ByteString,
 decodeScalar = liftM toScalarObject . unsafePerformIO . decode'
 
 -- File API
-encodeFile :: (ToObject o Text Text, MonadIO m, MonadFailure YamlException m)
+encodeFile :: (MonadIO m, MonadFailure YamlException m)
            => FilePath
-           -> o
+           -> TextObject
            -> m ()
 encodeFile path o = do
-    content <- liftIO $ encode' $ toTextObject o
+    content <- liftIO $ encode' o
     content' <- content
     liftIO $ ltWriteFile path content'
+
+encodeFileToText :: (ToObject x Text Text,
+                     MonadIO m,
+                     MonadFailure YamlException m
+                    )
+                 => FilePath
+                 -> x
+                 -> m ()
+encodeFileToText fp = encodeFile fp . toTextObject
 
 ltWriteFile :: FilePath -> Text -> IO ()
 ltWriteFile fp = BL.writeFile fp . LTE.encodeUtf8
