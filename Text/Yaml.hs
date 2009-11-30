@@ -43,7 +43,6 @@ module Text.Yaml
 import Prelude hiding (readList)
 import Text.Libyaml
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
 import Data.Object
 import Data.Object.Text
 import Data.Object.Scalar
@@ -55,8 +54,6 @@ import Data.Convertible
 import Data.Attempt
 
 import Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LTE
 
 #if TEST
 import Test.Framework (testGroup, Test)
@@ -67,23 +64,23 @@ import Test.QuickCheck
 
 import Control.Monad (replicateM)
 import Control.Arrow ((***))
+import qualified Data.Text.Lazy as LT
+import qualified Data.ByteString.Lazy as BL
 #endif
 
 -- Low level, non-exported functions
-encode' :: (ConvertSuccess B.ByteString a, MonadFailure YamlException m)
+encode' :: MonadFailure YamlException m
         => TextObject
-        -> IO (m a)
+        -> IO (m B.ByteString)
 encode' o = do
     let events = objectToEvents o
     result <- withEmitter $ flip emitEvents events
     return $ do
         result' <- result
-        return $ convertSuccess result'
+        return result'
 
-decode' :: (ConvertSuccess a B.ByteString,
-            MonadFailure YamlException m
-           )
-        => a
+decode' :: MonadFailure YamlException m
+        => B.ByteString
         -> IO (m TextObject)
 decode' bs = do
     events <- withParser (convertSuccess bs) parserParse
@@ -91,21 +88,23 @@ decode' bs = do
 
 -- Text API
 -- FIXME: this *should* be in a MonadFailure
+
+-- FIXME: I think the To and From below are backwards. Maybe just say convert?
 encodeText :: ConvertSuccess B.ByteString a
            => TextObject
            -> a
-encodeText = unsafePerformIO . join . encode'
+encodeText = convertSuccess . unsafePerformIO . join . encode'
 
 encodeToText :: (ConvertSuccess B.ByteString a, ToObject x Text Text)
              => x
              -> a
-encodeToText = unsafePerformIO . join . encode' . toTextObject
+encodeToText = convertSuccess . unsafePerformIO . join . encode' . toTextObject
 
 decodeText :: (ConvertSuccess a B.ByteString,
                MonadFailure YamlException m)
            => a
            -> m TextObject
-decodeText = unsafePerformIO . decode'
+decodeText = unsafePerformIO . decode' . convertSuccess
 
 decodeFromText :: (ConvertSuccess a B.ByteString,
                    FromObject x Text Text)
@@ -127,13 +126,13 @@ decodeFromTextWrap a = decodeText a >>= fromObjectWrap
 encodeScalar :: ConvertSuccess B.ByteString a
              => ScalarObject
              -> a
-encodeScalar = unsafePerformIO . join . encode' . toTextObject
+encodeScalar = convertSuccess . unsafePerformIO . join . encode' . toTextObject
 
 decodeScalar :: (ConvertSuccess a B.ByteString,
                  MonadFailure YamlException m)
              => a
              -> m ScalarObject
-decodeScalar = liftM toScalarObject . unsafePerformIO . decode'
+decodeScalar = liftM toScalarObject . unsafePerformIO . decode' . convertSuccess
 
 -- File API
 encodeFile :: (MonadIO m, MonadFailure YamlException m)
@@ -143,7 +142,7 @@ encodeFile :: (MonadIO m, MonadFailure YamlException m)
 encodeFile path o = do
     content <- liftIO $ encode' o
     content' <- content
-    liftIO $ ltWriteFile path content'
+    liftIO $ B.writeFile path content'
 
 encodeFileToText :: (ToObject x Text Text,
                      MonadIO m,
@@ -154,19 +153,13 @@ encodeFileToText :: (ToObject x Text Text,
                  -> m ()
 encodeFileToText fp = encodeFile fp . toTextObject
 
-ltWriteFile :: FilePath -> Text -> IO ()
-ltWriteFile fp = BL.writeFile fp . LTE.encodeUtf8
-
 decodeFile :: (MonadFailure YamlException m,
                MonadIO m)
            => FilePath
            -> m TextObject
 decodeFile path = do
-    contents <- liftIO (ltReadFile path)
+    contents <- liftIO $ B.readFile path
     join $ liftIO $ decode' contents
-
-ltReadFile :: FilePath -> IO Text
-ltReadFile = fmap LTE.decodeUtf8 . BL.readFile
 
 decodeFileFromTextWrap :: (MonadFailure YamlException m,
                            MonadFailure FromObjectException m,
@@ -275,10 +268,22 @@ caseEmptyStrings = do
     test' m'
     test' m''
 
+caseLargeObjects :: Assertion
+caseLargeObjects = do
+    let level3 = toTextObject (convertSuccess "X" :: Text)
+        level2 = toTextObject $ replicate 10000 level3
+        level1 = toTextObject $ zip (map (: []) ['A'..'Z']) $ repeat level2
+        decoded :: Maybe TextObject
+        decoded = decodeText $ (encodeText level1 :: Text)
+    assertEqual "encode/decode identity" decoded $ Just level1
+    putStrLn "encoding the file..."
+    encodeFile "test.yaml" level1
+
 testSuite :: Test
 testSuite = testGroup "Text.Yaml"
     [ testProperty "propEncodeDecode" propEncodeDecode
     , testCase "empty strings" caseEmptyStrings
+    , testCase "encode large objects" caseLargeObjects
     ]
 
 instance Arbitrary (Object MyString MyString) where
