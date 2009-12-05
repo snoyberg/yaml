@@ -56,7 +56,7 @@ unsigned char const * get_parser_error_context(yaml_parser_t *p)
 	return p->context;
 }
 
-unsigned int    get_parser_error_offset(yaml_parser_t *p)
+unsigned int get_parser_error_offset(yaml_parser_t *p)
 {
 	return p->offset;
 }

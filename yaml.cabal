@@ -25,16 +25,15 @@ library
     else
         Buildable: True
     build-depends:   base >= 4 && < 5,
-                     data-object == 0.2.0,
-                     bytestring >= 0.9.1.4 && < 1,
-                     haskell98,
-                     time,
-                     safe-failure,
-                     transformers >= 0.1.4.0,
-                     control-monad-failure >= 0.4,
-                     text >= 0.5,
-                     convertible >= 1.2.0,
-                     attempt >= 0.0.2
+                     data-object >= 0.2.0 && < 0.3,
+                     bytestring >= 0.9.1.4 && < 0.10,
+                     time >= 1.1.4 && < 1.2,
+                     safe-failure >= 0.4 && < 0.5,
+                     transformers >= 0.1.4.0 && < 0.2,
+                     failure >= 0.0.0 && < 0.1,
+                     text >= 0.5 && < 0.6,
+                     convertible-text >= 0.0.0 && < 0.1,
+                     attempt >= 0.2.0 && < 0.3
     exposed-modules: Text.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall

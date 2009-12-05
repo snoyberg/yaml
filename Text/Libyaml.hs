@@ -23,13 +23,14 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
-import Control.Monad.Failure
+import Control.Failure
 import Data.Typeable (Typeable)
 import Control.Exception (Exception)
 
-import Data.Convertible
+import Data.Convertible.Text
 import Data.Text.Lazy (Text)
 import Data.Object.Text ()
+import Control.Applicative
 
 data ParserStruct
 type Parser = Ptr ParserStruct
@@ -181,11 +182,16 @@ getEvent er = do
         YamlMappingEndEvent -> return EventMappingEnd
 
 data YAttempt v = YSuccess v | YFailure YamlException
+instance Functor YAttempt where
+    fmap = liftM
+instance Applicative YAttempt where
+    pure = return
+    (<*>) = ap
 instance Monad YAttempt where
     return = YSuccess
     YSuccess v >>= f = f v
     YFailure e >>= _ = YFailure e
-instance MonadFailure YamlException YAttempt where
+instance Failure YamlException YAttempt where
     failure = YFailure
 
 parserParse :: MonadFailure YamlException m
@@ -291,10 +297,10 @@ foreign import ccall unsafe "yaml_scalar_event_initialize"
         -> Ptr CUChar -- anchor
         -> Ptr CUChar -- tag
         -> Ptr CUChar -- value
-        -> CInt
-        -> CInt
-        -> CInt
-        -> CInt
+        -> CInt       -- length
+        -> CInt       -- plain_implicit
+        -> CInt       -- quoted_implicit
+        -> CInt       -- style
         -> IO CInt
 
 foreign import ccall unsafe "simple_document_start"
@@ -350,13 +356,13 @@ toEventRaw e f = withEventRaw $ \er -> do
                                 else value'
                 c_yaml_scalar_event_initialize
                     er
-                    nullPtr
-                    nullPtr
-                    value''
-                    len'
-                    0
-                    1
-                    0 -- YAML_ANY_SCALAR_STYLE
+                    nullPtr -- anchor
+                    nullPtr -- tag
+                    value'' -- value
+                    len'    -- length
+                    0       -- plain_implicit
+                    1       -- quoted_implicit
+                    0       -- YAML_ANY_SCALAR_STYLE
         EventSequenceStart ->
             c_yaml_sequence_start_event_initialize
                 er

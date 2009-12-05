@@ -50,7 +50,7 @@ import System.IO.Unsafe
 import Control.Arrow (first)
 import Control.Monad (liftM, join)
 import Control.Monad.Trans
-import Data.Convertible
+import Data.Convertible.Text
 import Data.Attempt
 
 import Data.Text.Lazy (Text)
