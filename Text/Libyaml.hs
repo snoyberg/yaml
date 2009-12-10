@@ -165,7 +165,7 @@ getEvent er = do
             tagbs <- B.create ytag_len'
                       $ \dest -> B.memcpy dest ytag' (toEnum ytag_len')
             let style = toEnum $ fromEnum ystyle
-            return $ EventScalar bs tagbs style
+            return $ EventScalar bs (convertSuccess tagbs) style
         YamlSequenceStartEvent -> return EventSequenceStart
         YamlSequenceEndEvent -> return EventSequenceEnd
         YamlMappingStartEvent -> return EventMappingStart

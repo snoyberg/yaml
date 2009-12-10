@@ -6,6 +6,7 @@ module Data.Object.Yaml
     ( -- * The event stream
       Event (..)
     , Style (..)
+    , Tag (..)
       -- * 'YamlObject' definition
     , Yaml (..)
     , YamlObject
@@ -34,7 +35,7 @@ data Event =
     | EventDocumentStart
     | EventDocumentEnd
     | EventAlias
-    | EventScalar ByteString ByteString Style
+    | EventScalar ByteString Tag Style
     | EventSequenceStart
     | EventSequenceEnd
     | EventMappingStart
@@ -49,9 +50,48 @@ data Style = Any
            | Folded
     deriving (Show, Eq, Enum, Bounded, Ord)
 
+data Tag = StrTag
+         | FloatTag
+         | NullTag
+         | BoolTag
+         | SetTag
+         | IntTag
+         | SeqTag
+         | MapTag
+         | UriTag String
+         | NoTag
+    deriving Eq
+instance Show Tag where
+    show StrTag = "tag:yaml.org,2002:str"
+    show FloatTag = "tag:yaml.org,2002:float"
+    show NullTag = "tag:yaml.org,2002:null"
+    show BoolTag = "tag:yaml.org,2002:bool"
+    show SetTag = "tag:yaml.org,2002:set"
+    show IntTag = "tag:yaml.org,2002:int"
+    show SeqTag = "tag:yaml.org,2002:seq"
+    show MapTag = "tag:yaml.org,2002:map"
+    show (UriTag s) = s
+    show NoTag = ""
+instance ConvertSuccess Tag [Char] where
+    convertSuccess = show
+instance ConvertSuccess ByteString Tag where
+    convertSuccess = (convertSuccess :: String -> Tag)
+                   . convertSuccess
+instance ConvertSuccess [Char] Tag where
+    convertSuccess "tag:yaml.org,2002:str" = StrTag
+    convertSuccess "tag:yaml.org,2002:float" = FloatTag
+    convertSuccess "tag:yaml.org,2002:null" = NullTag
+    convertSuccess "tag:yaml.org,2002:bool" = BoolTag
+    convertSuccess "tag:yaml.org,2002:set" = SetTag
+    convertSuccess "tag:yaml.org,2002:int" = IntTag
+    convertSuccess "tag:yaml.org,2002:seq" = SeqTag
+    convertSuccess "tag:yaml.org,2002:map" = MapTag
+    convertSuccess "" = NoTag
+    convertSuccess s = UriTag s
+
 data Yaml = Yaml
     { value :: ByteString
-    , tag :: String
+    , tag :: Tag
     , style :: Style
     }
     deriving (Show, Eq)
@@ -61,12 +101,12 @@ instance ConvertSuccess Yaml Event where
 instance ConvertSuccess Yaml [Char] where
     convertSuccess = convertSuccess . value
 instance ConvertSuccess [Char] Yaml where
-    convertSuccess t = Yaml (convertSuccess t) "" Any
+    convertSuccess t = Yaml (convertSuccess t) NoTag Any
 
 instance ConvertSuccess Yaml Text where
     convertSuccess = convertSuccess . value
 instance ConvertSuccess Text Yaml where
-    convertSuccess t = Yaml (convertSuccess t) "" Any
+    convertSuccess t = Yaml (convertSuccess t) NoTag Any
 
 -- FIXME the following are incredibly stupid conversions which ignore tag
 -- and style information.
