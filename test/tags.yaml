@@ -1,0 +1,3 @@
+this: !!int 5
+that: !!float "89"
+'other': !mine foobarbaz

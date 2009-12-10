@@ -52,6 +52,7 @@ data Yaml = Yaml
     , tag :: String
     , style :: Style
     }
+    deriving (Show, Eq)
 instance ConvertSuccess Yaml Event where
     convertSuccess (Yaml v t s) = EventScalar v (convertSuccess t) s
 
