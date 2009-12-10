@@ -13,10 +13,12 @@ module Data.Object.Yaml
     , eventsToYamlObject
       -- * Exceptions
     , YamlException (..)
+      -- * Re-export
+    , module Data.Object.Base
     ) where
 
 import Data.ByteString (ByteString)
-import Data.Object
+import Data.Object.Base
 import Data.Object.Text
 import Data.Object.Scalar
 import Data.Convertible.Text
