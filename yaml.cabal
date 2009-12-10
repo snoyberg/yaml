@@ -35,6 +35,7 @@ library
                      convertible-text >= 0.0.0 && < 0.1,
                      attempt >= 0.2.0 && < 0.3
     exposed-modules: Text.Yaml
+                     Data.Object.Yaml
     other-modules:   Text.Libyaml
     ghc-options:     -Wall
     c-sources:       c/helper.c,
@@ -48,7 +49,7 @@ library
                      c/writer.c
     include-dirs:    c
 
-executable           yamltest
+executable           runtests
     if flag(buildtests)
         Buildable: True
         cpp-options:     -DTEST
@@ -70,4 +71,4 @@ executable           yamltest
                      c/scanner.c,
                      c/writer.c
     include-dirs:    c
-    main-is:         Test.hs
+    main-is:         runtests.hs

@@ -90,3 +90,20 @@ unsigned long get_scalar_length(yaml_event_t *e)
 {
 	return e->data.scalar.length;
 }
+
+unsigned char * get_scalar_tag(yaml_event_t *e)
+{
+	unsigned char *s = e->data.scalar.tag;
+	if (!s) s = "";
+	return s;
+}
+
+unsigned long get_scalar_tag_len(yaml_event_t *e)
+{
+	return strlen(get_scalar_tag(e));
+}
+
+int get_scalar_style(yaml_event_t *e)
+{
+	return e->data.scalar.style;
+}

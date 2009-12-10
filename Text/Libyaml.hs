@@ -7,14 +7,12 @@
 {-# INCLUDE <yaml.h> #-}
 {-# INCLUDE <helper.h> #-}
 module Text.Libyaml
-{-
-    (
-      Event (..)
-    , parserParse
-    , withParser
-    , emitEvents
+    ( YamlException (..)
     , withEmitter
-    )-} where
+    , emitEvents
+    , withParser
+    , parserParse
+    ) where
 
 import qualified Data.ByteString.Internal as B
 import Control.Monad
@@ -24,13 +22,11 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
 import Control.Failure
-import Data.Typeable (Typeable)
-import Control.Exception (Exception)
 
 import Data.Convertible.Text
-import Data.Text.Lazy (Text)
-import Data.Object.Text ()
 import Control.Applicative
+
+import Data.Object.Yaml hiding (style, value)
 
 data ParserStruct
 type Parser = Ptr ParserStruct
@@ -87,22 +83,12 @@ foreign import ccall "get_parser_error_context"
 foreign import ccall unsafe "get_parser_error_offset"
     c_get_parser_error_offset :: Parser -> IO CULong
 
-data YamlException =
-    YamlParserException
-        { parserProblem :: String
-        , parserContext :: String
-        , parserOffset :: Int
-        }
-    | YamlEmitterException { emitterProblem :: String }
-    deriving (Show, Typeable)
-instance Exception YamlException
-
 makeString :: (a -> IO (Ptr CUChar)) -> a -> IO String
 makeString f a = do
     cchar <- castPtr `fmap` f a
     len <- fromIntegral `fmap` B.c_strlen cchar
     bs <- B.create len $ \dest -> B.memcpy dest (castPtr cchar) (fromIntegral len)
-    return $ (convertSuccess :: Text -> String) $ convertSuccess bs
+    return $ convertSuccess bs
 
 parserParseOne :: MonadFailure YamlException m
                => Parser
@@ -121,20 +107,6 @@ parserParseOne parser = withEventRaw $ \er -> do
             else return `fmap` getEvent er
     c_yaml_event_delete er
     return event
-
-data Event =
-    EventNone
-    | EventStreamStart
-    | EventStreamEnd
-    | EventDocumentStart
-    | EventDocumentEnd
-    | EventAlias
-    | EventScalar B.ByteString
-    | EventSequenceStart
-    | EventSequenceEnd
-    | EventMappingStart
-    | EventMappingEnd
-    deriving (Show)
 
 data EventType = YamlNoEvent
                | YamlStreamStartEvent
@@ -158,6 +130,15 @@ foreign import ccall unsafe "get_scalar_value"
 foreign import ccall unsafe "get_scalar_length"
     c_get_scalar_length :: EventRaw -> IO CULong
 
+foreign import ccall unsafe "get_scalar_tag"
+    c_get_scalar_tag :: EventRaw -> IO (Ptr CUChar)
+
+foreign import ccall unsafe "get_scalar_tag_len"
+    c_get_scalar_tag_len :: EventRaw -> IO CULong
+
+foreign import ccall unsafe "get_scalar_style"
+    c_get_scalar_style :: EventRaw -> IO CInt
+
 getEvent :: EventRaw -> IO Event
 getEvent er = do
     et <- c_get_event_type er
@@ -171,11 +152,19 @@ getEvent er = do
         YamlScalarEvent -> do
             yvalue <- c_get_scalar_value er
             ylen <- c_get_scalar_length er
+            ytag <- c_get_scalar_tag er
+            ytag_len <- c_get_scalar_tag_len er
+            ystyle <- c_get_scalar_style er
+            let ytag_len' = fromEnum ytag_len
             let yvalue' = castPtr yvalue
+            let ytag' = castPtr ytag
             let ylen' = fromEnum ylen
             let ylen'' = toEnum $ fromEnum ylen
             bs <- B.create ylen' $ \dest -> B.memcpy dest yvalue' ylen''
-            return $ EventScalar bs
+            tagbs <- B.create ytag_len'
+                      $ \dest -> B.memcpy dest ytag' (toEnum ytag_len')
+            let style = toEnum $ fromEnum ystyle
+            return $ EventScalar bs tagbs style
         YamlSequenceStartEvent -> return EventSequenceStart
         YamlSequenceEndEvent -> return EventSequenceEnd
         YamlMappingStartEvent -> return EventMappingStart
@@ -346,7 +335,7 @@ toEventRaw e f = withEventRaw $ \er -> do
             c_simple_document_start er
         EventDocumentEnd ->
             c_yaml_document_end_event_initialize er 1
-        EventScalar bs -> do
+        EventScalar bs _tag _style -> do -- FIXME
             let (fvalue, offset, len) = B.toForeignPtr bs
             withForeignPtr fvalue $ \value -> do
                 let value' = value `plusPtr` offset

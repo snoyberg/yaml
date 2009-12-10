@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE PackageImports #-}
 ---------------------------------------------------------
 --
 -- Module        : Text.Yaml
@@ -20,21 +21,18 @@ module Text.Yaml
     (
       -- * Exceptions
       YamlException (..)
-    ,
+      -- * Converting to/from 'YamlObject's
+    , encodeYaml'
+    , decodeYaml'
+    , encodeYaml
+    , decodeYaml
+    , decodeYamlSuccess
       -- * Converting to/from 'TextObject's
-      encodeText
-    , encodeToText
+    , encodeText'
+    , decodeText'
+    , encodeText
     , decodeText
-    , decodeFromText
-    , decodeFromTextWrap
-      -- * Convert to/from 'ScalarObejct's
-    , encodeScalar
-    , decodeScalar
-      -- * Files
-    , encodeFile
-    , encodeFileToText
-    , decodeFile
-    , decodeFileFromTextWrap
+    , decodeTextSuccess
 #if TEST
     , testSuite
 #endif
@@ -42,20 +40,17 @@ module Text.Yaml
 
 import Prelude hiding (readList)
 import Text.Libyaml
-import qualified Data.ByteString as B
-import Data.Object
+import Data.ByteString (ByteString)
 import Data.Object.Text
-import Data.Object.Scalar
 import System.IO.Unsafe
-import Control.Arrow (first)
-import Control.Monad (liftM, join)
-import Control.Monad.Trans
+import Control.Monad (join)
 import Data.Convertible.Text
 import Data.Attempt
 
-import Data.Text.Lazy (Text)
+import Data.Object.Yaml
 
 #if TEST
+import Data.Object
 import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck (testProperty)
@@ -63,187 +58,101 @@ import Test.HUnit hiding (Test, path)
 import Test.QuickCheck
 
 import Control.Monad (replicateM)
-import Control.Arrow ((***))
 import qualified Data.Text.Lazy as LT
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as B
+import Data.Attempt
+import Control.Arrow ((***))
 #endif
 
 -- Low level, non-exported functions
 encode' :: MonadFailure YamlException m
-        => TextObject
-        -> IO (m B.ByteString)
-encode' o = do
-    let events = objectToEvents o
-    result <- withEmitter $ flip emitEvents events
-    return $ do
-        result' <- result
-        return result'
+        => YamlObject
+        -> IO (m ByteString)
+encode' = withEmitter . flip emitEvents . convertSuccess
 
 decode' :: MonadFailure YamlException m
-        => B.ByteString
-        -> IO (m TextObject)
+        => ByteString
+        -> IO (m YamlObject)
 decode' bs = do
-    events <- withParser (convertSuccess bs) parserParse
-    return $ liftM eventsToTextObject events
+    events <- withParser bs parserParse
+    return $ events >>= eventsToYamlObject
 
--- Text API
--- FIXME: this *should* be in a MonadFailure
+-- Convert to YamlObject directly
+encodeYaml' :: YamlObject -> ByteString
+encodeYaml' = unsafePerformIO . join . encode'
 
--- FIXME: I think the To and From below are backwards. Maybe just say convert?
-encodeText :: ConvertSuccess B.ByteString a
-           => TextObject
-           -> a
-encodeText = convertSuccess . unsafePerformIO . join . encode'
+decodeYaml' :: MonadFailure YamlException m => ByteString -> m YamlObject
+decodeYaml' = unsafePerformIO . decode'
 
-encodeToText :: (ConvertSuccess B.ByteString a, ToObject x Text Text)
-             => x
-             -> a
-encodeToText = convertSuccess . unsafePerformIO . join . encode' . toTextObject
+-- Convert to YamlObject conversions
+encodeYaml :: ConvertSuccess x YamlObject => x -> ByteString
+encodeYaml = encodeYaml' . convertSuccess
 
-decodeText :: (ConvertSuccess a B.ByteString,
-               MonadFailure YamlException m)
-           => a
-           -> m TextObject
-decodeText = unsafePerformIO . decode' . convertSuccess
+decodeYaml :: ( ConvertAttempt YamlObject x
+              , Failure ConversionException m
+              , MonadFailure YamlException m
+              )
+           => ByteString
+           -> m x
+decodeYaml b = decodeYaml' b >>= convertAttemptWrap
 
-decodeFromText :: (ConvertSuccess a B.ByteString,
-                   FromObject x Text Text)
-               => a
-               -> Attempt x
-decodeFromText a = decodeText a >>= fromObject
+decodeYamlSuccess :: ( ConvertSuccess YamlObject x
+                     , MonadFailure YamlException m
+                     )
+                  => ByteString
+                  -> m x
+decodeYamlSuccess = fmap convertSuccess . decodeYaml'
 
-decodeFromTextWrap :: (ConvertSuccess a B.ByteString,
-                       FromObject x Text Text,
-                       MonadFailure YamlException m,
-                       MonadFailure FromObjectException m
-                      )
-                   => a
-                   -> m x
-decodeFromTextWrap a = decodeText a >>= fromObjectWrap
+-- TextObjects
+encodeText' :: TextObject -> ByteString
+encodeText' = encodeYaml
 
--- Scalar API
--- FIXME: this *should* be in a MonadFailure...
-encodeScalar :: ConvertSuccess B.ByteString a
-             => ScalarObject
-             -> a
-encodeScalar = convertSuccess . unsafePerformIO . join . encode' . toTextObject
+decodeText' :: MonadFailure YamlException m => ByteString -> m TextObject
+decodeText' = decodeYamlSuccess
 
-decodeScalar :: (ConvertSuccess a B.ByteString,
-                 MonadFailure YamlException m)
-             => a
-             -> m ScalarObject
-decodeScalar = liftM toScalarObject . unsafePerformIO . decode' . convertSuccess
+-- TextObject conversions
+encodeText :: ConvertSuccess x TextObject => x -> ByteString
+encodeText = encodeText' . convertSuccess
 
--- File API
-encodeFile :: (MonadIO m, MonadFailure YamlException m)
-           => FilePath
-           -> TextObject
-           -> m ()
-encodeFile path o = do
-    content <- liftIO $ encode' o
-    content' <- content
-    liftIO $ B.writeFile path content'
+decodeText :: ( MonadFailure YamlException m
+              , ConvertAttempt TextObject x
+              , Failure ConversionException m
+              )
+           => ByteString
+           -> m x
+decodeText bs = decodeText' bs >>= convertAttemptWrap
 
-encodeFileToText :: (ToObject x Text Text,
-                     MonadIO m,
-                     MonadFailure YamlException m
-                    )
-                 => FilePath
-                 -> x
-                 -> m ()
-encodeFileToText fp = encodeFile fp . toTextObject
-
-decodeFile :: (MonadFailure YamlException m,
-               MonadIO m)
-           => FilePath
-           -> m TextObject
-decodeFile path = do
-    contents <- liftIO $ B.readFile path
-    join $ liftIO $ decode' contents
-
-decodeFileFromTextWrap :: (MonadFailure YamlException m,
-                           MonadFailure FromObjectException m,
-                           MonadIO m,
-                           FromObject x Text Text
-                          )
-                       => FilePath
-                       -> m x
-decodeFileFromTextWrap path = decodeFile path >>= fromObjectWrap
-
--- The real worker functions
-objectToEvents :: TextObject -> [Event]
-objectToEvents y = concat
-                    [ [EventStreamStart, EventDocumentStart]
-                    , writeSingle y
-                    , [EventDocumentEnd, EventStreamEnd]] where
-    writeSingle :: TextObject -> [Event]
-    writeSingle (Scalar text) = [EventScalar $ convertSuccess text]
-    writeSingle (Sequence ys) =
-        (EventSequenceStart : concatMap writeSingle ys)
-        ++ [EventSequenceEnd]
-    writeSingle (Mapping pairs) =
-        EventMappingStart : concatMap writePair pairs ++ [EventMappingEnd]
-    writePair :: (Text, TextObject) -> [Event]
-    writePair (k, v) = EventScalar (convertSuccess k) : writeSingle v
-
-eventsToTextObject :: [Event] -> TextObject
-eventsToTextObject = fst . readSingle . dropWhile isIgnored where
-    isIgnored EventAlias = False
-    isIgnored (EventScalar _) = False
-    isIgnored EventSequenceStart = False
-    isIgnored EventSequenceEnd = False
-    isIgnored EventMappingStart = False
-    isIgnored EventMappingEnd = False
-    isIgnored _ = True
-    readSingle :: [Event] -> (TextObject, [Event])
-    readSingle [] = error "readSingle: no more events"
-    readSingle (EventScalar bs:rest) =
-        (Scalar $ convertSuccess bs, rest)
-    readSingle (EventSequenceStart:rest) = readList [] rest
-    readSingle (EventMappingStart:rest) = readMap [] rest
-    readSingle (x:_) = error $ "readSingle: " ++ show x
-    readList :: [TextObject] -> [Event] -> (TextObject, [Event])
-    readList nodes (EventSequenceEnd:rest) =
-        (Sequence $ reverse nodes, rest)
-    readList nodes events =
-        let (next, rest) = readSingle events
-         in readList (next : nodes) rest
-    readMap :: [(B.ByteString, TextObject)]
-            -> [Event]
-            -> (TextObject, [Event])
-    readMap pairs (EventMappingEnd:rest) =
-        (Mapping $ map (first convertSuccess) $ reverse pairs, rest)
-    readMap pairs (EventScalar bs:events) =
-        let (next, rest) = readSingle events
-         in readMap ((bs, next) : pairs) rest
-    readMap _ (e:_) = error $ "Unexpected event in readMap: " ++ show e
-    readMap _ [] = error "Unexpected empty event list in readMap"
+decodeTextSuccess :: ( MonadFailure YamlException m
+                     , ConvertSuccess TextObject x
+                     )
+                  => ByteString
+                  -> m x
+decodeTextSuccess = fmap convertSuccess . decodeText'
 
 #if TEST
 newtype MyString = MyString String
     deriving (Eq, Show)
-instance ConvertAttempt MyString Text where
-    convertAttempt = return . convertSuccess
 instance ConvertSuccess MyString Text where
     convertSuccess (MyString s) = convertSuccess s
-instance ConvertAttempt Text MyString where
-    convertAttempt = return . convertSuccess
 instance ConvertSuccess Text MyString where
     convertSuccess = MyString . convertSuccess
+instance ConvertSuccess (Object Text Text) (Object MyString MyString) where
+    convertSuccess = mapKeysValues convertSuccess convertSuccess
+instance ConvertSuccess (Object MyString MyString) (Object Text Text) where
+    convertSuccess = mapKeysValues convertSuccess convertSuccess
 
 myEquals :: Eq v => Attempt v -> Attempt v -> Bool
-myEquals (Success v1) (Success v2) = v1 == v2
-myEquals _ _ = False
+myEquals a1 a2
+    | isSuccess a1 && isSuccess a2 = fromSuccess a1 == fromSuccess a2
+    | otherwise = False
 
 propEncodeDecode :: Object MyString MyString -> Bool
 propEncodeDecode o =
-        fmap h2 (decodeText (encodeText (h1 o) :: B.ByteString))
-          `myEquals` Success o
-    where
-        h1 = mapKeysValues convertSuccess convertSuccess
-        h2 = mapKeysValues convertSuccess convertSuccess
+        (decodeTextSuccess $ encodeText' $ convertSuccess o)
+          `myEquals` return o
 
-toSBS :: ConvertSuccess a B.ByteString => a -> B.ByteString
+toSBS :: ConvertSuccess a ByteString => a -> ByteString
 toSBS = convertSuccess
 
 toLBS :: ConvertSuccess a BL.ByteString => a -> BL.ByteString
@@ -258,15 +167,19 @@ caseEmptyStrings = do
             ]
     let m' = map (toSBS *** toSBS) m
     let m'' = map (toLBS *** toLBS) m
-    let test' :: (ToObject x Text Text, FromObject x Text Text, Eq x, Show x)
+    let test' :: (ConvertSuccess x TextObject,
+                  ConvertSuccess TextObject x,
+                  Eq x,
+                  Show x)
               => x
               -> Assertion
-        test' x = Just x @=?
-                  fa (decodeText (encodeText (toTextObject x) :: String)
-                        >>= fromTextObject)
-    test' m
-    test' m'
-    test' m''
+        test' x = do
+            let bs = encodeText x
+            x' <- decodeTextSuccess bs
+            x' @?= x
+    test' $ toTextObject m
+    test' $ toTextObject m'
+    test' $ toTextObject m''
 
 caseLargeObjects :: Assertion
 caseLargeObjects = do
@@ -274,10 +187,10 @@ caseLargeObjects = do
         level2 = toTextObject $ replicate 10000 level3
         level1 = toTextObject $ zip (map (: []) ['A'..'Z']) $ repeat level2
         decoded :: Maybe TextObject
-        decoded = decodeText $ (encodeText level1 :: Text)
+        decoded = decodeText $ encodeText level1
     assertEqual "encode/decode identity" decoded $ Just level1
     putStrLn "encoding the file..."
-    encodeFile "test.yaml" level1
+    B.writeFile "test.yaml" $ encodeText' level1
 
 testSuite :: Test
 testSuite = testGroup "Text.Yaml"

@@ -26,4 +26,8 @@ int get_event_type(yaml_event_t *e);
 unsigned char * get_scalar_value(yaml_event_t *e);
 unsigned long get_scalar_length(yaml_event_t *e);
 
+unsigned char * get_scalar_tag(yaml_event_t *e);
+unsigned long get_scalar_tag_len(yaml_event_t *e);
+int get_scalar_style(yaml_event_t *e);
+
 #endif /* __HELPER_H__ */
