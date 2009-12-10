@@ -82,6 +82,7 @@ data YamlException =
         , parserOffset :: Int
         }
     | YamlEmitterException { emitterProblem :: String }
+    | YamlOutOfMemory
     | YamlInvalidEventStreamBeginning [Event]
     | YamlInvalidEventStreamEnd [Event]
     | YamlPrematureEventStreamEnd

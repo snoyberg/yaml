@@ -27,6 +27,7 @@ import Data.Convertible.Text
 import Control.Applicative
 
 import Data.Object.Yaml hiding (style, value)
+import Control.Exception (throwIO)
 
 data ParserStruct
 type Parser = Ptr ParserStruct
@@ -53,8 +54,8 @@ foreign import ccall unsafe "yaml_parser_set_input_string"
 withParser :: B.ByteString -> (Parser -> IO a) -> IO a
 withParser bs f = allocaBytes parserSize $ \p ->
       do
-        _res <- c_yaml_parser_initialize p
-        -- FIXME check res
+        res <- c_yaml_parser_initialize p
+        when (res == 0) $ throwIO YamlOutOfMemory
         let (fptr, offset, len) = B.toForeignPtr bs
         ret <- withForeignPtr fptr $ \ptr ->
                 do
@@ -247,8 +248,8 @@ withEmitter :: MonadFailure YamlException m
             => (Emitter -> IO (YAttempt ()))
             -> IO (m B.ByteString)
 withEmitter f = allocaBytes emitterSize $ \e -> do
-        _res <- c_yaml_emitter_initialize e
-        -- FIXME check res
+        res <- c_yaml_emitter_initialize e
+        when (res == 0) $ throwIO YamlOutOfMemory
         bs <- withBuffer $ \b -> do
                 c_my_emitter_set_output e b
                 f e
@@ -335,7 +336,7 @@ toEventRaw e f = withEventRaw $ \er -> do
             c_simple_document_start er
         EventDocumentEnd ->
             c_yaml_document_end_event_initialize er 1
-        EventScalar bs _tag _style -> do -- FIXME
+        EventScalar bs thetag style -> do
             let (fvalue, offset, len) = B.toForeignPtr bs
             withForeignPtr fvalue $ \value -> do
                 let value' = value `plusPtr` offset
@@ -343,15 +344,20 @@ toEventRaw e f = withEventRaw $ \er -> do
                     value'' = if ptrToIntPtr value' == 0
                                 then intPtrToPtr 1 -- c/api.c:827
                                 else value'
-                c_yaml_scalar_event_initialize
-                    er
-                    nullPtr -- anchor
-                    nullPtr -- tag
-                    value'' -- value
-                    len'    -- length
-                    0       -- plain_implicit
-                    1       -- quoted_implicit
-                    0       -- YAML_ANY_SCALAR_STYLE
+                let thetag' = convertSuccess thetag
+                withCString thetag' $ \tag' -> do
+                    let style' = toEnum $ fromEnum style
+                        tagP = castPtr tag'
+                        qi = if null thetag' then 1 else 0
+                    c_yaml_scalar_event_initialize
+                        er
+                        nullPtr -- anchor
+                        tagP    -- tag
+                        value'' -- value
+                        len'    -- length
+                        0       -- plain_implicit
+                        qi      -- quoted_implicit
+                        style'  -- style
         EventSequenceStart ->
             c_yaml_sequence_start_event_initialize
                 er

@@ -5,3 +5,4 @@ main = do
     bs <- B.readFile "tags.yaml"
     yo <- decodeYaml' bs
     print yo
+    B.putStrLn $ encodeYaml' yo
