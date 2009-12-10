@@ -18,6 +18,7 @@ module Data.Object.Yaml
 import Data.ByteString (ByteString)
 import Data.Object
 import Data.Object.Text
+import Data.Object.Scalar
 import Data.Convertible.Text
 import Data.Attempt
 
@@ -53,10 +54,23 @@ data Yaml = Yaml
     }
 instance ConvertSuccess Yaml Event where
     convertSuccess (Yaml v t s) = EventScalar v (convertSuccess t) s
+
+instance ConvertSuccess Yaml [Char] where
+    convertSuccess = convertSuccess . value
+instance ConvertSuccess [Char] Yaml where
+    convertSuccess t = Yaml (convertSuccess t) "" Any
+
 instance ConvertSuccess Yaml Text where
     convertSuccess = convertSuccess . value
 instance ConvertSuccess Text Yaml where
     convertSuccess t = Yaml (convertSuccess t) "" Any
+
+-- FIXME the following are incredibly stupid conversions which ignore tag
+-- and style information.
+instance ConvertSuccess Yaml Scalar where
+    convertSuccess = Text . convertSuccess
+instance ConvertSuccess Scalar Yaml where
+    convertSuccess s = convertSuccess (convertSuccess s :: Text)
 
 type YamlObject = Object Yaml Yaml
 
@@ -145,4 +159,9 @@ eventsToYamlObject e = failure $ YamlInvalidEventStreamBeginning e
 instance ConvertSuccess (Object Yaml Yaml) (Object Text Text) where
     convertSuccess = mapKeysValues convertSuccess convertSuccess
 instance ConvertSuccess (Object Text Text) (Object Yaml Yaml) where
+    convertSuccess = mapKeysValues convertSuccess convertSuccess
+
+instance ConvertSuccess (Object Yaml Yaml) (Object String Scalar) where
+    convertSuccess = mapKeysValues convertSuccess convertSuccess
+instance ConvertSuccess (Object String Scalar) (Object Yaml Yaml) where
     convertSuccess = mapKeysValues convertSuccess convertSuccess

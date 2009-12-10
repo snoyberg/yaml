@@ -33,6 +33,12 @@ module Text.Yaml
     , encodeText
     , decodeText
     , decodeTextSuccess
+      -- * Converting to/from 'ScalarObject's
+    , encodeScalar'
+    , decodeScalar'
+    , encodeScalar
+    , decodeScalar
+    , decodeScalarSuccess
 #if TEST
     , testSuite
 #endif
@@ -41,12 +47,13 @@ module Text.Yaml
 import Prelude hiding (readList)
 import Text.Libyaml
 import Data.ByteString (ByteString)
-import Data.Object.Text
 import System.IO.Unsafe
 import Control.Monad (join)
 import Data.Convertible.Text
 import Data.Attempt
 
+import Data.Object.Text
+import Data.Object.Scalar
 import Data.Object.Yaml
 
 #if TEST
@@ -129,6 +136,34 @@ decodeTextSuccess :: ( MonadFailure YamlException m
                   => ByteString
                   -> m x
 decodeTextSuccess = fmap convertSuccess . decodeText'
+
+-- ScalarObjects
+encodeScalar' :: ScalarObject -> ByteString
+encodeScalar' = encodeYaml
+
+decodeScalar' :: MonadFailure YamlException m
+              => ByteString
+              -> m ScalarObject
+decodeScalar' = decodeYamlSuccess
+
+-- ScalarObject conversions
+encodeScalar :: ConvertSuccess x ScalarObject => x -> ByteString
+encodeScalar = encodeScalar' . convertSuccess
+
+decodeScalar :: ( MonadFailure YamlException m
+              , ConvertAttempt ScalarObject x
+              , Failure ConversionException m
+              )
+           => ByteString
+           -> m x
+decodeScalar bs = decodeScalar' bs >>= convertAttemptWrap
+
+decodeScalarSuccess :: ( MonadFailure YamlException m
+                     , ConvertSuccess ScalarObject x
+                     )
+                  => ByteString
+                  -> m x
+decodeScalarSuccess = fmap convertSuccess . decodeScalar'
 
 #if TEST
 newtype MyString = MyString String
