@@ -2,13 +2,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Data.Object.Yaml
     ( -- * The event stream
       Event (..)
     , Style (..)
     , Tag (..)
       -- * 'YamlObject' definition
-    , Yaml (..)
+    , YamlDoc (..)
+    , YamlScalar (..)
     , YamlObject
       -- * Performing conversions
     , eventsToYamlObject
@@ -89,33 +91,35 @@ instance ConvertSuccess [Char] Tag where
     convertSuccess "" = NoTag
     convertSuccess s = UriTag s
 
-data Yaml = Yaml
+newtype YamlDoc = YamlDoc { unYamlDoc :: ByteString }
+
+data YamlScalar = YamlScalar
     { value :: ByteString
     , tag :: Tag
     , style :: Style
     }
     deriving (Show, Eq)
-instance ConvertSuccess Yaml Event where
-    convertSuccess (Yaml v t s) = EventScalar v (convertSuccess t) s
+instance ConvertSuccess YamlScalar Event where
+    convertSuccess (YamlScalar v t s) = EventScalar v (convertSuccess t) s
 
-instance ConvertSuccess Yaml [Char] where
+instance ConvertSuccess YamlScalar [Char] where
     convertSuccess = convertSuccess . value
-instance ConvertSuccess [Char] Yaml where
-    convertSuccess t = Yaml (convertSuccess t) NoTag Any
+instance ConvertSuccess [Char] YamlScalar where
+    convertSuccess t = YamlScalar (convertSuccess t) NoTag Any
 
-instance ConvertSuccess Yaml Text where
+instance ConvertSuccess YamlScalar Text where
     convertSuccess = convertSuccess . value
-instance ConvertSuccess Text Yaml where
-    convertSuccess t = Yaml (convertSuccess t) NoTag Any
+instance ConvertSuccess Text YamlScalar where
+    convertSuccess t = YamlScalar (convertSuccess t) NoTag Any
 
 -- FIXME the following are incredibly stupid conversions which ignore tag
 -- and style information.
-instance ConvertSuccess Yaml Scalar where
+instance ConvertSuccess YamlScalar Scalar where
     convertSuccess = Text . convertSuccess
-instance ConvertSuccess Scalar Yaml where
+instance ConvertSuccess Scalar YamlScalar where
     convertSuccess s = convertSuccess (convertSuccess s :: Text)
 
-type YamlObject = Object Yaml Yaml
+type YamlObject = Object YamlScalar YamlScalar
 
 data YamlException =
     YamlParserException
@@ -134,7 +138,7 @@ data YamlException =
 instance Exception YamlException
 
 -- Emit a YamlObject to an event stream
-instance ConvertSuccess (Object Yaml Yaml) [Event] where
+instance ConvertSuccess YamlObject [Event] where
     convertSuccess o = EventStreamStart
                      : EventDocumentStart
                      : helper o [EventDocumentEnd, EventStreamEnd] where
@@ -146,7 +150,7 @@ instance ConvertSuccess (Object Yaml Yaml) [Event] where
         helper (Mapping pairs) rest =
             EventMappingStart
             : foldr ($) (EventMappingEnd : rest) (map helperPairs pairs)
-        helperPairs :: (Yaml, YamlObject) -> [Event] -> [Event]
+        helperPairs :: (YamlScalar, YamlObject) -> [Event] -> [Event]
         helperPairs (k, v) rest = convertSuccess k : helper v rest
 
 -- Parse a YamlObject from an event stream
@@ -166,7 +170,7 @@ eventsToYamlObject (EventStreamStart:EventDocumentStart:events) = h1 events
            -> m (YamlObject, [Event])
         h2 [] = failure YamlPrematureEventStreamEnd
         h2 (EventScalar v t s:rest) =
-            return (Scalar $ Yaml v (convertSuccess t) s, rest)
+            return (Scalar $ YamlScalar v (convertSuccess t) s, rest)
         h2 (EventSequenceStart:es) = do
             (yos, rest) <- readSeq id es
             return (Sequence yos, rest)
@@ -186,9 +190,9 @@ eventsToYamlObject (EventStreamStart:EventDocumentStart:events) = h1 events
             readSeq (f . ((:) next)) rest
 
         readMap :: MonadFailure YamlException m
-                => ([(Yaml, YamlObject)] -> [(Yaml, YamlObject)])
+                => ([(YamlScalar, YamlObject)] -> [(YamlScalar, YamlObject)])
                 -> [Event]
-                -> m ([(Yaml, YamlObject)], [Event])
+                -> m ([(YamlScalar, YamlObject)], [Event])
         readMap _ [] = failure YamlPrematureEventStreamEnd
         readMap f (EventMappingEnd:rest) = return (f [], rest)
         readMap f es = do
@@ -200,12 +204,12 @@ eventsToYamlObject (EventStreamStart:EventDocumentStart:events) = h1 events
             readMap (f . ((:) (key', val))) rest'
 eventsToYamlObject e = failure $ YamlInvalidEventStreamBeginning e
 
-instance ConvertSuccess (Object Yaml Yaml) (Object Text Text) where
+instance ConvertSuccess (Object YamlScalar YamlScalar) (Object Text Text) where
     convertSuccess = mapKeysValues convertSuccess convertSuccess
-instance ConvertSuccess (Object Text Text) (Object Yaml Yaml) where
+instance ConvertSuccess (Object Text Text) (Object YamlScalar YamlScalar) where
     convertSuccess = mapKeysValues convertSuccess convertSuccess
 
-instance ConvertSuccess (Object Yaml Yaml) (Object String Scalar) where
+instance ConvertSuccess (Object YamlScalar YamlScalar) (Object String Scalar) where
     convertSuccess = mapKeysValues convertSuccess convertSuccess
-instance ConvertSuccess (Object String Scalar) (Object Yaml Yaml) where
+instance ConvertSuccess (Object String Scalar) (Object YamlScalar YamlScalar) where
     convertSuccess = mapKeysValues convertSuccess convertSuccess

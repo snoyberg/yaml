@@ -3,6 +3,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 ---------------------------------------------------------
 --
 -- Module        : Text.Yaml
@@ -92,6 +94,11 @@ encodeYaml' = unsafePerformIO . join . encode'
 decodeYaml' :: MonadFailure YamlException m => ByteString -> m YamlObject
 decodeYaml' = unsafePerformIO . decode'
 
+instance ConvertSuccess YamlObject YamlDoc where
+    convertSuccess = YamlDoc . encodeYaml'
+instance ConvertAttempt YamlDoc YamlObject where
+    convertAttempt = decodeYaml' . unYamlDoc
+
 -- Convert to YamlObject conversions
 encodeYaml :: ConvertSuccess x YamlObject => x -> ByteString
 encodeYaml = encodeYaml' . convertSuccess
@@ -117,6 +124,11 @@ encodeText' = encodeYaml
 
 decodeText' :: MonadFailure YamlException m => ByteString -> m TextObject
 decodeText' = decodeYamlSuccess
+
+instance ConvertSuccess TextObject YamlDoc where
+    convertSuccess = YamlDoc . encodeText'
+instance ConvertAttempt YamlDoc TextObject where
+    convertAttempt = decodeText' . unYamlDoc
 
 -- TextObject conversions
 encodeText :: ConvertSuccess x TextObject => x -> ByteString
@@ -145,6 +157,11 @@ decodeScalar' :: MonadFailure YamlException m
               => ByteString
               -> m ScalarObject
 decodeScalar' = decodeYamlSuccess
+
+instance ConvertSuccess ScalarObject YamlDoc where
+    convertSuccess = YamlDoc . encodeScalar'
+instance ConvertAttempt YamlDoc ScalarObject where
+    convertAttempt = decodeScalar' . unYamlDoc
 
 -- ScalarObject conversions
 encodeScalar :: ConvertSuccess x ScalarObject => x -> ByteString
