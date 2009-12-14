@@ -23,6 +23,10 @@ module Text.Yaml
     (
       -- * Exceptions
       YamlException (..)
+      -- * 'YamlDoc's <-> file conversion
+    , YamlDoc (..)
+    , readYamlDoc
+    , writeYamlDoc
       -- * Converting to/from 'YamlObject's
     , encodeYaml'
     , decodeYaml'
@@ -49,6 +53,7 @@ module Text.Yaml
 import Prelude hiding (readList)
 import Text.Libyaml
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import System.IO.Unsafe
 import Control.Monad (join)
 import Data.Convertible.Text
@@ -73,6 +78,12 @@ import qualified Data.ByteString as B
 import Data.Attempt
 import Control.Arrow ((***))
 #endif
+
+readYamlDoc :: FilePath -> IO YamlDoc
+readYamlDoc = fmap YamlDoc . B.readFile
+
+writeYamlDoc :: FilePath -> YamlDoc -> IO ()
+writeYamlDoc fp = B.writeFile fp . unYamlDoc
 
 -- Low level, non-exported functions
 encode' :: MonadFailure YamlException m
