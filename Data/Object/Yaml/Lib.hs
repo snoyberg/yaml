@@ -6,12 +6,14 @@
 
 {-# INCLUDE <yaml.h> #-}
 {-# INCLUDE <helper.h> #-}
-module Text.Libyaml
-    ( YamlException (..)
-    , withEmitter
+module Data.Object.Yaml.Lib
+    ( withEmitter
     , emitEvents
     , withParser
     , parserParse
+      -- * Higher level functions
+    , encode
+    , decode
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -21,12 +23,12 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
-import Control.Failure
+import Data.Attempt -- exports failure
 
 import Data.Convertible.Text
 import Control.Applicative
 
-import Data.Object.Yaml hiding (style, value)
+import Data.Object.Yaml.Internal
 import Control.Exception (throwIO)
 
 data ParserStruct
@@ -379,3 +381,13 @@ toEventRaw e f = withEventRaw $ \er -> do
         EventAlias -> error "toEventRaw: EventAlias not supported"
         EventNone -> error "toEventRaw: EventNone not supported"
     f er
+
+encode :: MonadFailure YamlException m
+       => [Event]
+       -> IO (m B.ByteString)
+encode = withEmitter . flip emitEvents
+
+decode :: MonadFailure YamlException m
+       => B.ByteString
+       -> IO (m [Event])
+decode bs = withParser bs parserParse

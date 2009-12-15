@@ -1,5 +1,5 @@
-name:            yaml
-version:         0.2.0
+name:            data-object-yaml
+version:         0.0.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -27,16 +27,12 @@ library
     build-depends:   base >= 4 && < 5,
                      data-object >= 0.2.0 && < 0.3,
                      bytestring >= 0.9.1.4 && < 0.10,
-                     time >= 1.1.4 && < 1.2,
-                     safe-failure >= 0.4 && < 0.5,
-                     transformers >= 0.1.4.0 && < 0.2,
-                     failure >= 0.0.0 && < 0.1,
                      text >= 0.5 && < 0.6,
-                     convertible-text >= 0.0.0 && < 0.1,
+                     convertible-text >= 0.2.0 && < 0.3,
                      attempt >= 0.2.0 && < 0.3
-    exposed-modules: Text.Yaml
-                     Data.Object.Yaml
-    other-modules:   Text.Libyaml
+    exposed-modules: Data.Object.Yaml
+                     Data.Object.Yaml.Internal
+    other-modules:   Data.Object.Yaml.Lib
     ghc-options:     -Wall
     c-sources:       c/helper.c,
                      c/api.c,

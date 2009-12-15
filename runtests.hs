@@ -1,8 +1,8 @@
 import Test.Framework (defaultMain)
 
-import qualified Text.Yaml
+import qualified Data.Object.Yaml
 
 main :: IO ()
 main = defaultMain
-    [ Text.Yaml.testSuite
+    [ Data.Object.Yaml.testSuite
     ]
