@@ -18,9 +18,12 @@ extra-source-files: c/helper.h,
 flag buildtests
   description: Build the executable to run unit tests
   default: False
+flag nolib
+  description: Skip building of the library
+  default: False
 
 library
-    if flag(buildtests)
+    if flag(nolib)
         Buildable: False
     else
         Buildable: True

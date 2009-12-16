@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Data.Object.Yaml
     ( -- * 'YamlDoc' definition and IO
       YamlDoc (..)
@@ -29,7 +30,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.Object.Base
 import Data.Object.Text
-import Data.Convertible.Text
+import Data.Object.String
 import Data.Attempt
 
 import Data.Object.Yaml.Internal
@@ -87,6 +88,20 @@ instance ConvertSuccess YamlScalar Text where
 instance ConvertSuccess Text YamlScalar where
     convertSuccess t = YamlScalar (convertSuccess t) NoTag Any
 
+instance ConvertSuccess YamlScalar ByteString where
+    convertSuccess = value
+instance ConvertSuccess ByteString YamlScalar where
+    convertSuccess t = YamlScalar t NoTag Any
+
+$(deriveAttempts
+    [ (''String, ''YamlScalar)
+    , (''YamlScalar, ''String)
+    , (''ByteString, ''YamlScalar)
+    , (''YamlScalar, ''ByteString)
+    , (''Text, ''YamlScalar)
+    , (''YamlScalar, ''Text)
+    ])
+
 -- FIXME add Scalar instances
 {-
 instance ConvertSuccess YamlScalar Scalar where
@@ -96,6 +111,13 @@ instance ConvertSuccess Scalar YamlScalar where
 -}
 
 type YamlObject = Object YamlScalar YamlScalar
+
+$(deriveSuccessConvs ''YamlScalar ''YamlScalar
+    [''String, ''Text]
+    [''String, ''Text])
+
+$(deriveSuccessConvs ''String ''String [''YamlScalar] [''YamlScalar])
+$(deriveSuccessConvs ''Text ''Text [''YamlScalar] [''YamlScalar])
 
 -- Emit a YamlObject to an event stream
 instance ConvertSuccess YamlObject [Event] where
@@ -171,13 +193,14 @@ eventsToYamlObject (EventStreamStart:EventDocumentStart:events) = h1 events
             readMap (f . ((:) (key', val))) rest'
 eventsToYamlObject e = failure $ YamlInvalidEventStreamBeginning e
 
-instance ConvertSuccess YamlObject TextObject where
-    convertSuccess = mapKeysValues cs cs
-instance ConvertSuccess TextObject YamlObject where
-    convertSuccess = mapKeysValues cs cs
 instance ConvertSuccess TextObject YamlDoc where
     convertSuccess = cs . (cs :: TextObject -> YamlObject)
 instance ConvertAttempt YamlDoc TextObject where
+    convertAttempt = fmap cs . (ca :: YamlDoc -> Attempt YamlObject)
+
+instance ConvertSuccess StringObject YamlDoc where
+    convertSuccess = cs . (cs :: StringObject -> YamlObject)
+instance ConvertAttempt YamlDoc StringObject where
     convertAttempt = fmap cs . (ca :: YamlDoc -> Attempt YamlObject)
 
 {- FIXME
