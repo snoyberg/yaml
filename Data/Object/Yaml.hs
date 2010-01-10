@@ -10,6 +10,8 @@ module Data.Object.Yaml
       YamlDoc (..)
     , readYamlDoc
     , writeYamlDoc
+      -- * Reading directly from files
+    , readYamlObject
       -- * 'YamlObject' definition
     , YamlScalar (..)
     , Tag (..)
@@ -64,6 +66,11 @@ readYamlDoc = fmap YamlDoc . B.readFile
 
 writeYamlDoc :: FilePath -> YamlDoc -> IO ()
 writeYamlDoc fp = B.writeFile fp . unYamlDoc
+
+readYamlObject :: FilePath -> IO (Object YamlScalar YamlScalar)
+readYamlObject fp = do
+    es <- join $ decodeFile fp
+    convertAttemptWrap es
 
 data YamlScalar = YamlScalar
     { value :: ByteString

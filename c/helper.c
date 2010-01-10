@@ -107,3 +107,10 @@ int get_scalar_style(yaml_event_t *e)
 {
 	return e->data.scalar.style;
 }
+
+int yaml_parser_set_input_filename(yaml_parser_t *parser, const char *filename)
+{
+	FILE *in = fopen(filename, "r");
+	if (!in) return 0;
+	yaml_parser_set_input_file(parser, in);
+}

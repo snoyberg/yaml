@@ -86,5 +86,6 @@ data YamlException =
     | YamlPrematureEventStreamEnd
     | YamlNonScalarKey
     | YamlInvalidStartingEvent Event
+    | YamlFileNotFound FilePath
     deriving (Show, Typeable)
 instance Exception YamlException

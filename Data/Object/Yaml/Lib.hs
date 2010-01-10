@@ -12,6 +12,7 @@ module Data.Object.Yaml.Lib
       -- * Higher level functions
     , encode
     , decode
+    , decodeFile
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -52,6 +53,37 @@ foreign import ccall unsafe "yaml_parser_set_input_string"
                                    -> Ptr CUChar
                                    -> CULong
                                    -> IO ()
+
+foreign import ccall unsafe "yaml_parser_set_input_file"
+    c_yaml_parser_set_input_file :: Parser
+                                 -> File
+                                 -> IO ()
+
+data FileStruct
+type File = Ptr FileStruct
+
+foreign import ccall unsafe "fopen"
+    c_fopen :: Ptr CChar
+            -> Ptr CChar
+            -> IO File
+
+foreign import ccall unsafe "fclose"
+    c_fclose :: File
+             -> IO ()
+
+withFileParser :: FilePath -> (Parser -> IO a) -> IO a
+withFileParser fp f = allocaBytes parserSize $ \p ->
+      do
+        res <- c_yaml_parser_initialize p
+        when (res == 0) $ throwIO YamlOutOfMemory
+        file <- withCString fp $ \fp' -> withCString "r" $ \r' ->
+                    c_fopen fp' r'
+        when (file == nullPtr) $ throwIO $ YamlFileNotFound fp
+        c_yaml_parser_set_input_file p file
+        ret <- f p
+        c_fclose file
+        c_yaml_parser_delete p
+        return ret
 
 withParser :: B.ByteString -> (Parser -> IO a) -> IO a
 withParser bs f = allocaBytes parserSize $ \p ->
@@ -399,3 +431,8 @@ decode :: MonadFailure YamlException m
        => B.ByteString
        -> IO (m [Event])
 decode bs = withParser bs parserParse
+
+decodeFile :: MonadFailure YamlException m
+           => FilePath
+           -> IO (m [Event])
+decodeFile fp = withFileParser fp parserParse
