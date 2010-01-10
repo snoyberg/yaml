@@ -39,7 +39,6 @@ import Control.Monad ((<=<), join)
 import System.IO.Unsafe
 
 #if TEST
-import Data.Object
 import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck (testProperty)
@@ -47,10 +46,7 @@ import Test.HUnit hiding (Test, path)
 import Test.QuickCheck
 
 import Control.Monad (replicateM)
-import qualified Data.Text.Lazy as LT
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString as B
-import Data.Attempt
 import Control.Arrow ((***))
 #endif
 

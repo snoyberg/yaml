@@ -15,6 +15,7 @@ module Data.Object.Yaml.Lib
     ) where
 
 import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString
 import Control.Monad
 import Foreign.C
 import Foreign.Ptr
@@ -163,7 +164,10 @@ getEvent er = do
             let ylen' = fromEnum ylen
             let ylen'' = toEnum $ fromEnum ylen
             bs <- B.create ylen' $ \dest -> B.memcpy dest yvalue' ylen''
-            tagbs <- B.create ytag_len'
+            tagbs <-
+                if ytag_len' == 0
+                    then return Data.ByteString.empty
+                    else B.create ytag_len'
                       $ \dest -> B.memcpy dest ytag' (toEnum ytag_len')
             let style = toEnum $ fromEnum ystyle
             return $ EventScalar bs (convertSuccess tagbs) style
