@@ -4,8 +4,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-{-# INCLUDE <yaml.h> #-}
-{-# INCLUDE <helper.h> #-}
 module Data.Object.Yaml.Lib
     ( withEmitter
     , emitEvents
@@ -29,7 +27,8 @@ import Data.Convertible.Text
 import Control.Applicative
 
 import Data.Object.Yaml.Internal
-import Control.Exception (throwIO)
+import Control.Exception (throwIO, Exception)
+import Data.Typeable (Typeable)
 
 data ParserStruct
 type Parser = Ptr ParserStruct
@@ -327,7 +326,7 @@ foreign import ccall unsafe "yaml_mapping_end_event_initialize"
 
 toEventRaw :: Event -> (EventRaw -> IO a) -> IO a
 toEventRaw e f = withEventRaw $ \er -> do
-    case e of
+    ret <- case e of
         EventStreamStart ->
             c_yaml_stream_start_event_initialize
                 er
@@ -380,7 +379,12 @@ toEventRaw e f = withEventRaw $ \er -> do
             c_yaml_mapping_end_event_initialize er
         EventAlias -> error "toEventRaw: EventAlias not supported"
         EventNone -> error "toEventRaw: EventNone not supported"
+    unless (ret == 1) $ failure $ ToEventRawException ret
     f er
+
+newtype ToEventRawException = ToEventRawException CInt
+    deriving (Show, Typeable)
+instance Exception ToEventRawException
 
 encode :: MonadFailure YamlException m
        => [Event]
