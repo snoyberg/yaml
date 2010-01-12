@@ -30,7 +30,7 @@ library
     build-depends:   base >= 4 && < 5,
                      bytestring >= 0.9.1.4 && < 0.10
     exposed-modules: Text.Libyaml
-    ghc-options:     -Wall
+    ghc-options:     -Wall -auto-all -caf-all
     c-sources:       c/helper.c,
                      c/api.c,
                      c/dumper.c,

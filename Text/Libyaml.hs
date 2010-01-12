@@ -33,7 +33,7 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
-import Control.Exception (throwIO, Exception)
+import Control.Exception (throwIO, Exception, SomeException)
 import Data.Typeable (Typeable)
 
 data Event =
@@ -103,7 +103,10 @@ data YamlException =
         , parserContext :: String
         , parserOffset :: Int
         }
-    | YamlEmitterException { emitterProblem :: String }
+    | YamlEmitterException
+        { emitterEvent :: Event
+        , emitterProblem :: String
+        }
     | YamlOutOfMemory
     | YamlInvalidEventStreamBeginning [Event]
     | YamlInvalidEventStreamEnd [Event]
@@ -111,6 +114,7 @@ data YamlException =
     | YamlNonScalarKey
     | YamlInvalidStartingEvent Event
     | YamlFileNotFound FilePath
+    | YamlOtherException SomeException
     deriving (Show, Typeable)
 instance Exception YamlException
 
@@ -374,13 +378,16 @@ withEmitterFile fp f = allocaBytes emitterSize $ \e -> do
         else do
             file <- withCString fp $ \fp' -> withCString "w" $ \w' ->
                         c_fopen fp' w'
-            if file == nullPtr
+            res' <-
+              if file == nullPtr
                 then return $ Left $ YamlFileNotFound fp
                 else do
                     c_yaml_emitter_set_output_file e file
                     res' <- f e
                     c_yaml_emitter_delete e
                     return res'
+            c_fclose file
+            return res'
 
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
@@ -400,7 +407,7 @@ emitEvents unfold src emitter = do
         if res == 0
             then do
                     problem <- makeString c_get_emitter_error emitter
-                    return $ Left $ YamlEmitterException problem
+                    return $ Left $ YamlEmitterException e problem
             else emitEvents unfold src' emitter
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
