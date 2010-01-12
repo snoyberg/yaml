@@ -73,7 +73,7 @@ caseEncodeDecodeFile = do
     eList' <- toIO $ decodeFile filePath fold id
     let eList = eList' []
     toIO $ encodeFile tmpPath unfold eList
-    eList2' <- toIO $ decodeFile tmpPath fold id
+    eList2' <- toIO $ decodeFile filePath fold id
     let eList2 = eList2' []
     map MyEvent eList @=? map MyEvent eList2
     where

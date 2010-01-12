@@ -361,6 +361,27 @@ withEmitter f = allocaBytes emitterSize $ \e -> do
             c_yaml_emitter_delete e
             return bs
 
+foreign import ccall unsafe "yaml_emitter_set_output_file"
+    c_yaml_emitter_set_output_file :: Emitter -> File -> IO ()
+
+withEmitterFile :: FilePath
+                -> (Emitter -> IO (Either YamlException ()))
+                -> IO (Either YamlException ())
+withEmitterFile fp f = allocaBytes emitterSize $ \e -> do
+    res <- c_yaml_emitter_initialize e
+    if res == 0
+        then return $ Left YamlOutOfMemory
+        else do
+            file <- withCString fp $ \fp' -> withCString "w" $ \w' ->
+                        c_fopen fp' w'
+            if file == nullPtr
+                then return $ Left $ YamlFileNotFound fp
+                else do
+                    c_yaml_emitter_set_output_file e file
+                    res' <- f e
+                    c_yaml_emitter_delete e
+                    return res'
+
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
 
@@ -501,13 +522,8 @@ encodeFile :: FilePath
            -> (a -> Maybe (Event, a))
            -> a
            -> IO (Either YamlException ())
-encodeFile filePath unfold src = do
-    res <- withEmitter $ emitEvents unfold src
-    case res of
-        Left e -> return $ Left e
-        Right bs -> do
-            Data.ByteString.writeFile filePath bs
-            return $ Right ()
+encodeFile filePath unfold src =
+    withEmitterFile filePath $ emitEvents unfold src
 
 decode :: B.ByteString
        -> (a -> Event -> Either a a)
