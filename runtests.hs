@@ -12,6 +12,7 @@ import Test.HUnit hiding (Test, path)
 main :: IO ()
 main = defaultMain
     [ testCase "count scalars" caseCountScalars
+    , testCase "largest string" caseLargestString
     ]
 
 caseCountScalars :: Assertion
@@ -27,3 +28,20 @@ caseCountScalars = do
         fold res EventNone = Left res
         fold res _ = Right res
         accum = (0, 0, 0) :: (Int, Int, Int)
+
+caseLargestString :: Assertion
+caseLargestString = do
+    Right res <- decodeFile filePath fold accum
+    res @?= (length expected, expected)
+    where
+        expected = "this one is just a little bit bigger than the others"
+        filePath = "test/largest-string.yaml"
+        fold (i, s) (EventScalar bs _ _) =
+            let s' = B8.unpack bs
+                i' = length s'
+             in if i' > i
+                    then Right (i', s')
+                    else Right (i, s)
+        fold res EventNone = Left res
+        fold res _ = Right res
+        accum = (0, "no strings found")

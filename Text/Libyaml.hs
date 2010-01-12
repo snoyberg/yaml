@@ -20,8 +20,7 @@ module Text.Libyaml
     , encode
     , decode
     -- FIXME , encodeFile
-    -- FIXME , decodeFile
-    , withFileParser
+    , decodeFile
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -157,7 +156,9 @@ foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
 
-withFileParser :: FilePath -> (Parser -> IO a) -> IO a
+withFileParser :: FilePath
+               -> (Parser -> IO (Either YamlException a))
+               -> IO (Either YamlException a)
 withFileParser fp f = allocaBytes parserSize $ \p ->
       do
         res <- c_yaml_parser_initialize p
@@ -519,9 +520,8 @@ decode :: B.ByteString
        -> IO (Either YamlException a)
 decode bs fold accum = withParser bs $ parserParse fold accum
 
-{- FIXME
-decodeFile :: MonadFailure YamlException m
-           => FilePath
-           -> IO (m [Event])
-decodeFile fp = withFileParser fp parserParse
--}
+decodeFile :: FilePath
+           -> (a -> Event -> Either a a)
+           -> a
+           -> IO (Either YamlException a)
+decodeFile fp fold accum = withFileParser fp $ parserParse fold accum
