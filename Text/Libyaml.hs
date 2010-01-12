@@ -19,8 +19,9 @@ module Text.Libyaml
       -- * Higher level functions
     , encode
     , decode
-    -- FIXME encodeFile
-    , decodeFile
+    -- FIXME , encodeFile
+    -- FIXME , decodeFile
+    , withFileParser
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -33,10 +34,8 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 
-import Data.Attempt -- exports failure
-
-import Data.Convertible.Text
 import Control.Applicative
+import Control.Failure
 
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
@@ -172,11 +171,14 @@ withFileParser fp f = allocaBytes parserSize $ \p ->
         c_yaml_parser_delete p
         return ret
 
-withParser :: B.ByteString -> (Parser -> IO a) -> IO a
-withParser bs f = allocaBytes parserSize $ \p ->
-      do
-        res <- c_yaml_parser_initialize p
-        when (res == 0) $ throwIO YamlOutOfMemory
+withParser :: B.ByteString
+           -> (Parser -> IO (Either YamlException a))
+           -> IO (Either YamlException a)
+withParser bs f = allocaBytes parserSize $ \p -> do
+  res <- c_yaml_parser_initialize p
+  if res == 0
+      then return (Left YamlOutOfMemory)
+      else do
         let (fptr, offset, len) = B.toForeignPtr bs
         ret <- withForeignPtr fptr $ \ptr ->
                 do
@@ -184,7 +186,7 @@ withParser bs f = allocaBytes parserSize $ \p ->
                         len' = fromIntegral len
                     c_yaml_parser_set_input_string p ptr' len'
                     f p
-        c_yaml_parser_delete p
+        c_yaml_parser_delete p -- FIXME use finally
         return ret
 
 withEventRaw :: (EventRaw -> IO a) -> IO a
@@ -208,9 +210,7 @@ foreign import ccall unsafe "get_parser_error_offset"
 makeString :: (a -> IO (Ptr CUChar)) -> a -> IO String
 makeString f a = do
     cchar <- castPtr `fmap` f a
-    len <- fromIntegral `fmap` B.c_strlen cchar
-    bs <- B.create len $ \dest -> B.memcpy dest (castPtr cchar) (fromIntegral len)
-    return $ convertSuccess bs
+    peekCString cchar
 
 parserParseOne :: MonadFailure YamlException m
                => Parser
@@ -308,21 +308,18 @@ instance Monad YAttempt where
 instance Failure YamlException YAttempt where
     failure = YFailure
 
-parserParse :: MonadFailure YamlException m
-            => Parser
-            -> IO (m [Event])
-parserParse parser = do
+parserParse :: (a -> Event -> Either a a)
+            -> a
+            -> Parser
+            -> IO (Either YamlException a)
+parserParse fold accum parser = do
     event' <- parserParseOne parser
     case event' of
-        YFailure e -> return $ failure e
-        YSuccess event ->
-            case event of
-                EventStreamEnd -> return $ return [event]
-                _ -> do
-                    rest <- parserParse parser
-                    case rest of
-                        YFailure e -> return $ failure e
-                        YSuccess rest' -> return $ return $ event : rest'
+        YFailure e -> return $ Left e
+        YSuccess event -> do
+            case fold accum event of
+                Left accum' -> return $ Right accum'
+                Right accum' -> parserParse fold accum' parser
 
 -- Emitter
 
@@ -514,12 +511,17 @@ encode :: MonadFailure YamlException m
        -> IO (m B.ByteString)
 encode = withEmitter . flip emitEvents
 
-decode :: MonadFailure YamlException m
-       => B.ByteString
-       -> IO (m [Event])
-decode bs = withParser bs parserParse
+-- FIXME encodeFile
 
+decode :: B.ByteString
+       -> (a -> Event -> Either a a)
+       -> a
+       -> IO (Either YamlException a)
+decode bs fold accum = withParser bs $ parserParse fold accum
+
+{- FIXME
 decodeFile :: MonadFailure YamlException m
            => FilePath
            -> IO (m [Event])
 decodeFile fp = withFileParser fp parserParse
+-}

@@ -28,11 +28,8 @@ library
     else
         Buildable: True
     build-depends:   base >= 4 && < 5,
-                     data-object >= 0.2.0 && < 0.3,
                      bytestring >= 0.9.1.4 && < 0.10,
-                     text >= 0.5 && < 0.6,
-                     convertible-text >= 0.2.0 && < 0.3,
-                     attempt >= 0.2.0 && < 0.3
+                     failure >= 0.0.0 && < 0.1
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall
     c-sources:       c/helper.c,
