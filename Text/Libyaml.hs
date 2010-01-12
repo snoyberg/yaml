@@ -4,19 +4,29 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Data.Object.Yaml.Lib
-    ( withEmitter
+module Text.Libyaml
+    ( -- * The event stream
+      Event (..)
+    , Style (..)
+    , Tag (..)
+      -- * Exceptions
+    , YamlException (..)
+      -- * Low level
+    , withEmitter
     , emitEvents
     , withParser
     , parserParse
       -- * Higher level functions
     , encode
     , decode
+    -- FIXME encodeFile
     , decodeFile
     ) where
 
 import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString
+import Data.ByteString (ByteString)
 import Control.Monad
 import Foreign.C
 import Foreign.Ptr
@@ -28,9 +38,86 @@ import Data.Attempt -- exports failure
 import Data.Convertible.Text
 import Control.Applicative
 
-import Data.Object.Yaml.Internal
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
+
+data Event =
+    EventNone
+    | EventStreamStart
+    | EventStreamEnd
+    | EventDocumentStart
+    | EventDocumentEnd
+    | EventAlias
+    | EventScalar !ByteString !Tag !Style
+    | EventSequenceStart
+    | EventSequenceEnd
+    | EventMappingStart
+    | EventMappingEnd
+    deriving (Show, Eq)
+
+data Style = Any
+           | Plain
+           | SingleQuoted
+           | DoubleQuoted
+           | Literal
+           | Folded
+    deriving (Show, Eq, Enum, Bounded, Ord)
+
+data Tag = StrTag
+         | FloatTag
+         | NullTag
+         | BoolTag
+         | SetTag
+         | IntTag
+         | SeqTag
+         | MapTag
+         | UriTag String
+         | NoTag
+    deriving (Show, Eq)
+
+tagToString :: Tag -> String
+tagToString StrTag = "tag:yaml.org,2002:str"
+tagToString FloatTag = "tag:yaml.org,2002:float"
+tagToString NullTag = "tag:yaml.org,2002:null"
+tagToString BoolTag = "tag:yaml.org,2002:bool"
+tagToString SetTag = "tag:yaml.org,2002:set"
+tagToString IntTag = "tag:yaml.org,2002:int"
+tagToString SeqTag = "tag:yaml.org,2002:seq"
+tagToString MapTag = "tag:yaml.org,2002:map"
+tagToString (UriTag s) = s
+tagToString NoTag = ""
+
+bsToTag :: ByteString -> Tag
+bsToTag = stringToTag . B8.unpack
+
+stringToTag :: String -> Tag
+stringToTag "tag:yaml.org,2002:str" = StrTag
+stringToTag "tag:yaml.org,2002:float" = FloatTag
+stringToTag "tag:yaml.org,2002:null" = NullTag
+stringToTag "tag:yaml.org,2002:bool" = BoolTag
+stringToTag "tag:yaml.org,2002:set" = SetTag
+stringToTag "tag:yaml.org,2002:int" = IntTag
+stringToTag "tag:yaml.org,2002:seq" = SeqTag
+stringToTag "tag:yaml.org,2002:map" = MapTag
+stringToTag "" = NoTag
+stringToTag s = UriTag s
+
+data YamlException =
+    YamlParserException
+        { parserProblem :: String
+        , parserContext :: String
+        , parserOffset :: Int
+        }
+    | YamlEmitterException { emitterProblem :: String }
+    | YamlOutOfMemory
+    | YamlInvalidEventStreamBeginning [Event]
+    | YamlInvalidEventStreamEnd [Event]
+    | YamlPrematureEventStreamEnd
+    | YamlNonScalarKey
+    | YamlInvalidStartingEvent Event
+    | YamlFileNotFound FilePath
+    deriving (Show, Typeable)
+instance Exception YamlException
 
 data ParserStruct
 type Parser = Ptr ParserStruct
@@ -202,7 +289,7 @@ getEvent er = do
                     else B.create ytag_len'
                       $ \dest -> B.memcpy dest ytag' (toEnum ytag_len')
             let style = toEnum $ fromEnum ystyle
-            return $ EventScalar bs (convertSuccess tagbs) style
+            return $ EventScalar bs (bsToTag tagbs) style
         YamlSequenceStartEvent -> return EventSequenceStart
         YamlSequenceEndEvent -> return EventSequenceEnd
         YamlMappingStartEvent -> return EventMappingStart
@@ -381,7 +468,7 @@ toEventRaw e f = withEventRaw $ \er -> do
                     value'' = if ptrToIntPtr value' == 0
                                 then intPtrToPtr 1 -- c/api.c:827
                                 else value'
-                let thetag' = convertSuccess thetag
+                let thetag' = tagToString thetag
                 withCString thetag' $ \tag' -> do
                     let style' = toEnum $ fromEnum style
                         tagP = castPtr tag'
