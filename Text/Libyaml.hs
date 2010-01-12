@@ -19,7 +19,7 @@ module Text.Libyaml
       -- * Higher level functions
     , encode
     , decode
-    -- FIXME , encodeFile
+    , encodeFile
     , decodeFile
     ) where
 
@@ -32,9 +32,6 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
-
-import Control.Applicative
-import Control.Failure
 
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
@@ -213,9 +210,8 @@ makeString f a = do
     cchar <- castPtr `fmap` f a
     peekCString cchar
 
-parserParseOne :: MonadFailure YamlException m
-               => Parser
-               -> IO (m Event)
+parserParseOne :: Parser
+               -> IO (Either YamlException Event)
 parserParseOne parser = withEventRaw $ \er -> do
     res <- c_yaml_parser_parse parser er
     event <-
@@ -225,9 +221,9 @@ parserParseOne parser = withEventRaw $ \er -> do
                     context <- makeString c_get_parser_error_context parser
                     offset <- fromIntegral `fmap`
                                 c_get_parser_error_offset parser
-                    return $ failure $
+                    return $ Left $
                         YamlParserException problem context offset
-            else return `fmap` getEvent er
+            else Right `fmap` getEvent er
     c_yaml_event_delete er
     return event
 
@@ -296,19 +292,6 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-data YAttempt v = YSuccess v | YFailure YamlException
-instance Functor YAttempt where
-    fmap = liftM
-instance Applicative YAttempt where
-    pure = return
-    (<*>) = ap
-instance Monad YAttempt where
-    return = YSuccess
-    YSuccess v >>= f = f v
-    YFailure e >>= _ = YFailure e
-instance Failure YamlException YAttempt where
-    failure = YFailure
-
 parserParse :: (a -> Event -> Either a a)
             -> a
             -> Parser
@@ -316,8 +299,8 @@ parserParse :: (a -> Event -> Either a a)
 parserParse fold accum parser = do
     event' <- parserParseOne parser
     case event' of
-        YFailure e -> return $ Left e
-        YSuccess event -> do
+        Left e -> return $ Left e
+        Right event -> do
             case fold accum event of
                 Left accum' -> return $ Right accum'
                 Right accum' -> parserParse fold accum' parser
@@ -349,34 +332,34 @@ foreign import ccall unsafe "get_buffer_buff"
 foreign import ccall unsafe "get_buffer_used"
     c_get_buffer_used :: Buffer -> IO CULong
 
-withBuffer :: MonadFailure YamlException m
-           => (Buffer -> IO (YAttempt ()))
-           -> IO (m B.ByteString)
+withBuffer :: (Buffer -> IO (Either YamlException ()))
+           -> IO (Either YamlException B.ByteString)
 withBuffer f = allocaBytes bufferSize $ \b -> do
         c_buffer_init b
         aRes <- f b
         case aRes of
-            YFailure e -> return $ failure e
-            YSuccess () -> do
+            Left e -> return $ Left e
+            Right () -> do
                 ptr' <- c_get_buffer_buff b
                 len <- c_get_buffer_used b
                 fptr <- newForeignPtr_ $ castPtr ptr'
-                return $ return $ B.fromForeignPtr fptr 0 $ fromIntegral len
+                return $ Right $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
 foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
-withEmitter :: MonadFailure YamlException m
-            => (Emitter -> IO (YAttempt ()))
-            -> IO (m B.ByteString)
+withEmitter :: (Emitter -> IO (Either YamlException ()))
+            -> IO (Either YamlException B.ByteString)
 withEmitter f = allocaBytes emitterSize $ \e -> do
-        res <- c_yaml_emitter_initialize e
-        when (res == 0) $ throwIO YamlOutOfMemory
-        bs <- withBuffer $ \b -> do
-                c_my_emitter_set_output e b
-                f e
-        c_yaml_emitter_delete e
-        return bs
+    res <- c_yaml_emitter_initialize e
+    if res == 0
+        then return $ Left YamlOutOfMemory
+        else do
+            bs <- withBuffer $ \b -> do
+                    c_my_emitter_set_output e b
+                    f e
+            c_yaml_emitter_delete e
+            return bs
 
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
@@ -384,18 +367,20 @@ foreign import ccall unsafe "yaml_emitter_emit"
 foreign import ccall unsafe "get_emitter_error"
     c_get_emitter_error :: Emitter -> IO (Ptr CUChar)
 
-emitEvents :: MonadFailure YamlException m
-           => Emitter
-           -> [Event]
-           -> IO (m ())
-emitEvents _ [] = return $ return ()
-emitEvents emitter (e:rest) = do
-    res <- toEventRaw e $ c_yaml_emitter_emit emitter
-    if res == 0
-        then do
-                problem <- makeString c_get_emitter_error emitter
-                return $ failure $ YamlEmitterException problem
-        else emitEvents emitter rest
+emitEvents :: (a -> Maybe (Event, a))
+           -> a
+           -> Emitter
+           -> IO (Either YamlException ())
+emitEvents unfold src emitter = do
+    case unfold src of
+      Nothing -> return $ Right ()
+      Just (e, src') -> do
+        res <- toEventRaw e $ c_yaml_emitter_emit emitter
+        if res == 0
+            then do
+                    problem <- makeString c_get_emitter_error emitter
+                    return $ Left $ YamlEmitterException problem
+            else emitEvents unfold src' emitter
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
     c_yaml_stream_start_event_initialize :: EventRaw -> CInt -> IO CInt
@@ -500,19 +485,29 @@ toEventRaw e f = withEventRaw $ \er -> do
             c_yaml_mapping_end_event_initialize er
         EventAlias -> error "toEventRaw: EventAlias not supported"
         EventNone -> error "toEventRaw: EventNone not supported"
-    unless (ret == 1) $ failure $ ToEventRawException ret
+    unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-encode :: MonadFailure YamlException m
-       => [Event]
-       -> IO (m B.ByteString)
-encode = withEmitter . flip emitEvents
+encode :: (a -> Maybe (Event, a))
+       -> a
+       -> IO (Either YamlException B.ByteString)
+encode unfold src = withEmitter $ emitEvents unfold src
 
--- FIXME encodeFile
+encodeFile :: FilePath
+           -> (a -> Maybe (Event, a))
+           -> a
+           -> IO (Either YamlException ())
+encodeFile filePath unfold src = do
+    res <- withEmitter $ emitEvents unfold src
+    case res of
+        Left e -> return $ Left e
+        Right bs -> do
+            Data.ByteString.writeFile filePath bs
+            return $ Right ()
 
 decode :: B.ByteString
        -> (a -> Event -> Either a a)

@@ -2,6 +2,7 @@ import Test.Framework (defaultMain)
 
 import Text.Libyaml
 import qualified Data.ByteString.Char8 as B8
+import Control.Exception
 
 --import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
@@ -13,6 +14,8 @@ main :: IO ()
 main = defaultMain
     [ testCase "count scalars" caseCountScalars
     , testCase "largest string" caseLargestString
+    , testCase "encode/decode" caseEncodeDecode
+    , testCase "encode/decode file" caseEncodeDecodeFile
     ]
 
 caseCountScalars :: Assertion
@@ -45,3 +48,44 @@ caseLargestString = do
         fold res EventNone = Left res
         fold res _ = Right res
         accum = (0, "no strings found")
+
+toIO :: Exception l => IO (Either l r) -> IO r
+toIO x = x >>= either throwIO return
+
+caseEncodeDecode :: Assertion
+caseEncodeDecode = do
+    eList' <- toIO $ decode yamlBS fold id
+    let eList = eList' []
+    bs <- toIO $ encode unfold eList
+    eList2' <- toIO $ decode bs fold id
+    let eList2 = eList2' []
+    map MyEvent eList @=? map MyEvent eList2
+    where
+        yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
+        yamlBS = B8.pack yamlString
+        fold x EventNone = Left x
+        fold x e = Right $ x . (:) e
+        unfold (x:xs) = Just (x, xs)
+        unfold [] = Nothing
+
+caseEncodeDecodeFile :: Assertion
+caseEncodeDecodeFile = do
+    eList' <- toIO $ decodeFile filePath fold id
+    let eList = eList' []
+    toIO $ encodeFile tmpPath unfold eList
+    eList2' <- toIO $ decodeFile tmpPath fold id
+    let eList2 = eList2' []
+    map MyEvent eList @=? map MyEvent eList2
+    where
+        filePath = "test/largest-string.yaml"
+        tmpPath = "tmp.yaml"
+        fold x EventNone = Left x
+        fold x e = Right $ x . (:) e
+        unfold (x:xs) = Just (x, xs)
+        unfold [] = Nothing
+
+newtype MyEvent = MyEvent Event deriving Show
+instance Eq MyEvent where
+    (MyEvent (EventScalar s t _)) == (MyEvent (EventScalar s' t' _)) =
+        s == s' && t == t'
+    MyEvent e1 == MyEvent e2 = e1 == e2

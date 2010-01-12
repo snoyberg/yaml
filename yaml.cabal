@@ -28,8 +28,7 @@ library
     else
         Buildable: True
     build-depends:   base >= 4 && < 5,
-                     bytestring >= 0.9.1.4 && < 0.10,
-                     failure >= 0.0.0 && < 0.1
+                     bytestring >= 0.9.1.4 && < 0.10
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall
     c-sources:       c/helper.c,
@@ -53,8 +52,7 @@ executable           runtests
                          HUnit,
                          QuickCheck >= 1 && < 2,
                          base >= 4 && < 5,
-                         bytestring >= 0.9.1.4 && < 0.10,
-                         failure >= 0.0.0 && < 0.1
+                         bytestring >= 0.9.1.4 && < 0.10
     else
         Buildable: False
     ghc-options:     -Wall
