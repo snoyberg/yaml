@@ -2,7 +2,6 @@ import Test.Framework (defaultMain)
 
 import Text.Libyaml
 import qualified Data.ByteString.Char8 as B8
-import Control.Exception
 
 --import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
@@ -20,7 +19,7 @@ main = defaultMain
 
 caseCountScalars :: Assertion
 caseCountScalars = do
-    Right res <- decode yamlBS fold accum
+    res <- decode yamlBS fold accum
     res @?= (7, 1, 2)
     where
         yamlString = "foo:\n  baz: [bin1, bin2, bin3]\nbaz: bazval"
@@ -34,7 +33,7 @@ caseCountScalars = do
 
 caseLargestString :: Assertion
 caseLargestString = do
-    Right res <- decodeFile filePath fold accum
+    res <- decodeFile filePath fold accum
     res @?= (length expected, expected)
     where
         expected = "this one is just a little bit bigger than the others"
@@ -49,15 +48,12 @@ caseLargestString = do
         fold res _ = return $ More res
         accum = (0, "no strings found")
 
-toIO :: Exception l => IO (Either l r) -> IO r
-toIO x = x >>= either throwIO return
-
 caseEncodeDecode :: Assertion
 caseEncodeDecode = do
-    eList' <- toIO $ decode yamlBS fold id
+    eList' <- decode yamlBS fold id
     let eList = eList' []
-    bs <- toIO $ encode unfold eList
-    eList2' <- toIO $ decode bs fold id
+    bs <- encode unfold eList
+    eList2' <- decode bs fold id
     let eList2 = eList2' []
     map MyEvent eList @=? map MyEvent eList2
     where
@@ -70,10 +66,10 @@ caseEncodeDecode = do
 
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = do
-    eList' <- toIO $ decodeFile filePath fold id
+    eList' <- decodeFile filePath fold id
     let eList = eList' []
-    toIO $ encodeFile tmpPath unfold eList
-    eList2' <- toIO $ decodeFile filePath fold id
+    encodeFile tmpPath unfold eList
+    eList2' <- decodeFile filePath fold id
     let eList2 = eList2' []
     map MyEvent eList @=? map MyEvent eList2
     where

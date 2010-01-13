@@ -3,6 +3,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Text.Libyaml
     ( -- * The event stream
@@ -11,13 +13,9 @@ module Text.Libyaml
     , Tag (..)
       -- * Exceptions
     , YamlException (..)
-      -- * Low level
-    , withEmitter
-    , emitEvents
-    , withParser
-    , parserParse
       -- * Enumerator
     , EnumResult (..)
+    , RMonadIO (..)
       -- * Higher level functions
     , encode
     , decode
@@ -34,6 +32,8 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+import "transformers" Control.Monad.Trans
+import Control.Failure
 
 import Control.Exception (throwIO, Exception, SomeException)
 import Data.Typeable (Typeable)
@@ -159,42 +159,59 @@ foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
 
-withFileParser :: FilePath
-               -> (Parser -> IO (Either YamlException a))
-               -> IO (Either YamlException a)
-withFileParser fp f = allocaBytes parserSize $ \p ->
-      do
-        res <- c_yaml_parser_initialize p
-        when (res == 0) $ throwIO YamlOutOfMemory
-        file <- withCString fp $ \fp' -> withCString "r" $ \r' ->
-                    c_fopen fp' r'
-        when (file == nullPtr) $ throwIO $ YamlFileNotFound fp
-        c_yaml_parser_set_input_file p file
-        ret <- f p
-        c_fclose file
-        c_yaml_parser_delete p
-        return ret
+class MonadIO m => RMonadIO m where
+    type Inside :: * -> *
+    ioOut :: m v -> IO (Inside v)
+    ioIn :: IO (Inside v) -> m v
+newtype SimpleIdent x = SimpleIdent { unSimpleIdent :: x }
+instance RMonadIO IO where
+    type Inside = SimpleIdent
+    ioOut = fmap SimpleIdent
+    ioIn = fmap unSimpleIdent
 
-withParser :: B.ByteString
-           -> (Parser -> IO (Either YamlException a))
-           -> IO (Either YamlException a)
-withParser bs f = allocaBytes parserSize $ \p -> do
-  res <- c_yaml_parser_initialize p
-  if res == 0
-      then return (Left YamlOutOfMemory)
-      else do
-        let (fptr, offset, len) = B.toForeignPtr bs
-        ret <- withForeignPtr fptr $ \ptr ->
-                do
-                    let ptr' = castPtr ptr `plusPtr` offset
-                        len' = fromIntegral len
-                    c_yaml_parser_set_input_string p ptr' len'
-                    f p
-        c_yaml_parser_delete p -- FIXME use finally
-        return ret
+allocaBytesR :: RMonadIO m => Int -> (Ptr a -> m b) -> m b
+allocaBytesR i f = ioIn $ allocaBytes i $ ioOut . f
 
-withEventRaw :: (EventRaw -> IO a) -> IO a
-withEventRaw = allocaBytes eventSize
+withCStringR :: RMonadIO m => String -> (Ptr CChar -> m a) -> m a
+withCStringR s f = ioIn $ withCString s $ ioOut . f
+
+withFileParser :: (MonadFailure YamlException m, RMonadIO m)
+               => FilePath
+               -> (Parser -> m a)
+               -> m a
+withFileParser fp f = allocaBytesR parserSize $ \p -> do
+    res <- liftIO $ c_yaml_parser_initialize p
+    when (res == 0) $ failure YamlOutOfMemory
+    file <- withCStringR fp $ \fp' -> withCStringR "r" $ \r' ->
+                    liftIO (c_fopen fp' r')
+    when (file == nullPtr) $ failure $ YamlFileNotFound fp
+    liftIO $ c_yaml_parser_set_input_file p file
+    ret <- f p
+    liftIO $ c_fclose file
+    liftIO $ c_yaml_parser_delete p -- could use some finallys here
+    return ret
+
+withParser :: (MonadFailure YamlException m, RMonadIO m)
+           => B.ByteString
+           -> (Parser -> m a)
+           -> m a
+withParser bs f = allocaBytesR parserSize $ \p -> do
+    res <- liftIO $ c_yaml_parser_initialize p
+    when (res == 0) $ failure YamlOutOfMemory
+    let (fptr, offset, len) = B.toForeignPtr bs
+    ret <- withForeignPtrR fptr $ \ptr -> do
+             let ptr' = castPtr ptr `plusPtr` offset
+                 len' = fromIntegral len
+             liftIO $ c_yaml_parser_set_input_string p ptr' len'
+             f p
+    liftIO $ c_yaml_parser_delete p -- FIXME use finally
+    return ret
+
+withForeignPtrR :: RMonadIO m
+                => ForeignPtr a
+                -> (Ptr a -> m b)
+                -> m b
+withForeignPtrR fp f = ioIn $ withForeignPtr fp $ ioOut . f
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -211,26 +228,26 @@ foreign import ccall "get_parser_error_context"
 foreign import ccall unsafe "get_parser_error_offset"
     c_get_parser_error_offset :: Parser -> IO CULong
 
-makeString :: (a -> IO (Ptr CUChar)) -> a -> IO String
+makeString :: MonadIO m => (a -> m (Ptr CUChar)) -> a -> m String
 makeString f a = do
-    cchar <- castPtr `fmap` f a
-    peekCString cchar
+    cchar <- castPtr `liftM` f a
+    liftIO $ peekCString cchar
 
-parserParseOne :: Parser
-               -> IO (Either YamlException Event)
-parserParseOne parser = withEventRaw $ \er -> do
-    res <- c_yaml_parser_parse parser er
+parserParseOne :: (MonadFailure YamlException m, RMonadIO m)
+               => Parser
+               -> m Event
+parserParseOne parser = allocaBytesR eventSize $ \er -> do
+    res <- liftIO $ c_yaml_parser_parse parser er
     event <-
-        if res == 0
-            then do
-                    problem <- makeString c_get_parser_error_problem parser
-                    context <- makeString c_get_parser_error_context parser
-                    offset <- fromIntegral `fmap`
+      if res == 0
+        then do
+          problem <- liftIO $ makeString c_get_parser_error_problem parser
+          context <- liftIO $ makeString c_get_parser_error_context parser
+          offset <- liftIO $ fromIntegral `fmap`
                                 c_get_parser_error_offset parser
-                    return $ Left $
-                        YamlParserException problem context offset
-            else Right `fmap` getEvent er
-    c_yaml_event_delete er
+          failure $ YamlParserException problem context offset
+        else liftIO $ getEvent er
+    liftIO $ c_yaml_event_delete er -- FIXME use finally
     return event
 
 data EventType = YamlNoEvent
@@ -298,19 +315,17 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-parserParse :: (a -> Event -> IO (EnumResult a b))
+parserParse :: (MonadFailure YamlException m, RMonadIO m)
+            => (a -> Event -> m (EnumResult a b))
             -> a
             -> Parser
-            -> IO (Either YamlException b)
+            -> m b
 parserParse fold accum parser = do
-    event' <- parserParseOne parser
-    case event' of
-        Left e -> return $ Left e
-        Right event -> do
-            res <- fold accum event
-            case res of
-                Done accum' -> return $ Right accum'
-                More accum' -> parserParse fold accum' parser
+    event <- liftIO $ parserParseOne parser
+    res <- fold accum event
+    case res of
+        Done accum' -> return accum'
+        More accum' -> parserParse fold accum' parser
 
 -- Emitter
 
@@ -339,58 +354,54 @@ foreign import ccall unsafe "get_buffer_buff"
 foreign import ccall unsafe "get_buffer_used"
     c_get_buffer_used :: Buffer -> IO CULong
 
-withBuffer :: (Buffer -> IO (Either YamlException ()))
-           -> IO (Either YamlException B.ByteString)
-withBuffer f = allocaBytes bufferSize $ \b -> do
-        c_buffer_init b
-        aRes <- f b
-        case aRes of
-            Left e -> return $ Left e
-            Right () -> do
-                ptr' <- c_get_buffer_buff b
-                len <- c_get_buffer_used b
-                fptr <- newForeignPtr_ $ castPtr ptr'
-                return $ Right $ B.fromForeignPtr fptr 0 $ fromIntegral len
+withBufferR :: (RMonadIO m, MonadFailure YamlException m)
+            => (Buffer -> m ())
+            -> m B.ByteString
+withBufferR f = allocaBytesR bufferSize $ \b -> do
+    liftIO $ c_buffer_init b
+    aRes <- f b
+    ptr' <- liftIO $ c_get_buffer_buff b
+    len <- liftIO $ c_get_buffer_used b
+    fptr <- liftIO $ newForeignPtr_ $ castPtr ptr'
+    return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
 foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
-withEmitter :: (Emitter -> IO (Either YamlException ()))
-            -> IO (Either YamlException B.ByteString)
-withEmitter f = allocaBytes emitterSize $ \e -> do
-    res <- c_yaml_emitter_initialize e
-    if res == 0
-        then return $ Left YamlOutOfMemory
-        else do
-            bs <- withBuffer $ \b -> do
-                    c_my_emitter_set_output e b
-                    f e
-            c_yaml_emitter_delete e
-            return bs
+withEmitter :: (RMonadIO m, MonadFailure YamlException m)
+            => (Emitter -> m ())
+            -> m B.ByteString
+withEmitter f = allocaBytesR emitterSize $ \e -> do
+    res <- liftIO $ c_yaml_emitter_initialize e
+    when (res == 0) $ failure YamlOutOfMemory
+    bs <- withBufferR $ \b -> do
+            liftIO $ c_my_emitter_set_output e b
+            f e
+    liftIO $ c_yaml_emitter_delete e -- FIXME finally
+    return bs
 
 foreign import ccall unsafe "yaml_emitter_set_output_file"
     c_yaml_emitter_set_output_file :: Emitter -> File -> IO ()
 
-withEmitterFile :: FilePath
-                -> (Emitter -> IO (Either YamlException ()))
-                -> IO (Either YamlException ())
-withEmitterFile fp f = allocaBytes emitterSize $ \e -> do
-    res <- c_yaml_emitter_initialize e
-    if res == 0
-        then return $ Left YamlOutOfMemory
-        else do
-            file <- withCString fp $ \fp' -> withCString "w" $ \w' ->
-                        c_fopen fp' w'
-            res' <-
-              if file == nullPtr
-                then return $ Left $ YamlFileNotFound fp
-                else do
-                    c_yaml_emitter_set_output_file e file
-                    res' <- f e
-                    c_yaml_emitter_delete e
-                    return res'
-            c_fclose file
-            return res'
+withEmitterFile :: (RMonadIO m, MonadFailure YamlException m)
+                => FilePath
+                -> (Emitter -> m ())
+                -> m ()
+withEmitterFile fp f = allocaBytesR emitterSize $ \e -> do
+    res <- liftIO $ c_yaml_emitter_initialize e
+    when (res == 0) $ failure YamlOutOfMemory
+    file <- withCStringR fp $ \fp' -> withCStringR "w" $ \w' ->
+                        liftIO (c_fopen fp' w')
+    res' <-
+        if file == nullPtr
+            then failure $ YamlFileNotFound fp
+            else do
+                liftIO $ c_yaml_emitter_set_output_file e file
+                res' <- f e
+                liftIO $ c_yaml_emitter_delete e
+                return res'
+    liftIO $ c_fclose file -- FIXME use finally
+    return res'
 
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
@@ -398,20 +409,19 @@ foreign import ccall unsafe "yaml_emitter_emit"
 foreign import ccall unsafe "get_emitter_error"
     c_get_emitter_error :: Emitter -> IO (Ptr CUChar)
 
-emitEvents :: (a -> Maybe (Event, a))
+emitEvents :: (MonadFailure YamlException m, RMonadIO m)
+           => (a -> Maybe (Event, a))
            -> a
            -> Emitter
-           -> IO (Either YamlException ())
-emitEvents unfold src emitter = do
-    case unfold src of
-      Nothing -> return $ Right ()
-      Just (e, src') -> do
-        res <- toEventRaw e $ c_yaml_emitter_emit emitter
-        if res == 0
-            then do
-                    problem <- makeString c_get_emitter_error emitter
-                    return $ Left $ YamlEmitterException e problem
-            else emitEvents unfold src' emitter
+           -> m ()
+emitEvents unfold src emitter = case unfold src of
+    Nothing -> return ()
+    Just (e, src') -> do
+        res <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
+        when (res == 0) $ do
+            problem <- liftIO $ makeString c_get_emitter_error emitter
+            failure $ YamlEmitterException e problem
+        emitEvents unfold src' emitter
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
     c_yaml_stream_start_event_initialize :: EventRaw -> CInt -> IO CInt
@@ -462,7 +472,7 @@ foreign import ccall unsafe "yaml_mapping_end_event_initialize"
     c_yaml_mapping_end_event_initialize :: EventRaw -> IO CInt
 
 toEventRaw :: Event -> (EventRaw -> IO a) -> IO a
-toEventRaw e f = withEventRaw $ \er -> do
+toEventRaw e f = allocaBytesR eventSize $ \er -> do
     ret <- case e of
         EventStreamStart ->
             c_yaml_stream_start_event_initialize
@@ -526,26 +536,30 @@ instance Exception ToEventRawException
 data EnumResult a b = More a | Done b
     deriving (Eq, Show)
 
-encode :: (a -> Maybe (Event, a))
+encode :: (RMonadIO m, MonadFailure YamlException m)
+       => (a -> Maybe (Event, a))
        -> a
-       -> IO (Either YamlException B.ByteString)
+       -> m B.ByteString
 encode unfold src = withEmitter $ emitEvents unfold src
 
-encodeFile :: FilePath
+encodeFile :: (RMonadIO m, MonadFailure YamlException m)
+           => FilePath
            -> (a -> Maybe (Event, a))
            -> a
-           -> IO (Either YamlException ())
+           -> m ()
 encodeFile filePath unfold src =
     withEmitterFile filePath $ emitEvents unfold src
 
-decode :: B.ByteString
-       -> (a -> Event -> IO (EnumResult a b))
+decode :: (RMonadIO m, MonadFailure YamlException m)
+       => B.ByteString
+       -> (a -> Event -> m (EnumResult a b))
        -> a
-       -> IO (Either YamlException b)
+       -> m b
 decode bs fold accum = withParser bs $ parserParse fold accum
 
-decodeFile :: FilePath
-           -> (a -> Event -> IO (EnumResult a b))
+decodeFile :: (RMonadIO m, MonadFailure YamlException m)
+           => FilePath
+           -> (a -> Event -> m (EnumResult a b))
            -> a
-           -> IO (Either YamlException b)
+           -> m b
 decodeFile fp fold accum = withFileParser fp $ parserParse fold accum
