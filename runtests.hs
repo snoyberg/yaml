@@ -2,6 +2,7 @@ import Test.Framework (defaultMain)
 
 import Text.Libyaml
 import qualified Data.ByteString.Char8 as B8
+import Control.Monad.Trans
 
 --import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
@@ -16,6 +17,7 @@ main = defaultMain
     , testCase "encode/decode" caseEncodeDecode
     , testCase "encode/decode file" caseEncodeDecodeFile
     , testCase "interleaved encode/decode" caseInterleave
+    , testCase "interleaved encode/decode monadic" caseInterleaveMonad
     ]
 
 caseCountScalars :: Assertion
@@ -96,3 +98,21 @@ caseInterleave = do
         tmpPath2 = "tmp2.yaml"
         emitEvent' () EventNone = return $ Done ()
         emitEvent' () e = emitEvent e >> return (More ())
+
+caseInterleaveMonad :: Assertion
+caseInterleaveMonad = do
+    decodeFile' filePath $ encodeFile tmpPath inside
+    decodeFile' tmpPath $ encodeFile tmpPath2 inside
+    f1 <- readFile tmpPath
+    f2 <- readFile tmpPath2
+    f1 @=? f2
+    where
+        filePath = "test/largest-string.yaml"
+        tmpPath = "tmp.yaml"
+        tmpPath2 = "tmp2.yaml"
+        inside :: YamlEncoder (YamlDecoder IO) ()
+        inside = do
+            e <- lift parseEvent
+            case e of
+                EventNone -> return ()
+                _ -> emitEvent e >> inside
