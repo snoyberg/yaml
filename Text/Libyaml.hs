@@ -16,7 +16,7 @@ module Text.Libyaml
     , YamlException (..)
       -- * Enumerator
     , EnumResult (..)
-    , RMonadIO (..)
+    , With (..)
       -- * Encoder
     , YamlEncoder
     , YamlDecoder
@@ -167,19 +167,19 @@ foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
 
-class MonadIO m => RMonadIO m where
-    withR :: ((a -> IO b) -> IO b) -> (a -> m b) -> m b
+class MonadIO m => With m where
+    with :: ((a -> IO b) -> IO b) -> (a -> m b) -> m b
 
-instance RMonadIO IO where
-    withR = id
+instance With IO where
+    with = id
 
-allocaBytesR :: RMonadIO m => Int -> (Ptr a -> m b) -> m b
-allocaBytesR = withR . allocaBytes
+allocaBytesR :: With m => Int -> (Ptr a -> m b) -> m b
+allocaBytesR = with . allocaBytes
 
-withCStringR :: RMonadIO m => String -> (Ptr CChar -> m a) -> m a
-withCStringR = withR . withCString
+withCStringR :: With m => String -> (Ptr CChar -> m a) -> m a
+withCStringR = with . withCString
 
-withFileParser :: (MonadFailure YamlException m, RMonadIO m)
+withFileParser :: (MonadFailure YamlException m, With m)
                => FilePath
                -> (Parser -> m a)
                -> m a
@@ -195,7 +195,7 @@ withFileParser fp f = allocaBytesR parserSize $ \p -> do
     liftIO $ c_yaml_parser_delete p -- could use some finallys here
     return ret
 
-withParser :: (MonadFailure YamlException m, RMonadIO m)
+withParser :: (MonadFailure YamlException m, With m)
            => B.ByteString
            -> (Parser -> m a)
            -> m a
@@ -211,8 +211,8 @@ withParser bs f = allocaBytesR parserSize $ \p -> do
     liftIO $ c_yaml_parser_delete p -- FIXME use finally
     return ret
 
-withForeignPtrR :: RMonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
-withForeignPtrR = withR . withForeignPtr
+withForeignPtrR :: With m => ForeignPtr a -> (Ptr a -> m b) -> m b
+withForeignPtrR = with . withForeignPtr
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -234,7 +234,7 @@ makeString f a = do
     cchar <- castPtr `liftM` f a
     liftIO $ peekCString cchar
 
-parserParseOne :: (MonadFailure YamlException m, RMonadIO m)
+parserParseOne :: (MonadFailure YamlException m, With m)
                => Parser
                -> m Event
 parserParseOne parser = allocaBytesR eventSize $ \er -> do
@@ -316,7 +316,7 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-parserParse :: (MonadFailure YamlException m, RMonadIO m)
+parserParse :: (MonadFailure YamlException m, With m)
             => (a -> Event -> m (EnumResult a b))
             -> a
             -> Parser
@@ -355,7 +355,7 @@ foreign import ccall unsafe "get_buffer_buff"
 foreign import ccall unsafe "get_buffer_used"
     c_get_buffer_used :: Buffer -> IO CULong
 
-withBufferR :: (RMonadIO m, MonadFailure YamlException m)
+withBufferR :: (With m, MonadFailure YamlException m)
             => (Buffer -> m ())
             -> m B.ByteString
 withBufferR f = allocaBytesR bufferSize $ \b -> do
@@ -369,7 +369,7 @@ withBufferR f = allocaBytesR bufferSize $ \b -> do
 foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
-withEmitter :: (RMonadIO m, MonadFailure YamlException m)
+withEmitter :: (With m, MonadFailure YamlException m)
             => (Emitter -> m ())
             -> m B.ByteString
 withEmitter f = allocaBytesR emitterSize $ \e -> do
@@ -384,7 +384,7 @@ withEmitter f = allocaBytesR emitterSize $ \e -> do
 foreign import ccall unsafe "yaml_emitter_set_output_file"
     c_yaml_emitter_set_output_file :: Emitter -> File -> IO ()
 
-withEmitterFile :: (RMonadIO m, MonadFailure YamlException m)
+withEmitterFile :: (With m, MonadFailure YamlException m)
                 => FilePath
                 -> (Emitter -> m ())
                 -> m ()
@@ -420,17 +420,17 @@ emitEvent e = do
         problem <- liftIO $ makeString c_get_emitter_error emitter
         failure $ YamlEmitterException e problem
 
-parseEvent :: (RMonadIO m, MonadFailure YamlException m)
+parseEvent :: (With m, MonadFailure YamlException m)
            => YamlDecoder m Event
 parseEvent = ask >>= parserParseOne
 
 type YamlDecoder = ReaderT Parser
 type YamlEncoder = ReaderT Emitter
 
-instance RMonadIO m => RMonadIO (ReaderT r m) where
-    withR orig f = ReaderT $ \r -> do
+instance With m => With (ReaderT r m) where
+    with orig f = ReaderT $ \r -> do
         let f' a = (runReaderT $ f a) r
-        withR orig f'
+        with orig f'
 instance MonadFailure e m => Failure e (ReaderT r m) where
     failure = lift . failure
 
@@ -547,32 +547,32 @@ instance Exception ToEventRawException
 data EnumResult a b = More a | Done b
     deriving (Eq, Show)
 
-encode :: (RMonadIO m, MonadFailure YamlException m)
+encode :: (With m, MonadFailure YamlException m)
        => YamlEncoder m ()
        -> m B.ByteString
 encode = withEmitter . runReaderT
 
-encodeFile :: (RMonadIO m, MonadFailure YamlException m)
+encodeFile :: (With m, MonadFailure YamlException m)
            => FilePath
            -> YamlEncoder m ()
            -> m ()
 encodeFile filePath = withEmitterFile filePath . runReaderT
 
-decode :: (RMonadIO m, MonadFailure YamlException m)
+decode :: (With m, MonadFailure YamlException m)
        => B.ByteString
        -> (a -> Event -> m (EnumResult a b))
        -> a
        -> m b
 decode bs fold accum = withParser bs $ parserParse fold accum
 
-decodeFile :: (RMonadIO m, MonadFailure YamlException m)
+decodeFile :: (With m, MonadFailure YamlException m)
            => FilePath
            -> (a -> Event -> m (EnumResult a b))
            -> a
            -> m b
 decodeFile fp fold accum = withFileParser fp $ parserParse fold accum
 
-decodeFile' :: (RMonadIO m, MonadFailure YamlException m)
+decodeFile' :: (With m, MonadFailure YamlException m)
             => FilePath
             -> YamlDecoder m a
             -> m a
