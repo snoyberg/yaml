@@ -15,6 +15,7 @@ main = defaultMain
     , testCase "largest string" caseLargestString
     , testCase "encode/decode" caseEncodeDecode
     , testCase "encode/decode file" caseEncodeDecodeFile
+    , testCase "interleaved encode/decode" caseInterleave
     ]
 
 caseCountScalars :: Assertion
@@ -52,7 +53,7 @@ caseEncodeDecode :: Assertion
 caseEncodeDecode = do
     eList' <- decode yamlBS fold id
     let eList = eList' []
-    bs <- encode unfold eList
+    bs <- encode $ mapM_ emitEvent eList
     eList2' <- decode bs fold id
     let eList2 = eList2' []
     map MyEvent eList @=? map MyEvent eList2
@@ -61,14 +62,12 @@ caseEncodeDecode = do
         yamlBS = B8.pack yamlString
         fold x EventNone = return $ Done x
         fold x e = return $ More $ x . (:) e
-        unfold (x:xs) = Just (x, xs)
-        unfold [] = Nothing
 
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = do
     eList' <- decodeFile filePath fold id
     let eList = eList' []
-    encodeFile tmpPath unfold eList
+    encodeFile tmpPath $ mapM_ emitEvent eList
     eList2' <- decodeFile filePath fold id
     let eList2 = eList2' []
     map MyEvent eList @=? map MyEvent eList2
@@ -77,11 +76,23 @@ caseEncodeDecodeFile = do
         tmpPath = "tmp.yaml"
         fold x EventNone = return $ Done x
         fold x e = return $ More $ x . (:) e
-        unfold (x:xs) = Just (x, xs)
-        unfold [] = Nothing
 
 newtype MyEvent = MyEvent Event deriving Show
 instance Eq MyEvent where
     (MyEvent (EventScalar s t _)) == (MyEvent (EventScalar s' t' _)) =
         s == s' && t == t'
     MyEvent e1 == MyEvent e2 = e1 == e2
+
+caseInterleave :: Assertion
+caseInterleave = do
+    encodeFile tmpPath $ decodeFile filePath emitEvent' ()
+    encodeFile tmpPath2 $ decodeFile tmpPath emitEvent' ()
+    f1 <- readFile tmpPath
+    f2 <- readFile tmpPath2
+    f1 @=? f2
+    where
+        filePath = "test/largest-string.yaml"
+        tmpPath = "tmp.yaml"
+        tmpPath2 = "tmp2.yaml"
+        emitEvent' () EventNone = return $ Done ()
+        emitEvent' () e = emitEvent e >> return (More ())

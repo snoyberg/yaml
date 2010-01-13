@@ -2,6 +2,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -16,6 +17,9 @@ module Text.Libyaml
       -- * Enumerator
     , EnumResult (..)
     , RMonadIO (..)
+      -- * Encoder
+    , YamlEncoder (..)
+    , emitEvent
       -- * Higher level functions
     , encode
     , decode
@@ -34,6 +38,7 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import "transformers" Control.Monad.Trans
 import Control.Failure
+import Control.Applicative
 
 import Control.Exception (throwIO, Exception, SomeException)
 import Data.Typeable (Typeable)
@@ -160,20 +165,16 @@ foreign import ccall unsafe "fclose"
              -> IO ()
 
 class MonadIO m => RMonadIO m where
-    type Inside :: * -> *
-    ioOut :: m v -> IO (Inside v)
-    ioIn :: IO (Inside v) -> m v
-newtype SimpleIdent x = SimpleIdent { unSimpleIdent :: x }
+    withR :: ((a -> IO b) -> IO b) -> (a -> m b) -> m b
+
 instance RMonadIO IO where
-    type Inside = SimpleIdent
-    ioOut = fmap SimpleIdent
-    ioIn = fmap unSimpleIdent
+    withR = id
 
 allocaBytesR :: RMonadIO m => Int -> (Ptr a -> m b) -> m b
-allocaBytesR i f = ioIn $ allocaBytes i $ ioOut . f
+allocaBytesR = withR . allocaBytes
 
 withCStringR :: RMonadIO m => String -> (Ptr CChar -> m a) -> m a
-withCStringR s f = ioIn $ withCString s $ ioOut . f
+withCStringR = withR . withCString
 
 withFileParser :: (MonadFailure YamlException m, RMonadIO m)
                => FilePath
@@ -207,11 +208,8 @@ withParser bs f = allocaBytesR parserSize $ \p -> do
     liftIO $ c_yaml_parser_delete p -- FIXME use finally
     return ret
 
-withForeignPtrR :: RMonadIO m
-                => ForeignPtr a
-                -> (Ptr a -> m b)
-                -> m b
-withForeignPtrR fp f = ioIn $ withForeignPtr fp $ ioOut . f
+withForeignPtrR :: RMonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
+withForeignPtrR = withR . withForeignPtr
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -359,7 +357,7 @@ withBufferR :: (RMonadIO m, MonadFailure YamlException m)
             -> m B.ByteString
 withBufferR f = allocaBytesR bufferSize $ \b -> do
     liftIO $ c_buffer_init b
-    aRes <- f b
+    f b
     ptr' <- liftIO $ c_get_buffer_buff b
     len <- liftIO $ c_get_buffer_used b
     fptr <- liftIO $ newForeignPtr_ $ castPtr ptr'
@@ -409,19 +407,39 @@ foreign import ccall unsafe "yaml_emitter_emit"
 foreign import ccall unsafe "get_emitter_error"
     c_get_emitter_error :: Emitter -> IO (Ptr CUChar)
 
-emitEvents :: (MonadFailure YamlException m, RMonadIO m)
-           => (a -> Maybe (Event, a))
-           -> a
-           -> Emitter
-           -> m ()
-emitEvents unfold src emitter = case unfold src of
-    Nothing -> return ()
-    Just (e, src') -> do
-        res <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
-        when (res == 0) $ do
-            problem <- liftIO $ makeString c_get_emitter_error emitter
-            failure $ YamlEmitterException e problem
-        emitEvents unfold src' emitter
+emitEvent :: (MonadIO m, MonadFailure YamlException m)
+          => Event
+          -> YamlEncoder m ()
+emitEvent e = YamlEncoder $ \emitter -> do
+    res <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
+    when (res == 0) $ do
+        problem <- liftIO $ makeString c_get_emitter_error emitter
+        failure $ YamlEmitterException e problem
+
+data YamlEncoder m v = YamlEncoder { runYamlEncoder :: Emitter -> m v }
+instance Monad m => Functor (YamlEncoder m) where
+    fmap f (YamlEncoder e) = YamlEncoder $ \em -> f `liftM` e em
+instance Monad m => Applicative (YamlEncoder m) where
+    pure v = YamlEncoder $ const $ return v
+    (YamlEncoder f') <*> (YamlEncoder v') = YamlEncoder $ \e -> do
+        f <- f' e
+        v <- v' e
+        return $ f v
+instance Monad m => Monad (YamlEncoder m) where
+    return = pure
+    (YamlEncoder v') >>= f = YamlEncoder $ \e -> do
+        v <- v' e
+        (runYamlEncoder $ f v) e
+instance MonadTrans YamlEncoder where
+    lift = YamlEncoder . const
+instance MonadIO m => MonadIO (YamlEncoder m) where
+    liftIO = lift . liftIO
+instance RMonadIO m => RMonadIO (YamlEncoder m) where
+    withR orig f = YamlEncoder $ \e -> do
+        let f' a = (runYamlEncoder $ f a) e
+        withR orig f'
+instance MonadFailure e m => Failure e (YamlEncoder m) where
+    failure = lift . failure
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
     c_yaml_stream_start_event_initialize :: EventRaw -> CInt -> IO CInt
@@ -537,18 +555,15 @@ data EnumResult a b = More a | Done b
     deriving (Eq, Show)
 
 encode :: (RMonadIO m, MonadFailure YamlException m)
-       => (a -> Maybe (Event, a))
-       -> a
+       => YamlEncoder m ()
        -> m B.ByteString
-encode unfold src = withEmitter $ emitEvents unfold src
+encode = withEmitter . runYamlEncoder
 
 encodeFile :: (RMonadIO m, MonadFailure YamlException m)
            => FilePath
-           -> (a -> Maybe (Event, a))
-           -> a
+           -> YamlEncoder m ()
            -> m ()
-encodeFile filePath unfold src =
-    withEmitterFile filePath $ emitEvents unfold src
+encodeFile filePath enc = withEmitterFile filePath $ runYamlEncoder enc
 
 decode :: (RMonadIO m, MonadFailure YamlException m)
        => B.ByteString
