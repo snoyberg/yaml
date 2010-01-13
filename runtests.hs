@@ -25,11 +25,11 @@ caseCountScalars = do
     where
         yamlString = "foo:\n  baz: [bin1, bin2, bin3]\nbaz: bazval"
         yamlBS = B8.pack yamlString
-        fold (s, l, m) (EventScalar {}) = Right (s + 1, l, m)
-        fold (s, l, m) EventSequenceStart = Right (s, l + 1, m)
-        fold (s, l, m) EventMappingStart = Right (s, l, m + 1)
-        fold res EventNone = Left res
-        fold res _ = Right res
+        fold (s, l, m) (EventScalar {}) = return $ More (s + 1, l, m)
+        fold (s, l, m) EventSequenceStart = return $ More (s, l + 1, m)
+        fold (s, l, m) EventMappingStart = return $ More (s, l, m + 1)
+        fold res EventNone = return $ Done res
+        fold res _ = return $ More res
         accum = (0, 0, 0) :: (Int, Int, Int)
 
 caseLargestString :: Assertion
@@ -43,10 +43,10 @@ caseLargestString = do
             let s' = B8.unpack bs
                 i' = length s'
              in if i' > i
-                    then Right (i', s')
-                    else Right (i, s)
-        fold res EventNone = Left res
-        fold res _ = Right res
+                    then return $ More (i', s')
+                    else return $ More (i, s)
+        fold res EventNone = return $ Done res
+        fold res _ = return $ More res
         accum = (0, "no strings found")
 
 toIO :: Exception l => IO (Either l r) -> IO r
@@ -63,8 +63,8 @@ caseEncodeDecode = do
     where
         yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
         yamlBS = B8.pack yamlString
-        fold x EventNone = Left x
-        fold x e = Right $ x . (:) e
+        fold x EventNone = return $ Done x
+        fold x e = return $ More $ x . (:) e
         unfold (x:xs) = Just (x, xs)
         unfold [] = Nothing
 
@@ -79,8 +79,8 @@ caseEncodeDecodeFile = do
     where
         filePath = "test/largest-string.yaml"
         tmpPath = "tmp.yaml"
-        fold x EventNone = Left x
-        fold x e = Right $ x . (:) e
+        fold x EventNone = return $ Done x
+        fold x e = return $ More $ x . (:) e
         unfold (x:xs) = Just (x, xs)
         unfold [] = Nothing
 

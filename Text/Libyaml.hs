@@ -16,6 +16,8 @@ module Text.Libyaml
     , emitEvents
     , withParser
     , parserParse
+      -- * Enumerator
+    , EnumResult (..)
       -- * Higher level functions
     , encode
     , decode
@@ -296,18 +298,19 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-parserParse :: (a -> Event -> Either a a)
+parserParse :: (a -> Event -> IO (EnumResult a b))
             -> a
             -> Parser
-            -> IO (Either YamlException a)
+            -> IO (Either YamlException b)
 parserParse fold accum parser = do
     event' <- parserParseOne parser
     case event' of
         Left e -> return $ Left e
         Right event -> do
-            case fold accum event of
-                Left accum' -> return $ Right accum'
-                Right accum' -> parserParse fold accum' parser
+            res <- fold accum event
+            case res of
+                Done accum' -> return $ Right accum'
+                More accum' -> parserParse fold accum' parser
 
 -- Emitter
 
@@ -520,6 +523,9 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
+data EnumResult a b = More a | Done b
+    deriving (Eq, Show)
+
 encode :: (a -> Maybe (Event, a))
        -> a
        -> IO (Either YamlException B.ByteString)
@@ -533,13 +539,13 @@ encodeFile filePath unfold src =
     withEmitterFile filePath $ emitEvents unfold src
 
 decode :: B.ByteString
-       -> (a -> Event -> Either a a)
+       -> (a -> Event -> IO (EnumResult a b))
        -> a
-       -> IO (Either YamlException a)
+       -> IO (Either YamlException b)
 decode bs fold accum = withParser bs $ parserParse fold accum
 
 decodeFile :: FilePath
-           -> (a -> Event -> Either a a)
+           -> (a -> Event -> IO (EnumResult a b))
            -> a
-           -> IO (Either YamlException a)
+           -> IO (Either YamlException b)
 decodeFile fp fold accum = withFileParser fp $ parserParse fold accum
