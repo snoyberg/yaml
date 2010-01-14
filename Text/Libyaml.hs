@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PackageImports #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Text.Libyaml
     ( -- * The event stream
@@ -42,6 +42,7 @@ import Foreign.Marshal.Alloc
 import "transformers" Control.Monad.Trans
 import Control.Failure
 import Control.Monad.Trans.Reader
+import Control.Applicative
 
 import Control.Exception (throwIO, Exception, SomeException)
 import Data.Typeable (Typeable)
@@ -414,7 +415,7 @@ emitEvent :: (MonadIO m, MonadFailure YamlException m)
           => Event
           -> YamlEncoder m ()
 emitEvent e = do
-    emitter <- ask
+    emitter <- MyReaderT ask
     res <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
     when (res == 0) $ do
         problem <- liftIO $ makeString c_get_emitter_error emitter
@@ -422,16 +423,23 @@ emitEvent e = do
 
 parseEvent :: (With m, MonadFailure YamlException m)
            => YamlDecoder m Event
-parseEvent = ask >>= parserParseOne
+parseEvent = MyReaderT ask >>= parserParseOne
 
-type YamlDecoder = ReaderT Parser
-type YamlEncoder = ReaderT Emitter
+runMyReaderT :: MyReaderT r m a -> r -> m a
+runMyReaderT (MyReaderT (ReaderT f)) = f
 
 instance With m => With (ReaderT r m) where
     with orig f = ReaderT $ \r -> do
         let f' a = (runReaderT $ f a) r
         with orig f'
-instance MonadFailure e m => Failure e (ReaderT r m) where
+
+newtype MyReaderT r m a = MyReaderT (ReaderT r m a)
+    deriving (MonadTrans, MonadIO, Functor, Applicative,
+              Alternative, Monad, MonadPlus, With)
+type YamlDecoder = MyReaderT Parser
+type YamlEncoder = MyReaderT Emitter
+
+instance MonadFailure e m => Failure e (MyReaderT r m) where
     failure = lift . failure
 
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
@@ -550,13 +558,13 @@ data EnumResult a b = More a | Done b
 encode :: (With m, MonadFailure YamlException m)
        => YamlEncoder m ()
        -> m B.ByteString
-encode = withEmitter . runReaderT
+encode = withEmitter . runMyReaderT
 
 encodeFile :: (With m, MonadFailure YamlException m)
            => FilePath
            -> YamlEncoder m ()
            -> m ()
-encodeFile filePath = withEmitterFile filePath . runReaderT
+encodeFile filePath = withEmitterFile filePath . runMyReaderT
 
 decode :: (With m, MonadFailure YamlException m)
        => B.ByteString
@@ -576,4 +584,4 @@ decodeFile' :: (With m, MonadFailure YamlException m)
             => FilePath
             -> YamlDecoder m a
             -> m a
-decodeFile' fp dec = withFileParser fp $ runReaderT dec
+decodeFile' fp dec = withFileParser fp $ runMyReaderT dec
