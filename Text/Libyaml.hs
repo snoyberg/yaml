@@ -15,7 +15,6 @@ module Text.Libyaml
       -- * Exceptions
     , YamlException (..)
       -- * Enumerator
-    , EnumResult (..)
     , With (..)
       -- * Encoder
     , YamlEncoder
@@ -27,7 +26,6 @@ module Text.Libyaml
     , decode
     , encodeFile
     , decodeFile
-    , decodeFile'
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -317,18 +315,6 @@ getEvent er = do
         YamlMappingStartEvent -> return EventMappingStart
         YamlMappingEndEvent -> return EventMappingEnd
 
-parserParse :: (MonadFailure YamlException m, With m)
-            => (a -> Event -> m (EnumResult a b))
-            -> a
-            -> Parser
-            -> m b
-parserParse fold accum parser = do
-    event <- parserParseOne parser
-    res <- fold accum event
-    case res of
-        Done accum' -> return accum'
-        More accum' -> parserParse fold accum' parser
-
 -- Emitter
 
 data EmitterStruct
@@ -552,9 +538,6 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-data EnumResult a b = More a | Done b
-    deriving (Eq, Show)
-
 encode :: (With m, MonadFailure YamlException m)
        => YamlEncoder m ()
        -> m B.ByteString
@@ -568,20 +551,12 @@ encodeFile filePath = withEmitterFile filePath . runMyReaderT
 
 decode :: (With m, MonadFailure YamlException m)
        => B.ByteString
-       -> (a -> Event -> m (EnumResult a b))
-       -> a
-       -> m b
-decode bs fold accum = withParser bs $ parserParse fold accum
+       -> YamlDecoder m a
+       -> m a
+decode bs dec = withParser bs $ runMyReaderT dec
 
 decodeFile :: (With m, MonadFailure YamlException m)
            => FilePath
-           -> (a -> Event -> m (EnumResult a b))
-           -> a
-           -> m b
-decodeFile fp fold accum = withFileParser fp $ parserParse fold accum
-
-decodeFile' :: (With m, MonadFailure YamlException m)
-            => FilePath
-            -> YamlDecoder m a
-            -> m a
-decodeFile' fp dec = withFileParser fp $ runMyReaderT dec
+           -> YamlDecoder m a
+           -> m a
+decodeFile fp dec = withFileParser fp $ runMyReaderT dec
