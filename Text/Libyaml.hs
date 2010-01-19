@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Text.Libyaml
     ( -- * The event stream
@@ -39,6 +40,7 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import "transformers" Control.Monad.Trans
 import Control.Failure
+import qualified Control.Monad.Trans.Error as ErrorT
 import Control.Monad.Trans.Reader
 import Control.Applicative
 
@@ -167,16 +169,22 @@ foreign import ccall unsafe "fclose"
              -> IO ()
 
 class MonadIO m => With m where
-    with :: ((a -> IO b) -> IO b) -> (a -> m b) -> m b
+    with :: (forall b'. (a -> IO b') -> IO b') -> (a -> m b) -> m b
 
 instance With IO where
     with = id
+instance With m => With (ReaderT r m) where
+    with orig f = ReaderT $ \r -> do
+        let f' a = (runReaderT $ f a) r
+        with orig f'
+instance (ErrorT.Error e, With m) => With (ErrorT.ErrorT e m) where
+    with orig f = ErrorT.ErrorT $ with orig $ ErrorT.runErrorT . f
 
 allocaBytesR :: With m => Int -> (Ptr a -> m b) -> m b
-allocaBytesR = with . allocaBytes
+allocaBytesR i = with (allocaBytes i)
 
 withCStringR :: With m => String -> (Ptr CChar -> m a) -> m a
-withCStringR = with . withCString
+withCStringR s = with (withCString s)
 
 withFileParser :: (MonadFailure YamlException m, With m)
                => FilePath
@@ -211,7 +219,7 @@ withParser bs f = allocaBytesR parserSize $ \p -> do
     return ret
 
 withForeignPtrR :: With m => ForeignPtr a -> (Ptr a -> m b) -> m b
-withForeignPtrR = with . withForeignPtr
+withForeignPtrR fp = with (withForeignPtr fp)
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -413,11 +421,6 @@ parseEvent = MyReaderT ask >>= parserParseOne
 
 runMyReaderT :: MyReaderT r m a -> r -> m a
 runMyReaderT (MyReaderT (ReaderT f)) = f
-
-instance With m => With (ReaderT r m) where
-    with orig f = ReaderT $ \r -> do
-        let f' a = (runReaderT $ f a) r
-        with orig f'
 
 newtype MyReaderT r m a = MyReaderT (ReaderT r m a)
     deriving (MonadTrans, MonadIO, Functor, Applicative,
