@@ -29,7 +29,7 @@ library
         Buildable: True
     build-depends:   base >= 4 && < 5,
                      transformers >= 0.1 && < 0.2,
-                     failure >= 0.0.0.1 && < 0.1,
+                     control-monad-failure >= 0.6.0 && < 0.7,
                      bytestring >= 0.9.1.4 && < 0.10
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall -auto-all -caf-all
@@ -55,7 +55,7 @@ executable           runtests
                          QuickCheck >= 1 && < 2,
                          base >= 4 && < 5,
                          transformers >= 0.1 && < 0.2,
-                         failure >= 0.0.0.1 && < 0.1,
+                         control-monad-failure >= 0.6.0 && < 0.7,
                          bytestring >= 0.9.1.4 && < 0.10
     else
         Buildable: False
