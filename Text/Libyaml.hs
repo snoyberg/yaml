@@ -22,6 +22,11 @@ module Text.Libyaml
     , YamlDecoder
     , parseEvent
     , emitEvent
+      -- ** Combinators
+    , emitStream
+    , emitDocument
+    , emitSequence
+    , emitMapping
       -- * Higher level functions
     , encode
     , decode
@@ -416,6 +421,18 @@ emitEvent e = do
     when (res == 0) $ do
         problem <- liftIO $ makeString c_get_emitter_error emitter
         failure $ YamlEmitterException e problem
+
+emitStream, emitDocument, emitSequence, emitMapping
+    :: (MonadIO m, MonadFailure YamlException m)
+    => YamlEncoder m ()
+    -> YamlEncoder m ()
+emitStream e = emitEvent EventStreamStart >> e >> emitEvent EventStreamEnd
+emitDocument e = emitEvent EventDocumentStart >> e
+              >> emitEvent EventDocumentEnd
+emitSequence e = emitEvent EventSequenceStart >> e
+              >> emitEvent EventSequenceEnd
+emitMapping e = emitEvent EventMappingStart >> e
+             >> emitEvent EventMappingEnd
 
 parseEvent :: (With m, MonadFailure YamlException m)
            => YamlDecoder m Event
