@@ -7,6 +7,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE CPP #-}
 
 module Text.Libyaml
     ( -- * The event stream
@@ -43,7 +44,11 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+#if TRANSFORMERS_02
+import "transformers" Control.Monad.IO.Class
+#else
 import "transformers" Control.Monad.Trans
+#endif
 import Control.Monad.Failure.Transformers
 import qualified Control.Monad.Trans.Error as ErrorT
 import Control.Monad.Trans.Reader

@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.2.0
+version:         0.2.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -15,6 +15,8 @@ extra-source-files: c/helper.h,
                     c/yaml_private.h,
                     c/yaml.h
 
+flag transformers_02
+    description: transformers = 0.2.*
 flag buildtests
   description: Build the executable to run unit tests
   default: False
@@ -28,11 +30,15 @@ library
     else
         Buildable: True
     build-depends:   base >= 4 && < 5,
-                     transformers >= 0.1 && < 0.2,
                      control-monad-failure >= 0.6.0 && < 0.7,
                      bytestring >= 0.9.1.4 && < 0.10
     exposed-modules: Text.Libyaml
-    ghc-options:     -Wall -auto-all -caf-all
+    if flag(transformers_02)
+      build-depends: transformers >= 0.2 && < 0.3
+      CPP-OPTIONS: -DTRANSFORMERS_02
+    else
+      build-depends: transformers >= 0.1 && < 0.2
+    ghc-options:     -Wall
     c-sources:       c/helper.c,
                      c/api.c,
                      c/dumper.c,
@@ -49,14 +55,17 @@ executable           runtests
         Buildable: True
         cpp-options:     -DTEST
         build-depends:   test-framework,
-                         test-framework-quickcheck,
+                         test-framework-quickcheck2,
                          test-framework-hunit,
                          HUnit,
-                         QuickCheck >= 1 && < 2,
+                         QuickCheck >= 2 && < 3,
                          base >= 4 && < 5,
-                         transformers >= 0.1 && < 0.2,
-                         control-monad-failure >= 0.6.0 && < 0.7,
                          bytestring >= 0.9.1.4 && < 0.10
+        if flag(transformers_02)
+          build-depends: transformers >= 0.2 && < 0.3
+          CPP-OPTIONS: -DTRANSFORMERS_02
+        else
+          build-depends: transformers >= 0.1 && < 0.2
     else
         Buildable: False
     ghc-options:     -Wall
