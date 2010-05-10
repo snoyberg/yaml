@@ -16,6 +16,8 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, path)
 --import Test.QuickCheck
 
+import Control.Exception
+
 main :: IO ()
 main = defaultMain
     [ testCase "count scalars with anchor" caseCountScalarsWithAnchor
@@ -27,6 +29,7 @@ main = defaultMain
     , testCase "encode/decode" caseEncodeDecode
     , testCase "encode/decode file" caseEncodeDecodeFile
     , testCase "interleaved encode/decode" caseInterleave
+    , testCase "decode invalid document (without segfault)" caseDecodeInvalidDocument
     ]
 
 caseCountScalarsWithAnchor :: Assertion
@@ -173,3 +176,17 @@ caseInterleave = do
             case e of
                 EventNone -> return ()
                 _ -> emitEvent e >> inside
+
+caseDecodeInvalidDocument :: Assertion
+caseDecodeInvalidDocument = do
+    handle (\(YamlParserException {}) -> return ()) $ do
+        _ <- decode yamlBS $ dec id
+        assertFailure "expected parsing exception, but got no errors"
+    where
+        yamlString = "  - foo\n  - baz\nbuz"
+        yamlBS = B8.pack yamlString
+        dec front = do
+            e <- parseEvent
+            case e of
+                EventNone -> return $ front []
+                _ -> dec $ front . (:) e

@@ -258,7 +258,9 @@ foreign import ccall unsafe "get_parser_error_offset"
 makeString :: MonadIO m => (a -> m (Ptr CUChar)) -> a -> m String
 makeString f a = do
     cchar <- castPtr `liftM` f a
-    liftIO $ peekCString cchar
+    if cchar == nullPtr
+        then return ""
+        else liftIO $ peekCString cchar
 
 parserParseOne :: (MonadFailure YamlException m, With m)
                => Parser
