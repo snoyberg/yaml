@@ -12,12 +12,72 @@ import Test.HUnit hiding (Test, path)
 
 main :: IO ()
 main = defaultMain
-    [ testCase "count scalars" caseCountScalars
+    [ testCase "count scalars with anchor" caseCountScalarsWithAnchor
+    , testCase "count sequences with anchor" caseCountSequencesWithAnchor
+    , testCase "count mappings with anchor" caseCountMappingsWithAnchor
+    , testCase "count aliases" caseCountAliases
+    , testCase "count scalars" caseCountScalars
     , testCase "largest string" caseLargestString
     , testCase "encode/decode" caseEncodeDecode
     , testCase "encode/decode file" caseEncodeDecodeFile
     , testCase "interleaved encode/decode" caseInterleave
     ]
+
+caseCountScalarsWithAnchor :: Assertion
+caseCountScalarsWithAnchor = do
+    res <- decode yamlBS $ counter (0 :: Int)
+    res @?= (1 :: Int)
+    where
+        yamlString = "foo:\n  - &anchor bin1\n  - bin2\n  - bin3"
+        yamlBS = B8.pack yamlString
+        counter acc = do
+            e <- parseEvent
+            case e of
+                EventScalar _ _ _ (Just _) -> counter (acc + 1)
+                EventNone -> return acc
+                _ -> counter acc
+
+caseCountSequencesWithAnchor :: Assertion
+caseCountSequencesWithAnchor = do
+    res <- decode yamlBS $ counter (0 :: Int)
+    res @?= (1 :: Int)
+    where
+        yamlString = "foo: &anchor\n  - bin1\n  - bin2\n  - bin3"
+        yamlBS = B8.pack yamlString
+        counter acc = do
+            e <- parseEvent
+            case e of
+                EventSequenceStart (Just _) -> counter (acc + 1)
+                EventNone -> return acc
+                _ -> counter acc
+
+caseCountMappingsWithAnchor :: Assertion
+caseCountMappingsWithAnchor = do
+    res <- decode yamlBS $ counter (0 :: Int)
+    res @?= (1 :: Int)
+    where
+        yamlString = "foo: &anchor\n  key1: bin1\n  key2: bin2\n  key3: bin3"
+        yamlBS = B8.pack yamlString
+        counter acc = do
+            e <- parseEvent
+            case e of
+                EventMappingStart (Just _) -> counter (acc + 1)
+                EventNone -> return acc
+                _ -> counter acc
+
+caseCountAliases :: Assertion
+caseCountAliases = do
+    res <- decode yamlBS $ counter (0 :: Int)
+    res @?= (1 :: Int)
+    where
+        yamlString = "foo: &anchor\n  key1: bin1\n  key2: bin2\n  key3: bin3\nboo: *anchor"
+        yamlBS = B8.pack yamlString
+        counter acc = do
+            e <- parseEvent
+            case e of
+                EventAlias _ -> counter (acc + 1)
+                EventNone -> return acc
+                _ -> counter acc
 
 caseCountScalars :: Assertion
 caseCountScalars = do
@@ -30,8 +90,8 @@ caseCountScalars = do
             e <- parseEvent
             case e of
                 EventScalar {} -> counter (s + 1, l, m)
-                EventSequenceStart -> counter (s, l + 1, m)
-                EventMappingStart -> counter (s, l, m + 1)
+                EventSequenceStart _ -> counter (s, l + 1, m)
+                EventMappingStart _ -> counter (s, l, m + 1)
                 EventNone -> return (s, l, m)
                 _ -> counter (s, l, m)
         accum = (0, 0, 0) :: (Int, Int, Int)
@@ -46,7 +106,7 @@ caseLargestString = do
         dec (i, s) = do
             e <- parseEvent
             case e of
-                (EventScalar bs _ _) -> do
+                (EventScalar bs _ _ _) -> do
                     let s' = B8.unpack bs
                         i' = length s'
                     dec $ if i' > i then (i', s') else (i, s)
@@ -86,7 +146,7 @@ caseEncodeDecodeFile = do
 
 newtype MyEvent = MyEvent Event deriving Show
 instance Eq MyEvent where
-    (MyEvent (EventScalar s t _)) == (MyEvent (EventScalar s' t' _)) =
+    (MyEvent (EventScalar s t _ _)) == (MyEvent (EventScalar s' t' _ _)) =
         s == s' && t == t'
     MyEvent e1 == MyEvent e2 = e1 == e2
 

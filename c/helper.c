@@ -108,6 +108,26 @@ int get_scalar_style(yaml_event_t *e)
 	return e->data.scalar.style;
 }
 
+unsigned char * get_scalar_anchor(yaml_event_t *e)
+{
+        return e->data.scalar.anchor;
+}
+
+unsigned char * get_sequence_start_anchor(yaml_event_t *e)
+{
+        return e->data.sequence_start.anchor;
+}
+
+unsigned char * get_mapping_start_anchor(yaml_event_t *e)
+{
+        return e->data.mapping_start.anchor;
+}
+
+unsigned char * get_alias_anchor(yaml_event_t *e)
+{
+        return e->data.alias.anchor;
+}
+
 int yaml_parser_set_input_filename(yaml_parser_t *parser, const char *filename)
 {
 	FILE *in = fopen(filename, "r");
