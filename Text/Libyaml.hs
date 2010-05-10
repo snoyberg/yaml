@@ -14,6 +14,8 @@ module Text.Libyaml
       Event (..)
     , Style (..)
     , Tag (..)
+    , AnchorName
+    , Anchor
       -- * Exceptions
     , YamlException (..)
       -- * Enumerator
