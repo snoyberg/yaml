@@ -1,8 +1,14 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE PackageImports #-}
 import Test.Framework (defaultMain)
 
 import Text.Libyaml
 import qualified Data.ByteString.Char8 as B8
-import Control.Monad.Trans
+#if MIN_VERSION_transformers(0,2,0)
+import "transformers" Control.Monad.Trans.Class
+#else
+import "transformers" Control.Monad.Trans
+#endif
 
 --import Test.Framework (testGroup, Test)
 import Test.Framework.Providers.HUnit
