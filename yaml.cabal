@@ -32,7 +32,8 @@ library
                      control-monad-failure >= 0.6.0 && < 0.7,
                      bytestring >= 0.9.1.4 && < 0.10,
                      iteratee >= 0.3.5 && < 0.4,
-                     MonadCatchIO-transformers >= 0.2.2 && < 0.3
+                     MonadCatchIO-transformers >= 0.2.2 && < 0.3,
+                     ListLike >= 1.0.1 && < 1.1
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall -auto-all -caf-all
     c-sources:       c/helper.c,
@@ -52,13 +53,15 @@ executable           runtests
         cpp-options:     -DTEST
         build-depends:   test-framework,
                          test-framework-hunit,
-                         base >= 4 && < 5,
                          HUnit,
+                         directory,
+                         base >= 4 && < 5,
                          transformers >= 0.1 && < 0.3,
                          control-monad-failure >= 0.6.0 && < 0.7,
                          bytestring >= 0.9.1.4 && < 0.10,
                          iteratee >= 0.3.5 && < 0.4,
-                         MonadCatchIO-transformers >= 0.2.2 && < 0.3
+                         MonadCatchIO-transformers >= 0.2.2 && < 0.3,
+                         ListLike >= 1.0.1 && < 1.1
     else
         Buildable: False
     ghc-options:     -Wall

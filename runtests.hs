@@ -4,18 +4,15 @@ import Test.Framework (defaultMain)
 
 import Text.Libyaml
 import qualified Data.ByteString.Char8 as B8
-#if MIN_VERSION_transformers(0,2,0)
-import "transformers" Control.Monad.Trans.Class
-#else
-import "transformers" Control.Monad.Trans
-#endif
 
 import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, path)
 
-import Control.Exception
 import Data.Iteratee hiding (filter, length, foldl')
 import Data.List (foldl')
+
+import System.Directory
+import Control.Monad
 
 main :: IO ()
 main = defaultMain
@@ -27,7 +24,7 @@ main = defaultMain
     , testCase "largest string" caseLargestString
     , testCase "encode/decode" caseEncodeDecode
     , testCase "encode/decode file" caseEncodeDecodeFile
-    --, testCase "interleaved encode/decode" caseInterleave
+    , testCase "interleaved encode/decode" caseInterleave
     , testCase "decode invalid document (without segfault)" caseDecodeInvalidDocument
     ]
 
@@ -128,7 +125,7 @@ instance Eq MyEvent where
 caseEncodeDecode :: Assertion
 caseEncodeDecode = do
     eList <- decode yamlBS (dec []) >>= run
-    bs <- encode $ mapM_ emitEvent eList
+    bs <- enumPure1Chunk eList encode >>= run
     eList2 <- decode bs (dec []) >>= run
     map MyEvent eList @=? map MyEvent eList2
     where
@@ -139,10 +136,16 @@ caseEncodeDecode = do
                 EOF x -> return $ Done front $ EOF x
                 Chunk c -> return $ Cont (dec $ front ++ c) Nothing
 
+removeFile' :: FilePath -> IO ()
+removeFile' fp = do
+    x <- doesFileExist fp
+    when x $ removeFile fp
+
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = do
+    removeFile' tmpPath
     eList <- decodeFile filePath (dec []) >>= run
-    encodeFile tmpPath $ mapM_ emitEvent eList
+    enumPure1Chunk eList (encodeFile tmpPath) >>= run
     eList2 <- decodeFile filePath (dec []) >>= run
     map MyEvent eList @=? map MyEvent eList2
     where
@@ -153,11 +156,12 @@ caseEncodeDecodeFile = do
                 EOF x -> return $ Done front $ EOF x
                 Chunk c -> return $ Cont (dec $ front ++ c) Nothing
 
-{-
 caseInterleave :: Assertion
 caseInterleave = do
-    decodeFile filePath $ encodeFile tmpPath inside
-    decodeFile tmpPath $ encodeFile tmpPath2 inside
+    removeFile' tmpPath
+    removeFile' tmpPath2
+    decodeFile filePath (encodeFile tmpPath :: IterateeG [] Event IO ()) >>= run
+    decodeFile tmpPath (encodeFile tmpPath2 :: IterateeG [] Event IO ()) >>= run
     f1 <- readFile tmpPath
     f2 <- readFile tmpPath2
     f1 @=? f2
@@ -165,13 +169,6 @@ caseInterleave = do
         filePath = "test/largest-string.yaml"
         tmpPath = "tmp.yaml"
         tmpPath2 = "tmp2.yaml"
-        inside :: YamlEncoder (YamlDecoder IO) ()
-        inside = do
-            e <- lift parseEvent
-            case e of
-                EventNone -> return ()
-                _ -> emitEvent e >> inside
--}
 
 caseDecodeInvalidDocument :: Assertion
 caseDecodeInvalidDocument = do
