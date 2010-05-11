@@ -69,8 +69,7 @@ import Control.Monad.CatchIO (MonadCatchIO, finally)
 import qualified Data.ListLike as LL
 
 data Event =
-    EventNone
-    | EventStreamStart
+      EventStreamStart
     | EventStreamEnd
     | EventDocumentStart
     | EventDocumentEnd
@@ -243,7 +242,7 @@ makeString f a = do
 
 parserParseOne :: (MonadFailure YamlException m, With m)
                => Parser
-               -> m Event
+               -> m (Maybe Event)
 parserParseOne parser = allocaBytesR eventSize $ \er -> do
     res <- liftIO $ c_yaml_parser_parse parser er
     event <-
@@ -301,21 +300,21 @@ foreign import ccall unsafe "get_mapping_start_anchor"
 foreign import ccall unsafe "get_alias_anchor"
     c_get_alias_anchor :: EventRaw -> IO CString
 
-getEvent :: EventRaw -> IO Event
+getEvent :: EventRaw -> IO (Maybe Event)
 getEvent er = do
     et <- c_get_event_type er
     case toEnum $ fromEnum et of
-        YamlNoEvent -> return EventNone
-        YamlStreamStartEvent -> return EventStreamStart
-        YamlStreamEndEvent -> return EventStreamEnd
-        YamlDocumentStartEvent -> return EventDocumentStart
-        YamlDocumentEndEvent -> return EventDocumentEnd
+        YamlNoEvent -> return Nothing
+        YamlStreamStartEvent -> return $ Just EventStreamStart
+        YamlStreamEndEvent -> return $ Just EventStreamEnd
+        YamlDocumentStartEvent -> return $ Just EventDocumentStart
+        YamlDocumentEndEvent -> return $ Just EventDocumentEnd
         YamlAliasEvent -> do
             yanchor <- c_get_alias_anchor er
             anchor <- if yanchor == nullPtr
                           then error "got YamlAliasEvent with empty anchor"
                           else peekCString yanchor
-            return $ EventAlias anchor
+            return $ Just $ EventAlias anchor
         YamlScalarEvent -> do
             yvalue <- c_get_scalar_value er
             ylen <- c_get_scalar_length er
@@ -338,21 +337,21 @@ getEvent er = do
             anchor <- if yanchor == nullPtr
                           then return Nothing
                           else fmap Just $ peekCString yanchor
-            return $ EventScalar bs (bsToTag tagbs) style anchor
+            return $ Just $ EventScalar bs (bsToTag tagbs) style anchor
         YamlSequenceStartEvent -> do
             yanchor <- c_get_sequence_start_anchor er
             anchor <- if yanchor == nullPtr
                           then return Nothing
                           else fmap Just $ peekCString yanchor
-            return $ EventSequenceStart anchor
-        YamlSequenceEndEvent -> return EventSequenceEnd
+            return $ Just $ EventSequenceStart anchor
+        YamlSequenceEndEvent -> return $ Just EventSequenceEnd
         YamlMappingStartEvent -> do
             yanchor <- c_get_mapping_start_anchor er
             anchor <- if yanchor == nullPtr
                           then return Nothing
                           else fmap Just $ peekCString yanchor
-            return $ EventMappingStart anchor
-        YamlMappingEndEvent -> return EventMappingEnd
+            return $ Just $ EventMappingStart anchor
+        YamlMappingEndEvent -> return $ Just EventMappingEnd
 
 -- Emitter
 
@@ -425,7 +424,7 @@ emitMappingWithAnchor e a = emitEvent (EventMappingStart a) >> e
 
 
 parseEvent :: (With m, MonadFailure YamlException m)
-           => YamlDecoder m Event
+           => YamlDecoder m (Maybe Event)
 parseEvent = ask >>= parserParseOne
 
 type YamlDecoder = ReaderT Parser
@@ -576,7 +575,6 @@ toEventRaw e f = allocaBytesR eventSize $ \er -> do
                 c_yaml_alias_event_initialize
                     er
                     anchorP
-        EventNone -> error "toEventRaw: EventNone not supported"
     unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
 
@@ -636,8 +634,8 @@ runParser fp iter = do
     e <- liftIO $ withForeignPtr fp parserParseOne'
     case e of
         Left err -> return $ throwErr $ Err $ show err
-        Right EventNone -> return iter
-        Right ev -> do
+        Right Nothing -> return iter
+        Right (Just ev) -> do
             igv <- runIter iter $ Chunk $ SC.fromList [ev]
             case igv of
                 Done a _ -> return $ return a
@@ -645,7 +643,7 @@ runParser fp iter = do
                 Cont _ (Just err) -> return $ throwErr err
 
 parserParseOne' :: Parser
-                -> IO (Either YamlException Event)
+                -> IO (Either YamlException (Maybe Event))
 parserParseOne' parser = allocaBytesR eventSize $ \er -> do
     res <- liftIO $ c_yaml_parser_parse parser er
     flip finally (c_yaml_event_delete er) $
