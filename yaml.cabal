@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.4.0
+version:         0.5.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -15,15 +15,24 @@ extra-source-files: c/helper.h,
                     c/yaml_private.h,
                     c/yaml.h
 
+flag nolib
+  description: Skip building the library
+  default: False
 flag buildtests
   description: Build the executable to run unit tests
   default: False
 
 library
+    if flag(nolib)
+        Buildable: False
+    else
+        Buildable: True
     build-depends:   base >= 4 && < 5,
                      transformers >= 0.1 && < 0.3,
                      control-monad-failure >= 0.6.0 && < 0.7,
-                     bytestring >= 0.9.1.4 && < 0.10
+                     bytestring >= 0.9.1.4 && < 0.10,
+                     iteratee >= 0.3.5 && < 0.4,
+                     MonadCatchIO-transformers >= 0.2.2 && < 0.3
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall -auto-all -caf-all
     c-sources:       c/helper.c,
@@ -43,7 +52,13 @@ executable           runtests
         cpp-options:     -DTEST
         build-depends:   test-framework,
                          test-framework-hunit,
-                         HUnit
+                         base >= 4 && < 5,
+                         HUnit,
+                         transformers >= 0.1 && < 0.3,
+                         control-monad-failure >= 0.6.0 && < 0.7,
+                         bytestring >= 0.9.1.4 && < 0.10,
+                         iteratee >= 0.3.5 && < 0.4,
+                         MonadCatchIO-transformers >= 0.2.2 && < 0.3
     else
         Buildable: False
     ghc-options:     -Wall

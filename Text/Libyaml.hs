@@ -23,7 +23,9 @@ module Text.Libyaml
       -- * Encoder
     , YamlEncoder
     , YamlDecoder
+    , Parser
     , parseEvent
+    , parserParseOne
     , emitEvent
       -- ** Combinators
     , emitStream
@@ -59,6 +61,10 @@ import Control.Monad.Trans.Reader
 
 import Control.Exception (throwIO, Exception, SomeException)
 import Data.Typeable (Typeable)
+import Data.Iteratee
+import qualified Data.Iteratee.Base.StreamChunk as SC
+import Control.Applicative
+import Control.Monad.CatchIO (MonadCatchIO, finally)
 
 data Event =
     EventNone
@@ -205,40 +211,11 @@ allocaBytesR i = with (allocaBytes i)
 withCStringR :: With m => String -> (Ptr CChar -> m a) -> m a
 withCStringR s = with (withCString s)
 
-withFileParser :: (MonadFailure YamlException m, With m)
-               => FilePath
-               -> (Parser -> m a)
-               -> m a
-withFileParser fp f = allocaBytesR parserSize $ \p -> do
-    res <- liftIO $ c_yaml_parser_initialize p
-    when (res == 0) $ failure YamlOutOfMemory
-    file <- withCStringR fp $ \fp' -> withCStringR "r" $ \r' ->
-                    liftIO (c_fopen fp' r')
-    when (file == nullPtr) $ failure $ YamlFileNotFound fp
-    liftIO $ c_yaml_parser_set_input_file p file
-    ret <- f p
-    liftIO $ c_fclose file
-    liftIO $ c_yaml_parser_delete p -- could use some finallys here
-    return ret
-
-withParser :: (MonadFailure YamlException m, With m)
-           => B.ByteString
-           -> (Parser -> m a)
-           -> m a
-withParser bs f = allocaBytesR parserSize $ \p -> do
-    res <- liftIO $ c_yaml_parser_initialize p
-    when (res == 0) $ failure YamlOutOfMemory
-    let (fptr, offset, len) = B.toForeignPtr bs
-    ret <- withForeignPtrR fptr $ \ptr -> do
-             let ptr' = castPtr ptr `plusPtr` offset
-                 len' = fromIntegral len
-             liftIO $ c_yaml_parser_set_input_string p ptr' len'
-             f p
-    liftIO $ c_yaml_parser_delete p -- FIXME use finally
-    return ret
-
-withForeignPtrR :: With m => ForeignPtr a -> (Ptr a -> m b) -> m b
-withForeignPtrR fp = with (withForeignPtr fp)
+withForeignPtr' :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
+withForeignPtr' fp f = do
+    r <- f $ unsafeForeignPtrToPtr fp
+    liftIO $ touchForeignPtr fp
+    return r
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -659,14 +636,76 @@ encodeFile :: (With m, MonadFailure YamlException m)
            -> m ()
 encodeFile filePath = withEmitterFile filePath . runReaderT
 
-decode :: (With m, MonadFailure YamlException m)
+decode :: SC.StreamChunk c Event
+       => MonadCatchIO m
        => B.ByteString
-       -> YamlDecoder m a
-       -> m a
-decode bs dec = withParser bs $ runReaderT dec
+       -> EnumeratorGM c Event m a
+decode bs i = do
+    fp <- liftIO $ mallocForeignPtrBytes parserSize
+    res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
+    flip finally (liftIO $ withForeignPtr fp c_yaml_parser_delete) $
+      if (res == 0)
+        then return $ throwErr $ Err "Yaml out of memory"
+        else do
+            let (fptr, offset, len) = B.toForeignPtr bs
+            withForeignPtr' fptr $ \ptr -> do
+                let ptr' = castPtr ptr `plusPtr` offset
+                    len' = fromIntegral len
+                liftIO $ withForeignPtr fp $ \p ->
+                    c_yaml_parser_set_input_string p ptr' len'
+                runParser fp i
 
-decodeFile :: (With m, MonadFailure YamlException m)
+decodeFile :: SC.StreamChunk c Event
+           => MonadCatchIO m
            => FilePath
-           -> YamlDecoder m a
-           -> m a
-decodeFile fp dec = withFileParser fp $ runReaderT dec
+           -> EnumeratorGM c Event m a
+decodeFile file i = do
+    fp <- liftIO $ mallocForeignPtrBytes parserSize
+    res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
+    flip finally (liftIO $ withForeignPtr fp c_yaml_parser_delete) $
+      if (res == 0)
+        then return $ throwErr $ Err "Yaml out of memory"
+        else do
+            file' <- liftIO
+                    $ withCStringR file $ \file' -> withCStringR "r" $ \r' ->
+                            c_fopen file' r'
+            if (file' == nullPtr)
+                then return $ throwErr $ Err
+                            $ "Yaml file not found: " ++ file
+                else do
+                    liftIO $ withForeignPtr fp $ \p ->
+                        c_yaml_parser_set_input_file p file'
+                    finally (runParser fp i) $ liftIO $ do
+                        c_fclose file'
+                        withForeignPtr fp c_yaml_parser_delete
+
+runParser :: SC.StreamChunk c Event
+          => MonadCatchIO m
+          => ForeignPtr ParserStruct
+          -> IterateeG c Event m a
+          -> m (IterateeG c Event m a)
+runParser fp iter = do
+    e <- liftIO $ withForeignPtr fp parserParseOne'
+    case e of
+        Left err -> return $ throwErr $ Err $ show err
+        Right EventNone -> return iter
+        Right ev -> do
+            igv <- runIter iter $ Chunk $ SC.fromList [ev]
+            case igv of
+                Done a _ -> return $ return a
+                Cont iter' Nothing -> runParser fp iter'
+                Cont _ (Just err) -> return $ throwErr err
+
+parserParseOne' :: Parser
+                -> IO (Either YamlException Event)
+parserParseOne' parser = allocaBytesR eventSize $ \er -> do
+    res <- liftIO $ c_yaml_parser_parse parser er
+    flip finally (c_yaml_event_delete er) $
+      if res == 0
+        then do
+          problem <- makeString c_get_parser_error_problem parser
+          context <- makeString c_get_parser_error_context parser
+          offset <- fromIntegral `fmap`
+                                c_get_parser_error_offset parser
+          return $ Left $ YamlParserException problem context offset
+        else liftIO $ Right <$> getEvent er
