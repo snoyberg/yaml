@@ -16,25 +16,7 @@ module Text.Libyaml
     , Tag (..)
     , AnchorName
     , Anchor
-      -- * Exceptions
-    , YamlException (..)
-      -- * Enumerator
-    , With (..)
-      -- * Encoder
-    , YamlEncoder
-    , YamlDecoder
-    , Parser
-    , parseEvent
-    , parserParseOne
-    , emitEvent
-      -- ** Combinators
-    , emitStream
-    , emitDocument
-    , emitSequence
-    , emitSequenceWithAnchor
-    , emitMapping
-    , emitMappingWithAnchor
-      -- * Higher level functions
+      -- * Encoding and decoding
     , encode
     , decode
     , encodeFile
@@ -50,16 +32,14 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+
 #if MIN_VERSION_transformers(0,2,0)
 import "transformers" Control.Monad.IO.Class
 #else
 import "transformers" Control.Monad.Trans
 #endif
-import Control.Monad.Failure.Transformers
-import qualified Control.Monad.Trans.Error as ErrorT
-import Control.Monad.Trans.Reader
 
-import Control.Exception (throwIO, Exception, SomeException)
+import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
 import Data.Iteratee
 import qualified Data.Iteratee.Base.StreamChunk as SC
@@ -131,30 +111,6 @@ stringToTag "tag:yaml.org,2002:map" = MapTag
 stringToTag "" = NoTag
 stringToTag s = UriTag s
 
-data YamlException =
-    YamlParserException
-        { parserProblem :: String
-        , parserContext :: String
-        , parserOffset :: Int
-        }
-    | YamlEmitterException
-        { emitterEvent :: Event
-        , emitterProblem :: String
-        }
-    | YamlOutOfMemory
-    | YamlInvalidEventStreamBeginning [Event]
-    | YamlInvalidEventStreamEnd [Event]
-    | YamlPrematureEventStreamEnd
-    | YamlNonScalarKey
-    | YamlInvalidStartingEvent Event
-    | YamlFileNotFound FilePath
-    | YamlOtherException SomeException
-    | YamlStringException String
-    deriving (Show, Typeable)
-instance Exception YamlException
-instance ErrorT.Error YamlException where
-    strMsg = YamlStringException
-
 data ParserStruct
 type Parser = Ptr ParserStruct
 parserSize :: Int
@@ -194,24 +150,6 @@ foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
 
-class MonadIO m => With m where
-    with :: (forall b'. (a -> IO b') -> IO b') -> (a -> m b) -> m b
-
-instance With IO where
-    with = id
-instance With m => With (ReaderT r m) where
-    with orig f = ReaderT $ \r -> do
-        let f' a = (runReaderT $ f a) r
-        with orig f'
-instance (ErrorT.Error e, With m) => With (ErrorT.ErrorT e m) where
-    with orig f = ErrorT.ErrorT $ with orig $ ErrorT.runErrorT . f
-
-allocaBytesR :: With m => Int -> (Ptr a -> m b) -> m b
-allocaBytesR i = with (allocaBytes i)
-
-withCStringR :: With m => String -> (Ptr CChar -> m a) -> m a
-withCStringR s = with (withCString s)
-
 withForeignPtr' :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
 withForeignPtr' fp f = do
     r <- f $ unsafeForeignPtrToPtr fp
@@ -239,23 +177,6 @@ makeString f a = do
     if cchar == nullPtr
         then return ""
         else liftIO $ peekCString cchar
-
-parserParseOne :: (MonadFailure YamlException m, With m)
-               => Parser
-               -> m (Maybe Event)
-parserParseOne parser = allocaBytesR eventSize $ \er -> do
-    res <- liftIO $ c_yaml_parser_parse parser er
-    event <-
-      if res == 0
-        then do
-          problem <- liftIO $ makeString c_get_parser_error_problem parser
-          context <- liftIO $ makeString c_get_parser_error_context parser
-          offset <- liftIO $ fromIntegral `fmap`
-                                c_get_parser_error_offset parser
-          failure $ YamlParserException problem context offset
-        else liftIO $ getEvent er
-    liftIO $ c_yaml_event_delete er -- FIXME use finally
-    return event
 
 data EventType = YamlNoEvent
                | YamlStreamStartEvent
@@ -389,47 +310,6 @@ foreign import ccall unsafe "yaml_emitter_set_output_file"
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
 
-foreign import ccall unsafe "get_emitter_error"
-    c_get_emitter_error :: Emitter -> IO (Ptr CUChar)
-
-emitEvent :: (MonadIO m, MonadFailure YamlException m)
-          => Event
-          -> YamlEncoder m ()
-emitEvent e = do
-    emitter <- ask
-    res <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
-    when (res == 0) $ do
-        problem <- liftIO $ makeString c_get_emitter_error emitter
-        failure $ YamlEmitterException e problem
-
-emitStream, emitDocument, emitSequence, emitMapping
-    :: (MonadIO m, MonadFailure YamlException m)
-    => YamlEncoder m ()
-    -> YamlEncoder m ()
-emitStream e = emitEvent EventStreamStart >> e >> emitEvent EventStreamEnd
-emitDocument e = emitEvent EventDocumentStart >> e
-              >> emitEvent EventDocumentEnd
-emitSequence e = emitSequenceWithAnchor e Nothing
-emitMapping e = emitMappingWithAnchor e Nothing
-
-emitSequenceWithAnchor, emitMappingWithAnchor
-    :: (MonadIO m, MonadFailure YamlException m)
-    => YamlEncoder m ()
-    -> Anchor
-    -> YamlEncoder m ()
-emitSequenceWithAnchor e a = emitEvent (EventSequenceStart a) >> e
-                          >> emitEvent EventSequenceEnd
-emitMappingWithAnchor e a = emitEvent (EventMappingStart a) >> e
-                         >> emitEvent EventMappingEnd
-
-
-parseEvent :: (With m, MonadFailure YamlException m)
-           => YamlDecoder m (Maybe Event)
-parseEvent = ask >>= parserParseOne
-
-type YamlDecoder = ReaderT Parser
-type YamlEncoder = ReaderT Emitter
-
 foreign import ccall unsafe "yaml_stream_start_event_initialize"
     c_yaml_stream_start_event_initialize :: EventRaw -> CInt -> IO CInt
 
@@ -485,7 +365,7 @@ foreign import ccall unsafe "yaml_alias_event_initialize"
         -> IO CInt
 
 toEventRaw :: Event -> (EventRaw -> IO a) -> IO a
-toEventRaw e f = allocaBytesR eventSize $ \er -> do
+toEventRaw e f = allocaBytes eventSize $ \er -> do
     ret <- case e of
         EventStreamStart ->
             c_yaml_stream_start_event_initialize
@@ -613,7 +493,7 @@ decodeFile file i = do
         then return $ throwErr $ Err "Yaml out of memory"
         else do
             file' <- liftIO
-                    $ withCStringR file $ \file' -> withCStringR "r" $ \r' ->
+                    $ withCString file $ \file' -> withCString "r" $ \r' ->
                             c_fopen file' r'
             if (file' == nullPtr)
                 then return $ throwErr $ Err
@@ -643,17 +523,24 @@ runParser fp iter = do
                 Cont _ (Just err) -> return $ throwErr err
 
 parserParseOne' :: Parser
-                -> IO (Either YamlException (Maybe Event))
-parserParseOne' parser = allocaBytesR eventSize $ \er -> do
+                -> IO (Either String (Maybe Event))
+parserParseOne' parser = allocaBytes eventSize $ \er -> do
     res <- liftIO $ c_yaml_parser_parse parser er
     flip finally (c_yaml_event_delete er) $
       if res == 0
         then do
           problem <- makeString c_get_parser_error_problem parser
           context <- makeString c_get_parser_error_context parser
-          offset <- fromIntegral `fmap`
-                                c_get_parser_error_offset parser
-          return $ Left $ YamlParserException problem context offset
+          offset <- c_get_parser_error_offset parser
+          return $ Left $ concat
+            [ "YAML parse error: "
+            , problem
+            , "\nContext: "
+            , context
+            , "\nOffset: "
+            , show offset
+            , "\n"
+            ]
         else liftIO $ Right <$> getEvent er
 
 encode :: SC.StreamChunk c Event
@@ -685,8 +572,8 @@ encodeFile filePath = joinIM $ liftIO $ do
     fp <- mallocForeignPtrBytes emitterSize
     res <- withForeignPtr fp c_yaml_emitter_initialize
     when (res == 0) $ fail "c_yaml_emitter_initialize failed"
-    file <- withCStringR filePath $
-                \filePath' -> withCStringR "w" $
+    file <- withCString filePath $
+                \filePath' -> withCString "w" $
                 \w' -> c_fopen filePath' w'
     when (file == nullPtr) $ fail $ "could not open file for write: " ++ filePath
     withForeignPtr fp $ flip c_yaml_emitter_set_output_file file
