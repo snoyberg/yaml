@@ -26,6 +26,7 @@ module Text.Libyaml
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString
+import qualified Data.ByteString.Unsafe as BU
 import Data.ByteString (ByteString, packCStringLen)
 import Control.Monad
 import Foreign.C
@@ -376,13 +377,9 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
         EventDocumentEnd ->
             c_yaml_document_end_event_initialize er 1
         EventScalar bs thetag style anchor -> do
-            let (fvalue, offset, len) = B.toForeignPtr bs
-            withForeignPtr fvalue $ \value -> do
-                let value' = value `plusPtr` offset
-                    len' = fromIntegral len
-                    value'' = if ptrToIntPtr value' == 0
-                                then intPtrToPtr 1 -- c/api.c:827
-                                else value'
+            BU.unsafeUseAsCStringLen bs $ \(value, len) -> do
+                let value' = castPtr value :: Ptr CUChar
+                    len' = fromIntegral len :: CInt
                 let thetag' = tagToString thetag
                 withCString thetag' $ \tag' -> do
                     let style' = toEnum $ fromEnum style
@@ -394,7 +391,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                 er
                                 nullPtr -- anchor
                                 tagP    -- tag
-                                value'' -- value
+                                value'  -- value
                                 len'    -- length
                                 0       -- plain_implicit
                                 qi      -- quoted_implicit
@@ -406,7 +403,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                     er
                                     anchorP -- anchor
                                     tagP    -- tag
-                                    value'' -- value
+                                    value'  -- value
                                     len'    -- length
                                     0       -- plain_implicit
                                     qi      -- quoted_implicit
@@ -470,7 +467,8 @@ decode bs i = do
     flip finally (liftIO $ withForeignPtr fp c_yaml_parser_delete) $
       if (res == 0)
         then return $ throwErr $ Err "Yaml out of memory"
-        else do
+        else do -- NOTE: can't replace the following with unsafeUseAsCString
+                -- since it must run in a MonadIO
             let (fptr, offset, len) = B.toForeignPtr bs
             withForeignPtr' fptr $ \ptr -> do
                 let ptr' = castPtr ptr `plusPtr` offset
