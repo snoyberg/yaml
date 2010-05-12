@@ -33,6 +33,7 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+import Data.Data
 
 #if MIN_VERSION_transformers(0,2,0)
 import "transformers" Control.Monad.IO.Class
@@ -41,7 +42,6 @@ import "transformers" Control.Monad.Trans
 #endif
 
 import Control.Exception (throwIO, Exception)
-import Data.Typeable (Typeable)
 import Data.Iteratee
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import Control.Applicative
@@ -68,7 +68,7 @@ data Style = Any
            | DoubleQuoted
            | Literal
            | Folded
-    deriving (Show, Eq, Enum, Bounded, Ord)
+    deriving (Show, Read, Eq, Enum, Bounded, Ord, Data, Typeable)
 
 data Tag = StrTag
          | FloatTag
@@ -80,7 +80,7 @@ data Tag = StrTag
          | MapTag
          | UriTag String
          | NoTag
-    deriving (Show, Eq)
+    deriving (Show, Eq, Read, Data, Typeable)
 
 type AnchorName = String
 type Anchor = Maybe AnchorName
