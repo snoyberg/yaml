@@ -26,7 +26,7 @@ module Text.Libyaml
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, packCStringLen)
 import Control.Monad
 import Foreign.C
 import Foreign.Ptr
@@ -246,13 +246,11 @@ getEvent er = do
             let yvalue' = castPtr yvalue
             let ytag' = castPtr ytag
             let ylen' = fromEnum ylen
-            let ylen'' = toEnum $ fromEnum ylen
-            bs <- B.create ylen' $ \dest -> B.memcpy dest yvalue' ylen''
+            bs <- packCStringLen (yvalue', ylen')
             tagbs <-
                 if ytag_len' == 0
                     then return Data.ByteString.empty
-                    else B.create ytag_len'
-                      $ \dest -> B.memcpy dest ytag' (toEnum ytag_len')
+                    else packCStringLen (ytag', ytag_len')
             let style = toEnum $ fromEnum ystyle
             yanchor <- c_get_scalar_anchor er
             anchor <- if yanchor == nullPtr
