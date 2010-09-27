@@ -35,19 +35,13 @@ import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Data.Data
 
-#if MIN_VERSION_transformers(0,2,0)
-import "transformers" Control.Monad.IO.Class
-#else
-import "transformers" Control.Monad.Trans
-#endif
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Class (lift)
 
 import Control.Exception (throwIO, Exception)
-import Data.Iteratee
-import qualified Data.Iteratee.Base.StreamChunk as SC
+import Data.Enumerator
 import Control.Applicative
-import Control.Monad.CatchIO (MonadCatchIO, finally)
-
-import qualified Data.ListLike as LL
+import "MonadCatchIO-transformers" Control.Monad.CatchIO (MonadCatchIO, finally)
 
 data Event =
       EventStreamStart
@@ -457,16 +451,13 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: SC.StreamChunk c Event
-       => MonadCatchIO m
-       => B.ByteString
-       -> EnumeratorGM c Event m a
+decode :: MonadCatchIO m => B.ByteString -> Enumerator Event m a
 decode bs i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
-    flip finally (liftIO $ withForeignPtr fp c_yaml_parser_delete) $
+    a <-
       if (res == 0)
-        then return $ throwErr $ Err "Yaml out of memory"
+        then throwError $ YamlException "Yaml out of memory"
         else do -- NOTE: can't replace the following with unsafeUseAsCString
                 -- since it must run in a MonadIO
             let (fptr, offset, len) = B.toForeignPtr bs
@@ -476,47 +467,47 @@ decode bs i = do
                 liftIO $ withForeignPtr fp $ \p ->
                     c_yaml_parser_set_input_string p ptr' len'
                 runParser fp i
+    liftIO $ withForeignPtr fp c_yaml_parser_delete -- FIXME finally
+    return a
 
-decodeFile :: SC.StreamChunk c Event
-           => MonadCatchIO m
-           => FilePath
-           -> EnumeratorGM c Event m a
+-- FIXME decodeFile :: MonadCatchIO m => FilePath -> Enumerator Event m a
+decodeFile :: FilePath -> Enumerator Event IO a
 decodeFile file i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
-    flip finally (liftIO $ withForeignPtr fp c_yaml_parser_delete) $
-      if (res == 0)
-        then return $ throwErr $ Err "Yaml out of memory"
+    a <-
+      if res == 0
+        then throwError $ YamlException "Yaml out of memory"
         else do
             file' <- liftIO
                     $ withCString file $ \file' -> withCString "r" $ \r' ->
                             c_fopen file' r'
             if (file' == nullPtr)
-                then return $ throwErr $ Err
+                then throwError $ YamlException
                             $ "Yaml file not found: " ++ file
                 else do
                     liftIO $ withForeignPtr fp $ \p ->
                         c_yaml_parser_set_input_file p file'
-                    finally (runParser fp i) $ liftIO $ do
-                        c_fclose file'
-                        withForeignPtr fp c_yaml_parser_delete
+                    a <- runParser fp i
+                    -- FIXME finally
+                    liftIO $ c_fclose file'
+                    liftIO $ withForeignPtr fp c_yaml_parser_delete
+                    return a
+    liftIO $ withForeignPtr fp c_yaml_parser_delete -- FIXME finally
+    return a
 
-runParser :: SC.StreamChunk c Event
-          => MonadCatchIO m
+runParser :: MonadCatchIO m
           => ForeignPtr ParserStruct
-          -> IterateeG c Event m a
-          -> m (IterateeG c Event m a)
-runParser fp iter = do
+          -> Enumerator Event m a
+runParser fp (Continue k) = do
     e <- liftIO $ withForeignPtr fp parserParseOne'
     case e of
-        Left err -> return $ throwErr $ Err $ show err
-        Right Nothing -> return iter
+        Left err -> throwError $ YamlException err
+        Right Nothing -> continue k
         Right (Just ev) -> do
-            igv <- runIter iter $ Chunk $ SC.fromList [ev]
-            case igv of
-                Done a _ -> return $ return a
-                Cont iter' Nothing -> runParser fp iter'
-                Cont _ (Just err) -> return $ throwErr err
+            step' <- lift $ runIteratee $ k $ Chunks [ev]
+            runParser fp step'
+runParser _ step = returnI step
 
 parserParseOne' :: Parser
                 -> IO (Either String (Maybe Event))
@@ -539,19 +530,18 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
             ]
         else liftIO $ Right <$> getEvent er
 
-encode :: SC.StreamChunk c Event
-       => MonadIO m
-       => IterateeG c Event m B.ByteString
-encode = joinIM $ liftIO $ do
-    fp <- mallocForeignPtrBytes emitterSize
-    res <- withForeignPtr fp c_yaml_emitter_initialize
-    when (res == 0) $ fail "c_yaml_emitter_initialize failed"
-    buf <- mallocForeignPtrBytes bufferSize
-    withForeignPtr buf c_buffer_init
-    withForeignPtr fp $
+encode :: MonadIO m => Iteratee Event m B.ByteString
+encode = do
+    fp <- liftIO $ mallocForeignPtrBytes emitterSize
+    res <- liftIO $ withForeignPtr fp c_yaml_emitter_initialize
+    when (res == 0) $ throwError
+        $ YamlException "c_yaml_emitter_initialize failed"
+    buf <- liftIO $ mallocForeignPtrBytes bufferSize
+    liftIO $ withForeignPtr buf c_buffer_init
+    liftIO $ withForeignPtr fp $
         \emitter -> withForeignPtr buf $
         \b -> c_my_emitter_set_output emitter b
-    return $ runEmitter (go buf) fp
+    runEmitter (go buf) fp
   where
     go buf = withForeignPtr buf $ \b -> do
         ptr' <- c_get_buffer_buff b
@@ -559,34 +549,37 @@ encode = joinIM $ liftIO $ do
         fptr <- newForeignPtr_ $ castPtr ptr'
         return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
-
-encodeFile :: SC.StreamChunk c Event
-           => MonadIO m
+encodeFile :: MonadIO m
            => FilePath
-           -> IterateeG c Event m ()
-encodeFile filePath = joinIM $ liftIO $ do
-    fp <- mallocForeignPtrBytes emitterSize
-    res <- withForeignPtr fp c_yaml_emitter_initialize
-    when (res == 0) $ fail "c_yaml_emitter_initialize failed"
-    file <- withCString filePath $
+           -> Iteratee Event m ()
+encodeFile filePath = do
+    fp <- liftIO $ mallocForeignPtrBytes emitterSize
+    res <- liftIO $ withForeignPtr fp c_yaml_emitter_initialize
+    when (res == 0) $ throwError
+        $ YamlException "c_yaml_emitter_initialize failed"
+    file <- liftIO $ withCString filePath $
                 \filePath' -> withCString "w" $
                 \w' -> c_fopen filePath' w'
-    when (file == nullPtr) $ fail $ "could not open file for write: " ++ filePath
-    withForeignPtr fp $ flip c_yaml_emitter_set_output_file file
-    return $ runEmitter (c_fclose file) fp
+    when (file == nullPtr) $ throwError
+        $ YamlException $ "could not open file for write: " ++ filePath
+    liftIO $ withForeignPtr fp $ flip c_yaml_emitter_set_output_file file
+    runEmitter (c_fclose file) fp
 
-runEmitter :: SC.StreamChunk c Event
-           => MonadIO m
+runEmitter :: MonadIO m
            => IO a
            -> ForeignPtr EmitterStruct
-           -> IterateeG c Event m a
-runEmitter close fp = IterateeG go
+           -> Iteratee Event m a
+runEmitter close fp = continue go
   where
-    go (EOF x) = do
+    go EOF = do
         liftIO $ withForeignPtr fp c_yaml_emitter_delete
         a <- liftIO close
-        return $ Done a $ EOF x
-    go (Chunk c) = do
+        yield a EOF
+    go (Chunks c) = do
         liftIO $ withForeignPtr fp $ \emitter ->
-            LL.mapM_ (\e -> toEventRaw e $ c_yaml_emitter_emit emitter) c
-        return $ Cont (runEmitter close fp) Nothing
+            mapM_ (\e -> toEventRaw e $ c_yaml_emitter_emit emitter) c
+        continue go
+
+data YamlException = YamlException String
+    deriving (Show, Typeable)
+instance Exception YamlException
