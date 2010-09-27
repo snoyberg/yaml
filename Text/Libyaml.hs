@@ -21,6 +21,8 @@ module Text.Libyaml
     , decode
     , encodeFile
     , decodeFile
+      -- * Exception
+    , YamlException (..)
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -470,8 +472,7 @@ decode bs i = do
     liftIO $ withForeignPtr fp c_yaml_parser_delete -- FIXME finally
     return a
 
--- FIXME decodeFile :: MonadCatchIO m => FilePath -> Enumerator Event m a
-decodeFile :: FilePath -> Enumerator Event IO a
+decodeFile :: MonadIO m => FilePath -> Enumerator Event m a
 decodeFile file i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
@@ -496,7 +497,7 @@ decodeFile file i = do
     liftIO $ withForeignPtr fp c_yaml_parser_delete -- FIXME finally
     return a
 
-runParser :: MonadCatchIO m
+runParser :: MonadIO m
           => ForeignPtr ParserStruct
           -> Enumerator Event m a
 runParser fp (Continue k) = do
