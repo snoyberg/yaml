@@ -121,8 +121,8 @@ eventSize = 104
 foreign import ccall unsafe "yaml_parser_initialize"
     c_yaml_parser_initialize :: Parser -> IO CInt
 
-foreign import ccall unsafe "yaml_parser_delete"
-    c_yaml_parser_delete :: Parser -> IO ()
+foreign import ccall unsafe "&yaml_parser_delete"
+    c_yaml_parser_delete :: FunPtr (Parser -> IO ())
 
 foreign import ccall unsafe "yaml_parser_set_input_string"
     c_yaml_parser_set_input_string :: Parser
@@ -146,6 +146,9 @@ foreign import ccall unsafe "fopen"
 foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
+
+foreign import ccall unsafe "&fclose_helper"
+    c_fclose_helper :: FunPtr (File -> Parser -> IO ())
 
 withForeignPtr' :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
 withForeignPtr' fp f = do
@@ -457,6 +460,7 @@ decode :: MonadCatchIO m => B.ByteString -> Enumerator Event m a
 decode bs i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
+    liftIO $ addForeignPtrFinalizer c_yaml_parser_delete fp
     a <-
       if (res == 0)
         then throwError $ YamlException "Yaml out of memory"
@@ -469,12 +473,12 @@ decode bs i = do
                 liftIO $ withForeignPtr fp $ \p ->
                     c_yaml_parser_set_input_string p ptr' len'
                 runParser fp i
-    liftIO $ withForeignPtr fp c_yaml_parser_delete -- FIXME finally
     return a
 
 decodeFile :: MonadIO m => FilePath -> Enumerator Event m a
 decodeFile file i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
+    liftIO $ addForeignPtrFinalizer c_yaml_parser_delete fp
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
     a <-
       if res == 0
@@ -483,6 +487,7 @@ decodeFile file i = do
             file' <- liftIO
                     $ withCString file $ \file' -> withCString "r" $ \r' ->
                             c_fopen file' r'
+            liftIO $ addForeignPtrFinalizerEnv c_fclose_helper file' fp
             if (file' == nullPtr)
                 then throwError $ YamlException
                             $ "Yaml file not found: " ++ file
@@ -490,11 +495,7 @@ decodeFile file i = do
                     liftIO $ withForeignPtr fp $ \p ->
                         c_yaml_parser_set_input_file p file'
                     a <- runParser fp i
-                    -- FIXME finally
-                    liftIO $ c_fclose file'
-                    liftIO $ withForeignPtr fp c_yaml_parser_delete
                     return a
-    liftIO $ withForeignPtr fp c_yaml_parser_delete -- FIXME finally
     return a
 
 runParser :: MonadIO m

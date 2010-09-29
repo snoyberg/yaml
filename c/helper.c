@@ -134,3 +134,8 @@ int yaml_parser_set_input_filename(yaml_parser_t *parser, const char *filename)
 	if (!in) return 0;
 	yaml_parser_set_input_file(parser, in);
 }
+
+int fclose_helper(FILE *file, yaml_parser_t *parser)
+{
+	return fclose(file);
+}
