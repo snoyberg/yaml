@@ -40,10 +40,9 @@ import Data.Data
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class (lift)
 
-import Control.Exception (throwIO, Exception)
+import Control.Exception (throwIO, Exception, finally)
 import Data.Enumerator
 import Control.Applicative
-import "MonadCatchIO-transformers" Control.Monad.CatchIO (MonadCatchIO, finally)
 
 data Event =
       EventStreamStart
@@ -456,7 +455,7 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: MonadCatchIO m => B.ByteString -> Enumerator Event m a
+decode :: MonadIO m => B.ByteString -> Enumerator Event m a
 decode bs i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
