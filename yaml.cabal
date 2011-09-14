@@ -16,9 +16,9 @@ cabal-version:   >= 1.2
 build-type:      Simple
 homepage:        http://github.com/snoyberg/yaml/
 extra-source-files: c/helper.h,
-                    c/yaml_private.h,
-                    c/yaml.h,
-		    c/LICENSE
+                    libyaml/yaml_private.h,
+                    libyaml/yaml.h,
+		    libyaml/LICENSE
 
 flag nolib
   description: Skip building the library
@@ -38,16 +38,17 @@ library
                    , enumerator >= 0.4 && < 0.5
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall
-    c-sources:       c/helper.c,
-                     c/api.c,
-                     c/dumper.c,
-                     c/emitter.c,
-                     c/loader.c,
-                     c/parser.c,
-                     c/reader.c,
-                     c/scanner.c,
-                     c/writer.c
+    c-sources:       c/helper.c
     include-dirs:    c
+    c-sources:       libyaml/api.c,
+                     libyaml/dumper.c,
+                     libyaml/emitter.c,
+                     libyaml/loader.c,
+                     libyaml/parser.c,
+                     libyaml/reader.c,
+                     libyaml/scanner.c,
+                     libyaml/writer.c
+    include-dirs:    libyaml
 
 executable           runtests
     if flag(buildtests)
@@ -65,14 +66,15 @@ executable           runtests
     else
         Buildable: False
     ghc-options:     -Wall
-    c-sources:       c/helper.c,
-                     c/api.c,
-                     c/dumper.c,
-                     c/emitter.c,
-                     c/loader.c,
-                     c/parser.c,
-                     c/reader.c,
-                     c/scanner.c,
-                     c/writer.c
+    c-sources:       c/helper.c
     include-dirs:    c
+    c-sources:       libyaml/api.c,
+                     libyaml/dumper.c,
+                     libyaml/emitter.c,
+                     libyaml/loader.c,
+                     libyaml/parser.c,
+                     libyaml/reader.c,
+                     libyaml/scanner.c,
+                     libyaml/writer.c
+    include-dirs:    libyaml
     main-is:         runtests.hs
