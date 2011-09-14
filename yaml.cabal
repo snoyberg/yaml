@@ -2,10 +2,14 @@ name:            yaml
 version:         0.4.1
 license:         BSD3
 license-file:    LICENSE
-author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>
+author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Low-level binding to the libyaml C library.
-description:     Provides support for parsing and emitting Yaml documents. Includes the full C library in the package so you don't need to worry about any non-Haskell dependencies.
+description:     Provides support for parsing and emitting Yaml documents.
+                 .
+                 This package includes the full libyaml C library version 0.1.12 by Kirill
+                 Simonov (<http://pyyaml.org/wiki/LibYAML>) in the package so you
+                 don't need to worry about any non-Haskell dependencies.
 category:        Web
 stability:       unstable
 cabal-version:   >= 1.2
