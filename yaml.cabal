@@ -13,7 +13,8 @@ build-type:      Simple
 homepage:        http://github.com/snoyberg/yaml/
 extra-source-files: c/helper.h,
                     c/yaml_private.h,
-                    c/yaml.h
+                    c/yaml.h,
+		    c/LICENSE
 
 flag nolib
   description: Skip building the library
