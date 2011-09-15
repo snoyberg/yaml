@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.4.1
+version:         0.4.1.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -22,6 +22,7 @@ extra-source-files: c/helper.h,
 
 flag system-libyaml
   description: Use the system-wide libyaml instead of the bundled copy
+  default: False
 
 flag nolib
   description: Skip building the library
@@ -68,7 +69,6 @@ executable           runtests
                        , transformers >= 0.1 && < 0.3
                        , bytestring >= 0.9.1.4 && < 0.10
                        , enumerator >= 0.4 && < 0.5
-                       , MonadCatchIO-transformers >= 0.2.2 && < 0.3
     else
         Buildable: False
     ghc-options:     -Wall
