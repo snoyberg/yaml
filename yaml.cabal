@@ -7,7 +7,7 @@ maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Low-level binding to the libyaml C library.
 description:     Provides support for parsing and emitting Yaml documents.
                  .
-                 This package includes the full libyaml C library version 0.1.12 by Kirill
+                 This package includes the full libyaml C library version 0.1.2 by Kirill
                  Simonov (<http://pyyaml.org/wiki/LibYAML>) in the package so you
                  don't need to worry about any non-Haskell dependencies.
 category:        Web
