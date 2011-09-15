@@ -2,18 +2,26 @@ name:            yaml
 version:         0.4.1
 license:         BSD3
 license-file:    LICENSE
-author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>
+author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Low-level binding to the libyaml C library.
-description:     Provides support for parsing and emitting Yaml documents. Includes the full C library in the package so you don't need to worry about any non-Haskell dependencies.
+description:     Provides support for parsing and emitting Yaml documents.
+                 .
+                 This package includes the full libyaml C library version 0.1.12 by Kirill
+                 Simonov (<http://pyyaml.org/wiki/LibYAML>) in the package so you
+                 don't need to worry about any non-Haskell dependencies.
 category:        Web
 stability:       unstable
 cabal-version:   >= 1.2
 build-type:      Simple
 homepage:        http://github.com/snoyberg/yaml/
 extra-source-files: c/helper.h,
-                    c/yaml_private.h,
-                    c/yaml.h
+                    libyaml/yaml_private.h,
+                    libyaml/yaml.h,
+		    libyaml/LICENSE
+
+flag system-libyaml
+  description: Use the system-wide libyaml instead of the bundled copy
 
 flag nolib
   description: Skip building the library
@@ -33,16 +41,20 @@ library
                    , enumerator >= 0.4 && < 0.5
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall
-    c-sources:       c/helper.c,
-                     c/api.c,
-                     c/dumper.c,
-                     c/emitter.c,
-                     c/loader.c,
-                     c/parser.c,
-                     c/reader.c,
-                     c/scanner.c,
-                     c/writer.c
+    c-sources:       c/helper.c
     include-dirs:    c
+    if flag(system-libyaml)
+            pkgconfig-depends: yaml-0.1
+    else
+            c-sources:       libyaml/api.c,
+                             libyaml/dumper.c,
+                             libyaml/emitter.c,
+                             libyaml/loader.c,
+                             libyaml/parser.c,
+                             libyaml/reader.c,
+                             libyaml/scanner.c,
+                             libyaml/writer.c
+            include-dirs:    libyaml
 
 executable           runtests
     if flag(buildtests)
@@ -60,14 +72,18 @@ executable           runtests
     else
         Buildable: False
     ghc-options:     -Wall
-    c-sources:       c/helper.c,
-                     c/api.c,
-                     c/dumper.c,
-                     c/emitter.c,
-                     c/loader.c,
-                     c/parser.c,
-                     c/reader.c,
-                     c/scanner.c,
-                     c/writer.c
+    c-sources:       c/helper.c
     include-dirs:    c
+    if flag(system-libyaml)
+            pkgconfig-depends: yaml-0.1
+    else
+            c-sources:       libyaml/api.c,
+                             libyaml/dumper.c,
+                             libyaml/emitter.c,
+                             libyaml/loader.c,
+                             libyaml/parser.c,
+                             libyaml/reader.c,
+                             libyaml/scanner.c,
+                             libyaml/writer.c
+            include-dirs:    libyaml
     main-is:         runtests.hs
