@@ -23,6 +23,10 @@ module Text.Libyaml
     , decodeFile
       -- * Exception
     , YamlException (..)
+      -- * Low-level use
+    , ParserStruct
+    , decodeWith
+    , decodeFileWith
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -457,6 +461,14 @@ instance Exception ToEventRawException
 
 decode :: MonadIO m => B.ByteString -> Enumerator Event m a
 decode bs i = do
+    decodeWith (const return) bs i
+
+decodeWith
+  :: MonadIO m =>
+     (Ptr ParserStruct -> Event -> m a)
+     -> ByteString
+     -> Enumerator a m b
+decodeWith post bs i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
     liftIO $ addForeignPtrFinalizer c_yaml_parser_delete fp
@@ -471,11 +483,19 @@ decode bs i = do
                     len' = fromIntegral len
                 liftIO $ withForeignPtr fp $ \p ->
                     c_yaml_parser_set_input_string p ptr' len'
-                runParser fp i
+                runParser post fp i
     return a
 
 decodeFile :: MonadIO m => FilePath -> Enumerator Event m a
 decodeFile file i = do
+    decodeFileWith (const return) file i
+
+decodeFileWith
+  :: MonadIO m =>
+     (Ptr ParserStruct -> Event -> m a)
+     -> String
+     -> Enumerator a m b
+decodeFileWith post file i = do
     fp <- liftIO $ mallocForeignPtrBytes parserSize
     liftIO $ addForeignPtrFinalizer c_yaml_parser_delete fp
     res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
@@ -493,22 +513,25 @@ decodeFile file i = do
                 else do
                     liftIO $ withForeignPtr fp $ \p ->
                         c_yaml_parser_set_input_file p file'
-                    a <- runParser fp i
+                    a <- runParser post fp i
                     return a
     return a
 
-runParser :: MonadIO m
-          => ForeignPtr ParserStruct
-          -> Enumerator Event m a
-runParser fp (Continue k) = do
+runParser
+  :: MonadIO m =>
+     (Ptr ParserStruct -> Event -> m a)
+     -> ForeignPtr ParserStruct
+     -> Enumerator a m b
+runParser post fp (Continue k) = do
     e <- liftIO $ withForeignPtr fp parserParseOne'
     case e of
         Left err -> throwError $ YamlException err
         Right Nothing -> continue k
         Right (Just ev) -> do
-            step' <- lift $ runIteratee $ k $ Chunks [ev]
-            runParser fp step'
-runParser _ step = returnI step
+            r <- lift $ withForeignPtr' fp $ \p -> post p ev
+            step' <- lift $ runIteratee $ k $ Chunks [r]
+            runParser post fp step'
+runParser _ _ step = returnI step
 
 parserParseOne' :: Parser
                 -> IO (Either String (Maybe Event))
