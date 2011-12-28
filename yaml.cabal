@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.4.1.2
+version:         0.5.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -39,7 +39,7 @@ library
     build-depends:   base >= 4 && < 5
                    , transformers >= 0.1 && < 0.3
                    , bytestring >= 0.9.1.4 && < 0.10
-                   , enumerator >= 0.4 && < 0.5
+                   , conduit >= 0.0 && < 0.1
     exposed-modules: Text.Libyaml
     ghc-options:     -Wall
     c-sources:       c/helper.c
@@ -57,33 +57,20 @@ library
                              libyaml/writer.c
             include-dirs:    libyaml
 
-executable           runtests
-    if flag(buildtests)
-        Buildable: True
-        cpp-options:     -DTEST
-        build-depends:   test-framework
-                       , test-framework-hunit
-                       , HUnit
-                       , directory
-                       , base >= 4 && < 5
-                       , transformers >= 0.1 && < 0.3
-                       , bytestring >= 0.9.1.4 && < 0.10
-                       , enumerator >= 0.4 && < 0.5
-    else
-        Buildable: False
+test-suite runtests
+    type: exitcode-stdio-1.0
+    main-is:         runtests.hs
+    cpp-options:     -DTEST
+    build-depends:   test-framework
+                   , test-framework-hunit
+                   , HUnit
+                   , directory
+                   , base >= 4 && < 5
+                   , transformers >= 0.1 && < 0.3
+                   , bytestring >= 0.9.1.4 && < 0.10
+                   , conduit
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
-    if flag(system-libyaml)
-            pkgconfig-depends: yaml-0.1
-    else
-            c-sources:       libyaml/api.c,
-                             libyaml/dumper.c,
-                             libyaml/emitter.c,
-                             libyaml/loader.c,
-                             libyaml/parser.c,
-                             libyaml/reader.c,
-                             libyaml/scanner.c,
-                             libyaml/writer.c
-            include-dirs:    libyaml
-    main-is:         runtests.hs
+    pkgconfig-depends: yaml-0.1
+    extra-libraries: yaml

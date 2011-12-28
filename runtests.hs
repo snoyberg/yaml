@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 import Test.Framework (defaultMain)
 
 import Text.Libyaml
@@ -8,12 +9,13 @@ import qualified Data.ByteString.Char8 as B8
 import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, path)
 
-import qualified Data.Enumerator as E
-import Data.Enumerator (($$))
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 import Data.List (foldl')
 
 import System.Directory
 import Control.Monad
+import Control.Exception (try, SomeException)
 
 main :: IO ()
 main = defaultMain
@@ -29,19 +31,16 @@ main = defaultMain
     , testCase "decode invalid document (without segfault)" caseDecodeInvalidDocument
     ]
 
-counter :: (Event -> Bool) -> Int -> E.Step Event IO Int
+counter :: (Event -> Bool) -> Int -> C.Sink Event IO Int
 counter pred' acc =
-    E.Continue go
-  where
-    go E.EOF = E.yield acc E.EOF
-    go (E.Chunks c) = E.returnI $ counter pred' $ length (filter pred' c) + acc
+    CL.fold (\cnt e -> (if pred' e then 1 else 0) + cnt) 0
 
 caseHelper :: String
            -> (Event -> Bool)
            -> Int
            -> Assertion
 caseHelper yamlString pred' expRes = do
-    Right res <- E.run $ decode (B8.pack yamlString) (counter pred' 0)
+    res <- C.runResourceT $ decode (B8.pack yamlString) C.$$ counter pred' 0
     res @?= expRes
 
 caseCountScalarsWithAnchor :: Assertion
@@ -78,15 +77,11 @@ caseCountAliases =
 
 caseCountScalars :: Assertion
 caseCountScalars = do
-    Right res <- E.run $ decode yamlBS $ counter' accum
+    res <- C.runResourceT $ decode yamlBS C.$$ CL.fold adder accum
     res @?= (7, 1, 2)
   where
     yamlString = "foo:\n  baz: [bin1, bin2, bin3]\nbaz: bazval"
     yamlBS = B8.pack yamlString
-    counter' acc = E.Continue $ \s ->
-        case s of
-            E.EOF -> E.yield acc E.EOF
-            E.Chunks c -> E.returnI $ counter' $ foldl' adder acc c
     adder (s, l, m) (EventScalar{})        = (s + 1, l, m)
     adder (s, l, m) (EventSequenceStart{}) = (s, l + 1, m)
     adder (s, l, m) (EventMappingStart{})  = (s, l, m + 1)
@@ -95,17 +90,11 @@ caseCountScalars = do
 
 caseLargestString :: Assertion
 caseLargestString = do
-    Right res <- E.run $ decodeFile filePath $ dec accum
+    res <- C.runResourceT $ decodeFile filePath C.$$ CL.fold adder accum
     res @?= (length expected, expected)
     where
         expected = "this one is just a little bit bigger than the others"
         filePath = "test/largest-string.yaml"
-        dec acc = E.Continue $ \s ->
-            case s of
-                E.EOF -> E.yield acc E.EOF
-                E.Chunks c ->
-                    let acc' = foldl' adder acc c
-                     in E.returnI $ dec acc'
         adder (i, s) (EventScalar bs _ _ _) =
             let s' = B8.unpack bs
                 i' = length s'
@@ -121,9 +110,9 @@ instance Eq MyEvent where
 
 caseEncodeDecode :: Assertion
 caseEncodeDecode = do
-    Right eList <- E.run $ decode yamlBS $$ E.consume
-    Right bs <- E.run $ E.enumList 1 eList $$ encode
-    Right eList2 <- E.run $ decode bs $$ E.consume
+    eList <- C.runResourceT $ decode yamlBS C.$$ CL.consume
+    bs <- C.runResourceT $ CL.sourceList eList C.$$ encode
+    eList2 <- C.runResourceT $ decode bs C.$$ CL.consume
     map MyEvent eList @=? map MyEvent eList2
   where
     yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
@@ -137,9 +126,9 @@ removeFile' fp = do
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = do
     removeFile' tmpPath
-    Right eList <- E.run $ decodeFile filePath $$ E.consume
-    E.run $ E.enumList 1 eList $$ encodeFile tmpPath
-    Right eList2 <- E.run $ decodeFile filePath $$ E.consume
+    eList <- C.runResourceT $ decodeFile filePath C.$$ CL.consume
+    C.runResourceT $ CL.sourceList eList C.$$ encodeFile tmpPath
+    eList2 <- C.runResourceT $ decodeFile filePath C.$$ CL.consume
     map MyEvent eList @=? map MyEvent eList2
   where
     filePath = "test/largest-string.yaml"
@@ -149,8 +138,8 @@ caseInterleave :: Assertion
 caseInterleave = do
     removeFile' tmpPath
     removeFile' tmpPath2
-    Right () <- E.run $ decodeFile filePath $$ encodeFile tmpPath
-    Right () <- E.run $ decodeFile tmpPath $$ encodeFile tmpPath2
+    () <- C.runResourceT $ decodeFile filePath C.$$ encodeFile tmpPath
+    () <- C.runResourceT $ decodeFile tmpPath C.$$ encodeFile tmpPath2
     f1 <- readFile tmpPath
     f2 <- readFile tmpPath2
     f1 @=? f2
@@ -161,16 +150,12 @@ caseInterleave = do
 
 caseDecodeInvalidDocument :: Assertion
 caseDecodeInvalidDocument = do
-    x <- E.run $ decode yamlBS ignore
+    x <- try $ C.runResourceT $ decode yamlBS C.$$ CL.sinkNull
     case x of
-        Left _ -> return ()
+        Left (e :: SomeException) -> return ()
         Right y -> do
             putStrLn $ "bad return value: " ++ show y
             assertFailure "expected parsing exception, but got no errors"
   where
     yamlString = "  - foo\n  - baz\nbuz"
     yamlBS = B8.pack yamlString
-    ignore = E.Continue $ \s ->
-        case s of
-            E.EOF -> E.yield () E.EOF
-            E.Chunks _-> E.returnI ignore

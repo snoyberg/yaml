@@ -41,8 +41,9 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class (lift)
 
 import Control.Exception (throwIO, Exception, finally)
-import Data.Enumerator
 import Control.Applicative
+import Control.Monad.Trans.Resource
+import qualified Data.Conduit as C
 
 data Event =
       EventStreamStart
@@ -120,8 +121,8 @@ eventSize = 104
 foreign import ccall unsafe "yaml_parser_initialize"
     c_yaml_parser_initialize :: Parser -> IO CInt
 
-foreign import ccall unsafe "&yaml_parser_delete"
-    c_yaml_parser_delete :: FunPtr (Parser -> IO ())
+foreign import ccall unsafe "yaml_parser_delete"
+    c_yaml_parser_delete :: Parser -> IO ()
 
 foreign import ccall unsafe "yaml_parser_set_input_string"
     c_yaml_parser_set_input_string :: Parser
@@ -146,8 +147,8 @@ foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
 
-foreign import ccall unsafe "&fclose_helper"
-    c_fclose_helper :: FunPtr (File -> Parser -> IO ())
+foreign import ccall unsafe "fclose_helper"
+    c_fclose_helper :: File -> IO ()
 
 withForeignPtr' :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
 withForeignPtr' fp f = do
@@ -455,60 +456,67 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: MonadIO m => B.ByteString -> Enumerator Event m a
-decode bs i = do
-    fp <- liftIO $ mallocForeignPtrBytes parserSize
-    res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
-    liftIO $ addForeignPtrFinalizer c_yaml_parser_delete fp
-    a <-
-      if (res == 0)
-        then throwError $ YamlException "Yaml out of memory"
-        else do -- NOTE: can't replace the following with unsafeUseAsCString
-                -- since it must run in a MonadIO
-            let (fptr, offset, len) = B.toForeignPtr bs
-            withForeignPtr' fptr $ \ptr -> do
-                let ptr' = castPtr ptr `plusPtr` offset
-                    len' = fromIntegral len
-                liftIO $ withForeignPtr fp $ \p ->
-                    c_yaml_parser_set_input_string p ptr' len'
-                runParser fp i
-    return a
+decode :: ResourceIO m => B.ByteString -> C.Source m Event
+decode bs =
+    C.sourceIO alloc cleanup (runParser . fst)
+  where
+    alloc = mask_ $ do
+        ptr <- mallocBytes parserSize
+        res <- c_yaml_parser_initialize ptr
+        if res == 0
+            then do
+                c_yaml_parser_delete ptr
+                free ptr
+                throwIO $ YamlException "Yaml out of memory"
+            else do
+                let (bsfptr, offset, len) = B.toForeignPtr bs
+                let bsptrOrig = unsafeForeignPtrToPtr bsfptr
+                let bsptr = castPtr bsptrOrig `plusPtr` offset
+                c_yaml_parser_set_input_string ptr bsptr (fromIntegral len)
+                return (ptr, bsfptr)
+    cleanup (ptr, bsfptr) = do
+        touchForeignPtr bsfptr
+        c_yaml_parser_delete ptr
+        free ptr
 
-decodeFile :: MonadIO m => FilePath -> Enumerator Event m a
-decodeFile file i = do
-    fp <- liftIO $ mallocForeignPtrBytes parserSize
-    liftIO $ addForeignPtrFinalizer c_yaml_parser_delete fp
-    res <- liftIO $ withForeignPtr fp c_yaml_parser_initialize
-    a <-
-      if res == 0
-        then throwError $ YamlException "Yaml out of memory"
-        else do
-            file' <- liftIO
-                    $ withCString file $ \file' -> withCString "r" $ \r' ->
-                            c_fopen file' r'
-            liftIO $ addForeignPtrFinalizerEnv c_fclose_helper file' fp
-            if (file' == nullPtr)
-                then throwError $ YamlException
-                            $ "Yaml file not found: " ++ file
-                else do
-                    liftIO $ withForeignPtr fp $ \p ->
-                        c_yaml_parser_set_input_file p file'
-                    a <- runParser fp i
-                    return a
-    return a
+decodeFile :: ResourceIO m => FilePath -> C.Source m Event
+decodeFile file =
+    C.sourceIO alloc cleanup (runParser . fst)
+  where
+    alloc = mask_ $ do
+        ptr <- mallocBytes parserSize
+        res <- c_yaml_parser_initialize ptr
+        if res == 0
+            then do
+                c_yaml_parser_delete ptr
+                free ptr
+                throwIO $ YamlException "Yaml out of memory"
+            else do
+                file' <- liftIO
+                        $ withCString file $ \file' -> withCString "r" $ \r' ->
+                                c_fopen file' r'
+                if file' == nullPtr
+                    then do
+                        c_fclose_helper file'
+                        c_yaml_parser_delete ptr
+                        free ptr
+                        throwIO $ YamlException
+                                $ "Yaml file not found: " ++ file
+                    else do
+                        c_yaml_parser_set_input_file ptr file'
+                        return (ptr, file')
+    cleanup (ptr, file') = do
+        c_fclose_helper file'
+        c_yaml_parser_delete ptr
+        free ptr
 
-runParser :: MonadIO m
-          => ForeignPtr ParserStruct
-          -> Enumerator Event m a
-runParser fp (Continue k) = do
-    e <- liftIO $ withForeignPtr fp parserParseOne'
+runParser :: ResourceIO m => Parser -> m (C.SourceResult Event)
+runParser parser = liftIO $ do
+    e <- parserParseOne' parser
     case e of
-        Left err -> throwError $ YamlException err
-        Right Nothing -> continue k
-        Right (Just ev) -> do
-            step' <- lift $ runIteratee $ k $ Chunks [ev]
-            runParser fp step'
-runParser _ step = returnI step
+        Left err -> throwIO $ YamlException err
+        Right Nothing -> return $ C.Closed
+        Right (Just ev) -> return $ C.Open ev
 
 parserParseOne' :: Parser
                 -> IO (Either String (Maybe Event))
@@ -529,57 +537,60 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
             , show offset
             , "\n"
             ]
-        else liftIO $ Right <$> getEvent er
+        else Right <$> getEvent er
 
-encode :: MonadIO m => Iteratee Event m B.ByteString
-encode = do
-    fp <- liftIO $ mallocForeignPtrBytes emitterSize
-    res <- liftIO $ withForeignPtr fp c_yaml_emitter_initialize
-    when (res == 0) $ throwError
-        $ YamlException "c_yaml_emitter_initialize failed"
-    buf <- liftIO $ mallocForeignPtrBytes bufferSize
-    liftIO $ withForeignPtr buf c_buffer_init
-    liftIO $ withForeignPtr fp $
-        \emitter -> withForeignPtr buf $
-        \b -> c_my_emitter_set_output emitter b
-    runEmitter (go buf) fp
+encode :: ResourceIO m => C.Sink Event m ByteString
+encode =
+    runEmitter alloc close
   where
-    go buf = withForeignPtr buf $ \b -> do
+    alloc emitter = do
+        fbuf <- mallocForeignPtrBytes bufferSize
+        withForeignPtr fbuf c_buffer_init
+        withForeignPtr fbuf $ c_my_emitter_set_output emitter
+        return fbuf
+    close fbuf = withForeignPtr fbuf $ \b -> do
         ptr' <- c_get_buffer_buff b
         len <- c_get_buffer_used b
         fptr <- newForeignPtr_ $ castPtr ptr'
         return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
-encodeFile :: MonadIO m
+encodeFile :: ResourceIO m
            => FilePath
-           -> Iteratee Event m ()
-encodeFile filePath = do
-    fp <- liftIO $ mallocForeignPtrBytes emitterSize
-    res <- liftIO $ withForeignPtr fp c_yaml_emitter_initialize
-    when (res == 0) $ throwError
-        $ YamlException "c_yaml_emitter_initialize failed"
-    file <- liftIO $ withCString filePath $
-                \filePath' -> withCString "w" $
-                \w' -> c_fopen filePath' w'
-    when (file == nullPtr) $ throwError
-        $ YamlException $ "could not open file for write: " ++ filePath
-    liftIO $ withForeignPtr fp $ flip c_yaml_emitter_set_output_file file
-    runEmitter (c_fclose file) fp
-
-runEmitter :: MonadIO m
-           => IO a
-           -> ForeignPtr EmitterStruct
-           -> Iteratee Event m a
-runEmitter close fp = continue go
+           -> C.Sink Event m ()
+encodeFile filePath = C.Sink $ do
+    (releaseKey, file) <- flip withIO c_fclose $ do
+        file <- liftIO $ withCString filePath $
+                    \filePath' -> withCString "w" $
+                    \w' -> c_fopen filePath' w'
+        if (file == nullPtr)
+            then throwIO $ YamlException $ "could not open file for write: " ++ filePath
+            else return file
+    C.prepareSink $ runEmitter (alloc file) (return) -- FIXME close file early
   where
-    go EOF = do
-        liftIO $ withForeignPtr fp c_yaml_emitter_delete
-        a <- liftIO close
-        yield a EOF
-    go (Chunks c) = do
-        liftIO $ withForeignPtr fp $ \emitter ->
-            mapM_ (\e -> toEventRaw e $ c_yaml_emitter_emit emitter) c
-        continue go
+    alloc file emitter = do
+        c_yaml_emitter_set_output_file emitter file
+        return ()
+
+runEmitter :: ResourceIO m
+           => (Emitter -> IO a) -- ^ alloc
+           -> (a -> IO b) -- ^ close
+           -> C.Sink Event m b
+runEmitter allocI closeI =
+    C.sinkIO alloc cleanup push close
+  where
+    alloc = mask_ $ do
+        emitter <- mallocBytes emitterSize
+        res <- c_yaml_emitter_initialize emitter
+        when (res == 0) $ throwIO $ YamlException "c_yaml_emitter_initialize failed"
+        a <- allocI emitter
+        return (emitter, a)
+    cleanup (emitter, _) = do
+        c_yaml_emitter_delete emitter
+        free emitter
+    push (emitter, _) e = do
+        liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
+        return C.Processing
+    close (_, a) = liftIO $ closeI a
 
 data YamlException = YamlException String
     deriving (Show, Typeable)
