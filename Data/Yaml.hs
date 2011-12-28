@@ -35,7 +35,7 @@ import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (liftM)
 import qualified Data.Vector as V
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
@@ -183,7 +183,17 @@ parseM a front = do
                     Just (EventScalar v _ _ a') -> parseScalar v a'
                     _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
             o <- parseO
-            parseM a $ M.insert s o front
+
+            let al  = M.insert s o front
+                al' = if s == pack "<<"
+                         then case o of
+                                  Object l  -> M.union al l
+                                  Array l -> M.union al $ foldl merge' M.empty $ V.toList l
+                                  _          -> al
+                         else al
+            parseM a $ M.insert s o al'
+    where merge' al (Object om) = M.union al om
+          merge' al _           = al
 
 decode :: FromJSON a
        => ByteString
