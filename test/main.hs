@@ -1,38 +1,37 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-import Test.Framework (defaultMain)
 
 import Text.Libyaml
 import qualified Data.ByteString.Char8 as B8
 
-import Test.Framework.Providers.HUnit
 import Test.HUnit hiding (Test, path)
 
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Data.List (foldl')
 
 import System.Directory
 import Control.Monad
 import Control.Exception (try, SomeException)
+import Test.Hspec.Monadic
+import Test.Hspec.HUnit ()
 
 main :: IO ()
-main = defaultMain
-    [ testCase "count scalars with anchor" caseCountScalarsWithAnchor
-    , testCase "count sequences with anchor" caseCountSequencesWithAnchor
-    , testCase "count mappings with anchor" caseCountMappingsWithAnchor
-    , testCase "count aliases" caseCountAliases
-    , testCase "count scalars" caseCountScalars
-    , testCase "largest string" caseLargestString
-    , testCase "encode/decode" caseEncodeDecode
-    , testCase "encode/decode file" caseEncodeDecodeFile
-    , testCase "interleaved encode/decode" caseInterleave
-    , testCase "decode invalid document (without segfault)" caseDecodeInvalidDocument
-    ]
+main = hspecX $ do
+    describe "streaming" $ do
+        it "count scalars with anchor" caseCountScalarsWithAnchor
+        it "count sequences with anchor" caseCountSequencesWithAnchor
+        it "count mappings with anchor" caseCountMappingsWithAnchor
+        it "count aliases" caseCountAliases
+        it "count scalars" caseCountScalars
+        it "largest string" caseLargestString
+        it "encode/decode" caseEncodeDecode
+        it "encode/decode file" caseEncodeDecodeFile
+        it "interleaved encode/decode" caseInterleave
+        it "decode invalid document (without segfault)" caseDecodeInvalidDocument
 
-counter :: (Event -> Bool) -> Int -> C.Sink Event IO Int
-counter pred' acc =
+counter :: (Event -> Bool) -> C.Sink Event IO Int
+counter pred' =
     CL.fold (\cnt e -> (if pred' e then 1 else 0) + cnt) 0
 
 caseHelper :: String
@@ -40,7 +39,7 @@ caseHelper :: String
            -> Int
            -> Assertion
 caseHelper yamlString pred' expRes = do
-    res <- C.runResourceT $ decode (B8.pack yamlString) C.$$ counter pred' 0
+    res <- C.runResourceT $ decode (B8.pack yamlString) C.$$ counter pred'
     res @?= expRes
 
 caseCountScalarsWithAnchor :: Assertion
@@ -152,7 +151,7 @@ caseDecodeInvalidDocument :: Assertion
 caseDecodeInvalidDocument = do
     x <- try $ C.runResourceT $ decode yamlBS C.$$ CL.sinkNull
     case x of
-        Left (e :: SomeException) -> return ()
+        Left (_ :: SomeException) -> return ()
         Right y -> do
             putStrLn $ "bad return value: " ++ show y
             assertFailure "expected parsing exception, but got no errors"

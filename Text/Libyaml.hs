@@ -9,6 +9,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
 
+-- | Low-level, streaming YAML interface. For a higher-level interface, see
+-- "Data.Yaml".
 module Text.Libyaml
     ( -- * The event stream
       Event (..)

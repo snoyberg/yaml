@@ -12,7 +12,7 @@ description:     Provides support for parsing and emitting Yaml documents.
                  don't need to worry about any non-Haskell dependencies.
 category:        Web
 stability:       unstable
-cabal-version:   >= 1.2
+cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://github.com/snoyberg/yaml/
 extra-source-files: c/helper.h,
@@ -24,18 +24,7 @@ flag system-libyaml
   description: Use the system-wide libyaml instead of the bundled copy
   default: False
 
-flag nolib
-  description: Skip building the library
-  default: False
-flag buildtests
-  description: Build the executable to run unit tests
-  default: False
-
 library
-    if flag(nolib)
-        Buildable: False
-    else
-        Buildable: True
     build-depends:   base >= 4 && < 5
                    , transformers >= 0.1 && < 0.3
                    , bytestring >= 0.9.1.4 && < 0.10
@@ -57,18 +46,19 @@ library
                              libyaml/writer.c
             include-dirs:    libyaml
 
-test-suite runtests
+test-suite test
     type: exitcode-stdio-1.0
-    main-is:         runtests.hs
+    hs-source-dirs:  test
+    main-is:         main.hs
     cpp-options:     -DTEST
-    build-depends:   test-framework
-                   , test-framework-hunit
+    build-depends:   hspec
                    , HUnit
                    , directory
                    , base >= 4 && < 5
                    , transformers >= 0.1 && < 0.3
                    , bytestring >= 0.9.1.4 && < 0.10
                    , conduit
+                   , yaml
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
