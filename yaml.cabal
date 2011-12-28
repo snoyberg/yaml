@@ -29,7 +29,13 @@ library
                    , transformers >= 0.1 && < 0.3
                    , bytestring >= 0.9.1.4 && < 0.10
                    , conduit >= 0.0 && < 0.1
+                   , convertible-text
+                   , text
+                   , failure
+                   , containers
+                   , data-object
     exposed-modules: Text.Libyaml
+                     Data.Yaml
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
@@ -59,6 +65,8 @@ test-suite test
                    , bytestring >= 0.9.1.4 && < 0.10
                    , conduit
                    , yaml
+                   , data-object
+                   , convertible-text
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
