@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 import qualified Text.Libyaml as Y
 import qualified Data.ByteString.Char8 as B8
@@ -16,10 +17,11 @@ import Control.Exception (try, SomeException)
 import Test.Hspec.Monadic
 import Test.Hspec.HUnit ()
 
-import Data.Object
 import qualified Data.Yaml as D
+import Data.Yaml (object, array)
 import Data.Maybe
-import Data.Convertible.Text (cs)
+import qualified Data.HashMap.Strict as M
+import qualified Data.Text as T
 
 main :: IO ()
 main = hspecX $ do
@@ -39,7 +41,6 @@ main = hspecX $ do
         it "encode/decode file" caseEncodeDecodeFileData
         it "encode/decode strings" caseEncodeDecodeStrings
         it "decode invalid file" caseDecodeInvalid
-        it "encode/decode in order" caseInOrder
     describe "Data.Yaml aliases" $ do
         it "simple scalar alias" caseSimpleScalarAlias
         it "simple sequence alias" caseSimpleSequenceAlias
@@ -181,75 +182,69 @@ caseDecodeInvalidDocument = do
     yamlString = "  - foo\n  - baz\nbuz"
     yamlBS = B8.pack yamlString
 
-mkFoldedScalar :: String -> D.YamlScalar
-mkFoldedScalar s = D.YamlScalar (cs s) Y.StrTag Y.Folded
+mkScalar :: String -> D.Value
+mkScalar = mkStrScalar
 
-mkScalar :: String -> D.YamlScalar
-mkScalar s = D.YamlScalar (cs s) Y.NoTag Y.Plain
+mkStrScalar :: String -> D.Value
+mkStrScalar = D.String . T.pack
 
-mkStrScalar :: String -> D.YamlScalar
-mkStrScalar s = D.YamlScalar (cs s) Y.StrTag Y.Plain
+mappingKey :: D.Value-> String -> D.Value
+mappingKey (D.Object m) k = (fromJust . M.lookup (T.pack k) $ m)
+mappingKey _ _ = error "expected Object"
 
-mappingKey :: D.YamlObject -> String -> D.YamlObject
-mappingKey (Mapping m) k = (fromJust . lookup (mkScalar k) $ m)
-mappingKey _ _ = error "expected Mapping"
-
-decodeYaml :: String -> Maybe D.YamlObject
+decodeYaml :: String -> Maybe D.Value
 decodeYaml s = D.decode $ B8.pack s
 
-sample :: D.YamlObject
-sample = Sequence
-    [ Scalar $ mkFoldedScalar "foo"
-    , Mapping
-        [ (mkFoldedScalar "bar1", Scalar $ mkFoldedScalar "bar2")
+sample :: D.Value
+sample = array
+    [ D.String "foo"
+    , object
+        [ ("bar1", D.String "bar2")
         ]
     ]
 
-sampleStr :: Object String String
-sampleStr = mapKeysValues D.fromYamlScalar D.fromYamlScalar sample
-
 caseEncodeDecodeData :: Assertion
 caseEncodeDecodeData = do
-    out <- D.decode $ D.encode sample
-    out @?= sample
+    let out = D.decode $ D.encode sample
+    out @?= Just sample
 
 caseEncodeDecodeFileData :: Assertion
 caseEncodeDecodeFileData = do
     let fp = "tmp.yaml"
     D.encodeFile fp sample
-    out <- join $ D.decodeFile fp
-    out @?= sample
+    out <- D.decodeFile fp
+    out @?= Just sample
 
 caseEncodeDecodeStrings :: Assertion
 caseEncodeDecodeStrings = do
-    out <- D.decode $ D.encode $ D.toYamlObject sampleStr
-    D.fromYamlObject out @?= sampleStr
+    let out = D.decode $ D.encode sample
+    out @?= Just sample
 
 caseDecodeInvalid :: Assertion
 caseDecodeInvalid = do
     let invalid = B8.pack "\tthis is 'not' valid :-)"
-    Nothing @=? (D.decode invalid :: Maybe D.YamlObject)
+    Nothing @=? (D.decode invalid :: Maybe D.Value)
 
 caseSimpleScalarAlias :: Assertion
 caseSimpleScalarAlias = do
     let maybeRes = decodeYaml "- &anch foo\n- baz\n- *anch"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    res @?= Sequence [Scalar (mkScalar "foo"), Scalar (mkScalar "baz"), Scalar (mkScalar "foo")]
+    res @?= array [(mkScalar "foo"), (mkScalar "baz"), (mkScalar "foo")]
 
 caseSimpleSequenceAlias :: Assertion
 caseSimpleSequenceAlias = do
     let maybeRes = decodeYaml "seq: &anch\n  - foo\n  - baz\nseq2: *anch"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    res @?= Mapping [(mkScalar "seq", Sequence [Scalar (mkScalar "foo"), Scalar (mkScalar "baz")]), (mkScalar "seq2", Sequence [Scalar (mkScalar "foo"), Scalar (mkScalar "baz")])]
+    res @?= object [("seq", array [(mkScalar "foo"), (mkScalar "baz")]), ("seq2", array [(mkScalar "foo"), (mkScalar "baz")])]
 
 caseSimpleMappingAlias :: Assertion
 caseSimpleMappingAlias = do
     let maybeRes = decodeYaml "map: &anch\n  key1: foo\n  key2: baz\nmap2: *anch"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    res @?= Mapping [(mkScalar "map", Mapping [(mkScalar "key1", Scalar (mkScalar "foo")), (mkScalar "key2", Scalar (mkScalar "baz"))]), (mkScalar "map2", Mapping [(mkScalar "key1", Scalar (mkScalar "foo")), (mkScalar "key2", Scalar (mkScalar "baz"))])]
+    res @?= object [(T.pack "map", object [("key1", mkScalar "foo"), ("key2", (mkScalar "baz"))]), (T.pack "map2", object [("key1", (mkScalar "foo")), ("key2", mkScalar "baz")])]
 
 caseMappingAliasBeforeAnchor :: Assertion
 caseMappingAliasBeforeAnchor = do
@@ -266,44 +261,29 @@ caseScalarAliasOverriding = do
     let maybeRes = decodeYaml "- &anch foo\n- baz\n- *anch\n- &anch boo\n- buz\n- *anch"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    res @?= Sequence [Scalar (mkScalar "foo"), Scalar (mkScalar "baz"), Scalar (mkScalar "foo"), Scalar (mkScalar "boo"), Scalar (mkScalar "buz"), Scalar (mkScalar "boo")]
+    res @?= array [(mkScalar "foo"), (mkScalar "baz"), (mkScalar "foo"), (mkScalar "boo"), (mkScalar "buz"), (mkScalar "boo")]
 
 caseAllKeysShouldBeUnique :: Assertion
 caseAllKeysShouldBeUnique = do
     let maybeRes = decodeYaml "foo1: foo\nfoo2: baz\nfoo1: buz"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    mappingKey res "foo1" @?= Scalar (mkScalar "buz")
+    mappingKey res "foo1" @?= (mkScalar "buz")
 
 caseSimpleMappingMerge :: Assertion
 caseSimpleMappingMerge = do
     let maybeRes = decodeYaml "foo1: foo\nfoo2: baz\n<<:\n  foo1: buz\n  foo3: fuz"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    mappingKey res "foo1" @?= Scalar (mkScalar "foo")
-    mappingKey res "foo3" @?= Scalar (mkScalar "fuz")
+    mappingKey res "foo1" @?= (mkScalar "foo")
+    mappingKey res "foo3" @?= (mkScalar "fuz")
 
 caseMergeSequence :: Assertion
 caseMergeSequence = do
     let maybeRes = decodeYaml "m1: &m1\n  k1: !!str 1\n  k2: !!str 2\nm2: &m2\n  k1: !!str 3\n  k3: !!str 4\nfoo1: foo\n<<: [ *m1, *m2 ]"
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
-    mappingKey res "foo1" @?= Scalar (mkScalar "foo")
-    mappingKey res "k1" @?= Scalar (mkStrScalar "1")
-    mappingKey res "k2" @?= Scalar (mkStrScalar "2")
-    mappingKey res "k3" @?= Scalar (mkStrScalar "4")
-
-inOrderData :: String
-inOrderData = "'Fatal': 'Unknown variable \"bar\"'\n'Date': '2001-11-23 15:03:17 -5'\n'User': 'ed'\n'Stack':\n- 'line': '23'\n  'file': 'TopClass.py'\n  'code': 'x = MoreObject(\"345\\n\")\n\n'\n- 'line': '58'\n  'file': 'MoreClass.py'\n  'code': 'foo = bar'\n"
-
-inOrderData2 :: String
-inOrderData2 =
-       "'a': '1'\n'b': '2'\n'd': '4'\n'c': '3'\n"
-    ++ "'g': '1'\n'n': '2'\n'q': '4'\n'f': '3'\n"
-    ++ "'z': '1'\n'y': '2'\n'x': '4'\n'w': '3'\n"
-
-caseInOrder :: Assertion
-caseInOrder = do
-    Just (Mapping ((x, _):_)) <- return $ decodeYaml inOrderData
-    x @?= mkScalar "Fatal"
-    fmap (B8.unpack . D.encode) (decodeYaml inOrderData2) @?= Just inOrderData2
+    mappingKey res "foo1" @?= (mkScalar "foo")
+    mappingKey res "k1" @?= (mkStrScalar "1")
+    mappingKey res "k2" @?= (mkStrScalar "2")
+    mappingKey res "k3" @?= (mkStrScalar "4")

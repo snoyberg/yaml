@@ -29,11 +29,11 @@ library
                    , transformers >= 0.1 && < 0.3
                    , bytestring >= 0.9.1.4 && < 0.10
                    , conduit >= 0.0 && < 0.1
-                   , convertible-text
-                   , text
-                   , failure
+                   , aeson >= 0.5
                    , containers
-                   , data-object
+                   , unordered-containers
+                   , vector
+                   , text
     exposed-modules: Text.Libyaml
                      Data.Yaml
     ghc-options:     -Wall
@@ -65,8 +65,8 @@ test-suite test
                    , bytestring >= 0.9.1.4 && < 0.10
                    , conduit
                    , yaml
-                   , data-object
-                   , convertible-text
+                   , text
+                   , unordered-containers
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
