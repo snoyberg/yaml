@@ -18,7 +18,9 @@ homepage:        http://github.com/snoyberg/yaml/
 extra-source-files: c/helper.h,
                     libyaml/yaml_private.h,
                     libyaml/yaml.h,
-		    libyaml/LICENSE
+		            libyaml/LICENSE
+                    test/main.hs
+                    test/largest-string.yaml
 
 flag system-libyaml
   description: Use the system-wide libyaml instead of the bundled copy
