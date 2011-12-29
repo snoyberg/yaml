@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.5.0
+version:         0.5.0.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -70,7 +70,3 @@ test-suite test
                    , text
                    , unordered-containers
     ghc-options:     -Wall
-    c-sources:       c/helper.c
-    include-dirs:    c
-    pkgconfig-depends: yaml-0.1
-    extra-libraries: yaml
