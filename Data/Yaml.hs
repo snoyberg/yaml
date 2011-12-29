@@ -9,7 +9,7 @@
 module Data.Yaml
     ( -- * Types
       Value (..)
-    , Parse
+    , Parser
       -- * Constructors and accessors
     , object
     , array
