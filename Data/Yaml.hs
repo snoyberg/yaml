@@ -9,8 +9,18 @@
 module Data.Yaml
     ( -- * Types
       Value (..)
+    , Parse
+      -- * Constructors and accessors
     , object
     , array
+    , (.=)
+    , (.:)
+    , (.:?)
+    , (.!=)
+      -- * Parsing
+    , parseMonad
+    , parseEither
+    , parseMaybe
       -- * Classes
     , ToJSON (..)
     , FromJSON (..)
@@ -22,8 +32,11 @@ module Data.Yaml
     ) where
 
 import qualified Text.Libyaml as Y
-import Data.Aeson (Value (..), ToJSON (..), FromJSON (..), object)
-import Data.Aeson.Types (Pair, parseMaybe)
+import Data.Aeson
+    ( Value (..), ToJSON (..), FromJSON (..), object
+    , (.=) , (.:) , (.:?) , (.!=)
+    )
+import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
@@ -109,16 +122,16 @@ instance MonadTrans PErrorT where
 instance MonadIO m => MonadIO (PErrorT m) where
     liftIO = lift . liftIO
 
-type Parser = StateT (Map.Map String Value) IO
+type Parse = StateT (Map.Map String Value) IO
 
-requireEvent :: Event -> C.Sink Event Parser ()
+requireEvent :: Event -> C.Sink Event Parse ()
 requireEvent e = do
     f <- CL.head
     if f == Just e
         then return ()
         else liftIO $ throwIO $ UnexpectedEvent f $ Just e
 
-parse :: C.Sink Event Parser Value
+parse :: C.Sink Event Parse Value
 parse = do
     requireEvent EventStreamStart
     requireEvent EventDocumentStart
@@ -128,7 +141,7 @@ parse = do
     return res
 
 parseScalar :: ByteString -> Anchor
-            -> C.Sink Event Parser Text
+            -> C.Sink Event Parse Text
 parseScalar v a = do
     let res = decodeUtf8With lenientDecode v
     case a of
@@ -137,7 +150,7 @@ parseScalar v a = do
             lift $ modify (Map.insert an $ String res)
             return res
 
-parseO :: C.Sink Event Parser Value
+parseO :: C.Sink Event Parse Value
 parseO = do
     me <- CL.head
     case me of
@@ -153,7 +166,7 @@ parseO = do
 
 parseS :: Y.Anchor
        -> ([Value] -> [Value])
-       -> C.Sink Event Parser Value
+       -> C.Sink Event Parse Value
 parseS a front = do
     me <- CL.peek
     case me of
@@ -171,7 +184,7 @@ parseS a front = do
 
 parseM :: Y.Anchor
        -> M.HashMap Text Value
-       -> C.Sink Event Parser Value
+       -> C.Sink Event Parse Value
 parseM a front = do
     me <- CL.peek
     case me of
@@ -212,7 +225,7 @@ decodeFile :: FromJSON a
 decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO return
 
 decodeHelper :: FromJSON a
-             => C.Source Parser Y.Event
+             => C.Source Parse Y.Event
              -> IO (Either ParseException (Maybe a))
 decodeHelper src = do
     x <- try $ flip evalStateT Map.empty $ C.runResourceT $ src C.$$ parse
@@ -225,3 +238,6 @@ decodeHelper src = do
 
 array :: [Value] -> Value
 array = Array . V.fromList
+
+parseMonad :: Monad m => (a -> Parser b) -> a -> m b
+parseMonad p = either fail return . parseEither p
