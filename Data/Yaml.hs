@@ -10,6 +10,8 @@ module Data.Yaml
     ( -- * Types
       Value (..)
     , Parser
+    , Object
+    , Array
       -- * Constructors and accessors
     , object
     , array
@@ -35,6 +37,7 @@ import qualified Text.Libyaml as Y
 import Data.Aeson
     ( Value (..), ToJSON (..), FromJSON (..), object
     , (.=) , (.:) , (.:?) , (.!=)
+    , Object, Array
     )
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
