@@ -54,10 +54,12 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (liftM)
 import qualified Data.Vector as V
 import Data.Text (Text, pack)
+import Data.Text.Read (signed, decimal, double)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
+import Data.Attoparsec.Number
 
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $
@@ -150,14 +152,23 @@ parseScalar v a = do
     case a of
         Nothing -> return res
         Just an -> do
-            lift $ modify (Map.insert an $ String res)
+            lift $ modify (Map.insert an $ textToValue res)
             return res
+
+textToValue :: Text -> Value -- FIXME check for quoting style?
+textToValue "true" = Bool True
+textToValue "false" = Bool False
+textToValue "null" = Null
+textToValue t
+    | Right (x, "") <- signed decimal t = Number $ I x
+    | Right (x, "") <- double t = Number $ D x
+    | otherwise = String t
 
 parseO :: C.Sink Event Parse Value
 parseO = do
     me <- CL.head
     case me of
-        Just (EventScalar v _t _s a) -> fmap String $ parseScalar v a
+        Just (EventScalar v _t _s a) -> fmap textToValue $ parseScalar v a
         Just (EventSequenceStart a) -> parseS a id
         Just (EventMappingStart a) -> parseM a M.empty
         Just (EventAlias an) -> do

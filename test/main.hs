@@ -41,6 +41,7 @@ main = hspecX $ do
         it "encode/decode file" caseEncodeDecodeFileData
         it "encode/decode strings" caseEncodeDecodeStrings
         it "decode invalid file" caseDecodeInvalid
+        it "processes datatypes" caseDataTypes
     describe "Data.Yaml aliases" $ do
         it "simple scalar alias" caseSimpleScalarAlias
         it "simple sequence alias" caseSimpleSequenceAlias
@@ -284,6 +285,19 @@ caseMergeSequence = do
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
     mappingKey res "foo1" @?= (mkScalar "foo")
-    mappingKey res "k1" @?= (mkStrScalar "1")
-    mappingKey res "k2" @?= (mkStrScalar "2")
-    mappingKey res "k3" @?= (mkStrScalar "4")
+    mappingKey res "k1" @?= (D.Number 1)
+    mappingKey res "k2" @?= (D.Number 2)
+    mappingKey res "k3" @?= (D.Number 4)
+
+caseDataTypes :: Assertion
+caseDataTypes =
+    D.decode (D.encode val) @?= Just val
+  where
+    val = object
+        [ ("string", D.String "foo")
+        , ("int", D.Number 5)
+        , ("float", D.Number 4.3)
+        , ("true", D.Bool True)
+        , ("false", D.Bool False)
+        , ("null", D.Null)
+        ]
