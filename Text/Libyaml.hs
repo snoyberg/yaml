@@ -40,7 +40,6 @@ import Foreign.Marshal.Alloc
 import Data.Data
 
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class (lift)
 
 import Control.Exception (throwIO, Exception, finally)
 import Control.Applicative
@@ -151,12 +150,6 @@ foreign import ccall unsafe "fclose"
 
 foreign import ccall unsafe "fclose_helper"
     c_fclose_helper :: File -> IO ()
-
-withForeignPtr' :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
-withForeignPtr' fp f = do
-    r <- f $ unsafeForeignPtrToPtr fp
-    liftIO $ touchForeignPtr fp
-    return r
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -560,7 +553,7 @@ encodeFile :: ResourceIO m
            => FilePath
            -> C.Sink Event m ()
 encodeFile filePath = C.Sink $ do
-    (releaseKey, file) <- flip withIO c_fclose $ do
+    (_releaseKey, file) <- flip withIO c_fclose $ do
         file <- liftIO $ withCString filePath $
                     \filePath' -> withCString "w" $
                     \w' -> c_fopen filePath' w'
@@ -590,7 +583,7 @@ runEmitter allocI closeI =
         c_yaml_emitter_delete emitter
         free emitter
     push (emitter, _) e = do
-        liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
+        _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
         return C.Processing
     close (_, a) = liftIO $ closeI a
 
