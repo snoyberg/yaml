@@ -505,13 +505,13 @@ decodeFile file =
         c_yaml_parser_delete ptr
         free ptr
 
-runParser :: ResourceIO m => Parser -> m (C.SourceResult Event)
+runParser :: ResourceIO m => Parser -> m (C.SourceIOResult Event)
 runParser parser = liftIO $ do
     e <- parserParseOne' parser
     case e of
         Left err -> throwIO $ YamlException err
-        Right Nothing -> return $ C.Closed
-        Right (Just ev) -> return $ C.Open ev
+        Right Nothing -> return $ C.IOClosed
+        Right (Just ev) -> return $ C.IOOpen ev
 
 parserParseOne' :: Parser
                 -> IO (Either String (Maybe Event))
@@ -552,16 +552,24 @@ encode =
 encodeFile :: ResourceIO m
            => FilePath
            -> C.Sink Event m ()
-encodeFile filePath = C.Sink $ do
-    (_releaseKey, file) <- flip withIO c_fclose $ do
-        file <- liftIO $ withCString filePath $
-                    \filePath' -> withCString "w" $
-                    \w' -> c_fopen filePath' w'
-        if (file == nullPtr)
-            then throwIO $ YamlException $ "could not open file for write: " ++ filePath
-            else return file
-    C.prepareSink $ runEmitter (alloc file) (return) -- FIXME close file early
+encodeFile filePath = C.SinkData
+    { C.sinkPush = \input -> do
+        sink <- msink
+        C.sinkPush sink input
+    , C.sinkClose = do
+        sink <- msink
+        C.sinkClose sink
+    }
   where
+    msink = do
+        (_releaseKey, file) <- flip withIO c_fclose $ do
+            file <- liftIO $ withCString filePath $
+                        \filePath' -> withCString "w" $
+                        \w' -> c_fopen filePath' w'
+            if (file == nullPtr)
+                then throwIO $ YamlException $ "could not open file for write: " ++ filePath
+                else return file
+        return $ runEmitter (alloc file) (return) -- FIXME close file early
     alloc file emitter = do
         c_yaml_emitter_set_output_file emitter file
         return ()
@@ -584,7 +592,7 @@ runEmitter allocI closeI =
         free emitter
     push (emitter, _) e = do
         _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
-        return C.Processing
+        return C.IOProcessing
     close (_, a) = liftIO $ closeI a
 
 data YamlException = YamlException String
