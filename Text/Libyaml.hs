@@ -45,6 +45,7 @@ import Control.Exception (throwIO, Exception, finally)
 import Control.Applicative
 import Control.Monad.Trans.Resource
 import qualified Data.Conduit as C
+import Control.Exception (mask_)
 
 data Event =
       EventStreamStart
@@ -451,7 +452,7 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: ResourceIO m => B.ByteString -> C.Source m Event
+decode :: C.MonadResource m => B.ByteString -> C.Source m Event
 decode bs =
     C.sourceIO alloc cleanup (runParser . fst)
   where
@@ -474,7 +475,7 @@ decode bs =
         c_yaml_parser_delete ptr
         free ptr
 
-decodeFile :: ResourceIO m => FilePath -> C.Source m Event
+decodeFile :: C.MonadResource m => FilePath -> C.Source m Event
 decodeFile file =
     C.sourceIO alloc cleanup (runParser . fst)
   where
@@ -505,7 +506,7 @@ decodeFile file =
         c_yaml_parser_delete ptr
         free ptr
 
-runParser :: ResourceIO m => Parser -> m (C.SourceIOResult Event)
+runParser :: C.MonadResource m => Parser -> m (C.SourceIOResult Event)
 runParser parser = liftIO $ do
     e <- parserParseOne' parser
     case e of
@@ -534,7 +535,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
             ]
         else Right <$> getEvent er
 
-encode :: ResourceIO m => C.Sink Event m ByteString
+encode :: C.MonadResource m => C.Sink Event m ByteString
 encode =
     runEmitter alloc close
   where
@@ -549,20 +550,14 @@ encode =
         fptr <- newForeignPtr_ $ castPtr ptr'
         return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
-encodeFile :: ResourceIO m
+encodeFile :: C.MonadResource m
            => FilePath
            -> C.Sink Event m ()
-encodeFile filePath = C.SinkData
-    { C.sinkPush = \input -> do
-        sink <- msink
-        C.sinkPush sink input
-    , C.sinkClose = do
-        sink <- msink
-        C.sinkClose sink
-    }
+encodeFile filePath =
+    C.SinkM msink
   where
     msink = do
-        (_releaseKey, file) <- flip withIO c_fclose $ do
+        (_releaseKey, file) <- flip allocate c_fclose $ do
             file <- liftIO $ withCString filePath $
                         \filePath' -> withCString "w" $
                         \w' -> c_fopen filePath' w'
@@ -574,7 +569,7 @@ encodeFile filePath = C.SinkData
         c_yaml_emitter_set_output_file emitter file
         return ()
 
-runEmitter :: ResourceIO m
+runEmitter :: C.MonadResource m
            => (Emitter -> IO a) -- ^ alloc
            -> (a -> IO b) -- ^ close
            -> C.Sink Event m b

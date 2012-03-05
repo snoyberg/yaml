@@ -54,7 +54,7 @@ main = hspecX $ do
         it "test mapping merge" caseSimpleMappingMerge
         it "test sequence of mappings merging" caseMergeSequence
 
-counter :: (Y.Event -> Bool) -> C.Sink Y.Event IO Int
+counter :: Monad m => (Y.Event -> Bool) -> C.Sink Y.Event m Int
 counter pred' =
     CL.fold (\cnt e -> (if pred' e then 1 else 0) + cnt) 0
 

@@ -127,7 +127,7 @@ instance MonadTrans PErrorT where
 instance MonadIO m => MonadIO (PErrorT m) where
     liftIO = lift . liftIO
 
-type Parse = StateT (Map.Map String Value) IO
+type Parse = StateT (Map.Map String Value) (C.ResourceT IO)
 
 requireEvent :: Event -> C.Sink Event Parse ()
 requireEvent e = do
@@ -242,7 +242,7 @@ decodeHelper :: FromJSON a
              => C.Source Parse Y.Event
              -> IO (Either ParseException (Maybe a))
 decodeHelper src = do
-    x <- try $ flip evalStateT Map.empty $ C.runResourceT $ src C.$$ parse
+    x <- try $ C.runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
