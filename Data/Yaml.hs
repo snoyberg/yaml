@@ -31,6 +31,8 @@ module Data.Yaml
     , encodeFile
     , decode
     , decodeFile
+      -- ** Better error information
+    , decodeEither
     ) where
 
 import qualified Text.Libyaml as Y
@@ -231,16 +233,23 @@ parseM a front = do
 decode :: FromJSON a
        => ByteString
        -> Maybe a
-decode bs = unsafePerformIO $ fmap (either (const Nothing) id) $ decodeHelper (Y.decode bs)
+decode bs = unsafePerformIO
+          $ fmap (either (const Nothing) (either (const Nothing) Just))
+          $ decodeHelper (Y.decode bs)
 
 decodeFile :: FromJSON a
            => FilePath
            -> IO (Maybe a)
-decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO return
+decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO (return . either (const Nothing) id)
+
+decodeEither :: FromJSON a => ByteString -> Either String a
+decodeEither bs = unsafePerformIO
+                $ fmap (either (Left . show) id)
+                $ decodeHelper (Y.decode bs)
 
 decodeHelper :: FromJSON a
              => C.Source Parse Y.Event
-             -> IO (Either ParseException (Maybe a))
+             -> IO (Either ParseException (Either String a))
 decodeHelper src = do
     x <- try $ C.runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     case x of
@@ -248,7 +257,7 @@ decodeHelper src = do
             | Just pe <- fromException e -> return $ Left pe
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just $ show (ye :: YamlException)
             | otherwise -> throwIO e
-        Right y -> return $ Right $ parseMaybe parseJSON y
+        Right y -> return $ Right $ parseEither parseJSON y
 
 array :: [Value] -> Value
 array = Array . V.fromList
