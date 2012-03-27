@@ -554,7 +554,7 @@ encodeFile :: C.MonadResource m
            => FilePath
            -> C.Sink Event m ()
 encodeFile filePath =
-    C.SinkM msink
+    C.PipeM msink (return ())
   where
     msink = do
         (_releaseKey, file) <- flip allocate c_fclose $ do
