@@ -1,2 +1,4 @@
 dist
 *.swp
+tmp.yaml
+tmp2.yaml
