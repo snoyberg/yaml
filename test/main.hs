@@ -53,6 +53,9 @@ main = hspecX $ do
         it "test uniqueness of keys" caseAllKeysShouldBeUnique
         it "test mapping merge" caseSimpleMappingMerge
         it "test sequence of mappings merging" caseMergeSequence
+    describe "numbers" $ do
+        it "parses as string when quoted" caseQuotedNumber
+        it "parses as number when unquoted" caseUnquotedNumber
 
 counter :: Monad m => (Y.Event -> Bool) -> C.Sink Y.Event m Int
 counter pred' =
@@ -301,3 +304,7 @@ caseDataTypes =
         , ("false", D.Bool False)
         , ("null", D.Null)
         ]
+
+caseQuotedNumber, caseUnquotedNumber :: Assertion
+caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
+caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])

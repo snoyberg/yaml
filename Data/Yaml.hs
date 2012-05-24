@@ -147,21 +147,24 @@ parse = do
     requireEvent EventStreamEnd
     return res
 
-parseScalar :: ByteString -> Anchor
+parseScalar :: ByteString -> Anchor -> Style
             -> C.Sink Event Parse Text
-parseScalar v a = do
+parseScalar v a style = do
     let res = decodeUtf8With lenientDecode v
     case a of
         Nothing -> return res
         Just an -> do
-            lift $ modify (Map.insert an $ textToValue res)
+            lift $ modify (Map.insert an $ textToValue style res)
             return res
 
-textToValue :: Text -> Value -- FIXME check for quoting style?
-textToValue "true" = Bool True
-textToValue "false" = Bool False
-textToValue "null" = Null
-textToValue t
+textToValue :: Style -> Text -> Value
+textToValue SingleQuoted t = String t
+textToValue DoubleQuoted t = String t
+textToValue Folded t = String t
+textToValue _ "true" = Bool True
+textToValue _ "false" = Bool False
+textToValue _ "null" = Null
+textToValue _ t
     | Right (x, "") <- signed decimal t = Number $ I x
     | Right (x, "") <- double t = Number $ D x
     | otherwise = String t
@@ -170,7 +173,7 @@ parseO :: C.Sink Event Parse Value
 parseO = do
     me <- CL.head
     case me of
-        Just (EventScalar v _t _s a) -> fmap textToValue $ parseScalar v a
+        Just (EventScalar v _t style a) -> fmap (textToValue style) $ parseScalar v a style
         Just (EventSequenceStart a) -> parseS a id
         Just (EventMappingStart a) -> parseM a M.empty
         Just (EventAlias an) -> do
@@ -215,7 +218,7 @@ parseM a front = do
         _ -> do
             CL.drop 1
             s <- case me of
-                    Just (EventScalar v _ _ a') -> parseScalar v a'
+                    Just (EventScalar v _ style a') -> parseScalar v a' style
                     _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
             o <- parseO
 
