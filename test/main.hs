@@ -56,6 +56,10 @@ main = hspecX $ do
     describe "numbers" $ do
         it "parses as string when quoted" caseQuotedNumber
         it "parses as number when unquoted" caseUnquotedNumber
+    describe "booleans" $ do
+        it "parses when all lowercase" caseLowercaseBool
+        it "parses when all uppercase" caseUppercaseBool
+        it "parses when titlecase" caseTitlecaseBool
 
 counter :: Monad m => (Y.Event -> Bool) -> C.Sink Y.Event m Int
 counter pred' =
@@ -308,3 +312,11 @@ caseDataTypes =
 caseQuotedNumber, caseUnquotedNumber :: Assertion
 caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
 caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])
+
+obj :: Maybe D.Value
+obj = Just (object [("foo", D.Bool False), ("bar", D.Bool True), ("baz", D.Bool True)])
+
+caseLowercaseBool, caseUppercaseBool, caseTitlecaseBool :: Assertion
+caseLowercaseBool = D.decode "foo: off\nbar: y\nbaz: true" @?= obj
+caseUppercaseBool = D.decode "foo: FALSE\nbar: Y\nbaz: ON" @?= obj
+caseTitlecaseBool = D.decode "foo: No\nbar: Yes\nbaz: True" @?= obj
