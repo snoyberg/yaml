@@ -54,8 +54,10 @@ import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (liftM)
+import Data.Char (toUpper)
 import qualified Data.Vector as V
 import Data.Text (Text, pack)
+import qualified Data.Text as T
 import Data.Text.Read (signed, decimal, double)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
@@ -161,13 +163,16 @@ textToValue :: Style -> Text -> Value
 textToValue SingleQuoted t = String t
 textToValue DoubleQuoted t = String t
 textToValue Folded t = String t
-textToValue _ "true" = Bool True
-textToValue _ "false" = Bool False
 textToValue _ "null" = Null
 textToValue _ t
+    | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
+    | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
     | Right (x, "") <- signed decimal t = Number $ I x
     | Right (x, "") <- double t = Number $ D x
     | otherwise = String t
+  where x `isLike` ref = x `elem` [ref, T.toUpper ref, titleCased]
+          where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
+
 
 parseO :: C.Sink Event Parse Value
 parseO = do
