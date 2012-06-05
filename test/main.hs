@@ -56,6 +56,7 @@ main = hspecX $ do
     describe "numbers" $ do
         it "parses as string when quoted" caseQuotedNumber
         it "parses as number when unquoted" caseUnquotedNumber
+        it "parses as number !!str is present" caseAttribNumber
     describe "booleans" $ do
         it "parses when all lowercase" caseLowercaseBool
         it "parses when all uppercase" caseUppercaseBool
@@ -292,9 +293,9 @@ caseMergeSequence = do
     isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
     let res = fromJust maybeRes
     mappingKey res "foo1" @?= (mkScalar "foo")
-    mappingKey res "k1" @?= (D.Number 1)
-    mappingKey res "k2" @?= (D.Number 2)
-    mappingKey res "k3" @?= (D.Number 4)
+    mappingKey res "k1" @?= (D.String "1")
+    mappingKey res "k2" @?= (D.String "2")
+    mappingKey res "k3" @?= (D.String "4")
 
 caseDataTypes :: Assertion
 caseDataTypes =
@@ -309,9 +310,10 @@ caseDataTypes =
         , ("null", D.Null)
         ]
 
-caseQuotedNumber, caseUnquotedNumber :: Assertion
+caseQuotedNumber, caseUnquotedNumber, caseAttribNumber :: Assertion
 caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
 caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])
+caseAttribNumber = D.decode "foo: !!str 1234" @?= Just (object [("foo", D.String "1234")])
 
 obj :: Maybe D.Value
 obj = Just (object [("foo", D.Bool False), ("bar", D.Bool True), ("baz", D.Bool True)])

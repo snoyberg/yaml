@@ -149,22 +149,23 @@ parse = do
     requireEvent EventStreamEnd
     return res
 
-parseScalar :: ByteString -> Anchor -> Style
+parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> C.Sink Event Parse Text
-parseScalar v a style = do
+parseScalar v a style tag = do
     let res = decodeUtf8With lenientDecode v
     case a of
         Nothing -> return res
         Just an -> do
-            lift $ modify (Map.insert an $ textToValue style res)
+            lift $ modify (Map.insert an $ textToValue style tag res)
             return res
 
-textToValue :: Style -> Text -> Value
-textToValue SingleQuoted t = String t
-textToValue DoubleQuoted t = String t
-textToValue Folded t = String t
-textToValue _ "null" = Null
-textToValue _ t
+textToValue :: Style -> Tag -> Text -> Value
+textToValue SingleQuoted _ t = String t
+textToValue DoubleQuoted _ t = String t
+textToValue _ StrTag t = String t
+textToValue Folded _ t = String t
+textToValue _ _ "null" = Null
+textToValue _ _ t
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
     | Right (x, "") <- signed decimal t = Number $ I x
@@ -178,7 +179,7 @@ parseO :: C.Sink Event Parse Value
 parseO = do
     me <- CL.head
     case me of
-        Just (EventScalar v _t style a) -> fmap (textToValue style) $ parseScalar v a style
+        Just (EventScalar v tag style a) -> fmap (textToValue style tag) $ parseScalar v a style tag
         Just (EventSequenceStart a) -> parseS a id
         Just (EventMappingStart a) -> parseM a M.empty
         Just (EventAlias an) -> do
@@ -223,7 +224,7 @@ parseM a front = do
         _ -> do
             CL.drop 1
             s <- case me of
-                    Just (EventScalar v _ style a') -> parseScalar v a' style
+                    Just (EventScalar v tag style a') -> parseScalar v a' style tag
                     _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
             o <- parseO
 
