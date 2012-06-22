@@ -44,7 +44,7 @@ import Control.Monad.IO.Class
 import Control.Exception (throwIO, Exception, finally)
 import Control.Applicative
 import Control.Monad.Trans.Resource
-import qualified Data.Conduit as C
+import Data.Conduit
 import Control.Exception (mask_)
 
 data Event =
@@ -452,9 +452,9 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: C.MonadResource m => B.ByteString -> C.Source m Event
+decode :: MonadResource m => B.ByteString -> Source m Event
 decode bs =
-    C.sourceIO alloc cleanup (runParser . fst)
+    bracketP alloc cleanup (runParser . fst)
   where
     alloc = mask_ $ do
         ptr <- mallocBytes parserSize
@@ -475,9 +475,9 @@ decode bs =
         c_yaml_parser_delete ptr
         free ptr
 
-decodeFile :: C.MonadResource m => FilePath -> C.Source m Event
+decodeFile :: MonadResource m => FilePath -> Source m Event
 decodeFile file =
-    C.sourceIO alloc cleanup (runParser . fst)
+    bracketP alloc cleanup (runParser . fst)
   where
     alloc = mask_ $ do
         ptr <- mallocBytes parserSize
@@ -506,13 +506,13 @@ decodeFile file =
         c_yaml_parser_delete ptr
         free ptr
 
-runParser :: C.MonadResource m => Parser -> m (C.SourceIOResult Event)
-runParser parser = liftIO $ do
-    e <- parserParseOne' parser
+runParser :: MonadResource m => Parser -> GSource m Event
+runParser parser = do
+    e <- liftIO $ parserParseOne' parser
     case e of
-        Left err -> throwIO $ YamlException err
-        Right Nothing -> return $ C.IOClosed
-        Right (Just ev) -> return $ C.IOOpen ev
+        Left err -> liftIO $ throwIO $ YamlException err
+        Right Nothing -> return ()
+        Right (Just ev) -> yield ev >> runParser parser
 
 parserParseOne' :: Parser
                 -> IO (Either String (Maybe Event))
@@ -535,7 +535,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
             ]
         else Right <$> getEvent er
 
-encode :: C.MonadResource m => C.Sink Event m ByteString
+encode :: MonadResource m => Sink Event m ByteString
 encode =
     runEmitter alloc close
   where
@@ -550,31 +550,30 @@ encode =
         fptr <- newForeignPtr_ $ castPtr ptr'
         return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
-encodeFile :: C.MonadResource m
+encodeFile :: MonadResource m
            => FilePath
-           -> C.Sink Event m ()
+           -> Sink Event m ()
 encodeFile filePath =
-    C.PipeM msink (return ())
+    bracketP getFile c_fclose $ \file -> runEmitter (alloc file) return
   where
-    msink = do
-        (_releaseKey, file) <- flip allocate c_fclose $ do
-            file <- liftIO $ withCString filePath $
-                        \filePath' -> withCString "w" $
-                        \w' -> c_fopen filePath' w'
-            if (file == nullPtr)
-                then throwIO $ YamlException $ "could not open file for write: " ++ filePath
-                else return file
-        return $ runEmitter (alloc file) (return) -- FIXME close file early
+    getFile = do
+        file <- withCString filePath $
+                    \filePath' -> withCString "w" $
+                    \w' -> c_fopen filePath' w'
+        if (file == nullPtr)
+            then throwIO $ YamlException $ "could not open file for write: " ++ filePath
+            else return file
+
     alloc file emitter = do
         c_yaml_emitter_set_output_file emitter file
         return ()
 
-runEmitter :: C.MonadResource m
+runEmitter :: MonadResource m
            => (Emitter -> IO a) -- ^ alloc
            -> (a -> IO b) -- ^ close
-           -> C.Sink Event m b
+           -> Sink Event m b
 runEmitter allocI closeI =
-    C.sinkIO alloc cleanup push close
+    bracketP alloc cleanup go
   where
     alloc = mask_ $ do
         emitter <- mallocBytes emitterSize
@@ -585,10 +584,15 @@ runEmitter allocI closeI =
     cleanup (emitter, _) = do
         c_yaml_emitter_delete emitter
         free emitter
-    push (emitter, _) e = do
-        _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
-        return C.IOProcessing
-    close (_, a) = liftIO $ closeI a
+
+    go (emitter, a) =
+        loop
+      where
+        loop = await >>= maybe close push
+        push e = do
+            _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
+            loop
+        close = liftIO $ closeI a
 
 data YamlException = YamlException String
     deriving (Show, Typeable)
