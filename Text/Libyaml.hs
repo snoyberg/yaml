@@ -44,7 +44,7 @@ import Control.Monad.IO.Class
 import Control.Exception (throwIO, Exception, finally)
 import Control.Applicative
 import Control.Monad.Trans.Resource
-import Data.Conduit
+import Data.Conduit hiding (Source, Sink, Conduit)
 import Control.Exception (mask_)
 
 data Event =
@@ -452,7 +452,7 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: MonadResource m => B.ByteString -> Source m Event
+decode :: MonadResource m => B.ByteString -> GSource m Event
 decode bs =
     bracketP alloc cleanup (runParser . fst)
   where
@@ -475,7 +475,7 @@ decode bs =
         c_yaml_parser_delete ptr
         free ptr
 
-decodeFile :: MonadResource m => FilePath -> Source m Event
+decodeFile :: MonadResource m => FilePath -> GSource m Event
 decodeFile file =
     bracketP alloc cleanup (runParser . fst)
   where
@@ -535,7 +535,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
             ]
         else Right <$> getEvent er
 
-encode :: MonadResource m => Sink Event m ByteString
+encode :: MonadResource m => GSink Event m ByteString
 encode =
     runEmitter alloc close
   where
@@ -544,7 +544,7 @@ encode =
         withForeignPtr fbuf c_buffer_init
         withForeignPtr fbuf $ c_my_emitter_set_output emitter
         return fbuf
-    close fbuf = withForeignPtr fbuf $ \b -> do
+    close _ fbuf = withForeignPtr fbuf $ \b -> do
         ptr' <- c_get_buffer_buff b
         len <- c_get_buffer_used b
         fptr <- newForeignPtr_ $ castPtr ptr'
@@ -552,9 +552,9 @@ encode =
 
 encodeFile :: MonadResource m
            => FilePath
-           -> Sink Event m ()
+           -> GInfSink Event m
 encodeFile filePath =
-    bracketP getFile c_fclose $ \file -> runEmitter (alloc file) return
+    bracketP getFile c_fclose $ \file -> runEmitter (alloc file) (\u _ -> return u)
   where
     getFile = do
         file <- withCString filePath $
@@ -564,14 +564,12 @@ encodeFile filePath =
             then throwIO $ YamlException $ "could not open file for write: " ++ filePath
             else return file
 
-    alloc file emitter = do
-        c_yaml_emitter_set_output_file emitter file
-        return ()
+    alloc file emitter = c_yaml_emitter_set_output_file emitter file
 
 runEmitter :: MonadResource m
            => (Emitter -> IO a) -- ^ alloc
-           -> (a -> IO b) -- ^ close
-           -> Sink Event m b
+           -> (u -> a -> IO b) -- ^ close
+           -> Pipe l Event o u m b
 runEmitter allocI closeI =
     bracketP alloc cleanup go
   where
@@ -588,11 +586,11 @@ runEmitter allocI closeI =
     go (emitter, a) =
         loop
       where
-        loop = await >>= maybe close push
+        loop = awaitE >>= either close push
         push e = do
             _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
             loop
-        close = liftIO $ closeI a
+        close u = liftIO $ closeI u a
 
 data YamlException = YamlException String
     deriving (Show, Typeable)
