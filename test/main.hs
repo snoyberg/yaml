@@ -61,6 +61,8 @@ main = hspecX $ do
         it "parses when all lowercase" caseLowercaseBool
         it "parses when all uppercase" caseUppercaseBool
         it "parses when titlecase" caseTitlecaseBool
+    describe "empty input" $ do
+        it "doesn't crash" caseEmptyInput
 
 counter :: Monad m => (Y.Event -> Bool) -> C.Sink Y.Event m Int
 counter pred' =
@@ -322,3 +324,6 @@ caseLowercaseBool, caseUppercaseBool, caseTitlecaseBool :: Assertion
 caseLowercaseBool = D.decode "foo: off\nbar: y\nbaz: true" @?= obj
 caseUppercaseBool = D.decode "foo: FALSE\nbar: Y\nbaz: ON" @?= obj
 caseTitlecaseBool = D.decode "foo: No\nbar: Yes\nbaz: True" @?= obj
+
+caseEmptyInput :: Assertion
+caseEmptyInput = D.decode B8.empty @?= (Nothing :: Maybe D.Value)

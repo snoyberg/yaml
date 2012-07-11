@@ -453,6 +453,7 @@ newtype ToEventRawException = ToEventRawException CInt
 instance Exception ToEventRawException
 
 decode :: MonadResource m => B.ByteString -> GSource m Event
+decode bs | B8.null bs = return ()
 decode bs =
     bracketP alloc cleanup (runParser . fst)
   where
