@@ -14,8 +14,7 @@ import qualified Data.Conduit.List as CL
 import System.Directory
 import Control.Monad
 import Control.Exception (try, SomeException)
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
+import Test.Hspec
 
 import qualified Data.Yaml as D
 import Data.Yaml (object, array)
