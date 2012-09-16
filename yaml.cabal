@@ -61,7 +61,7 @@ test-suite test
     hs-source-dirs:  test
     main-is:         main.hs
     cpp-options:     -DTEST
-    build-depends:   hspec
+    build-depends:   hspec >= 1.3
                    , HUnit
                    , directory
                    , base >= 4 && < 5

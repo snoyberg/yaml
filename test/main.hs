@@ -14,8 +14,7 @@ import qualified Data.Conduit.List as CL
 import System.Directory
 import Control.Monad
 import Control.Exception (try, SomeException)
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
+import Test.Hspec
 
 import qualified Data.Yaml as D
 import Data.Yaml (object, array)
@@ -24,7 +23,7 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 
 main :: IO ()
-main = hspecX $ do
+main = hspec $ do
     describe "streaming" $ do
         it "count scalars with anchor" caseCountScalarsWithAnchor
         it "count sequences with anchor" caseCountSequencesWithAnchor
