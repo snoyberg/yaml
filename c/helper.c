@@ -56,9 +56,19 @@ unsigned char const * get_parser_error_context(yaml_parser_t *p)
 	return p->context;
 }
 
-unsigned int get_parser_error_offset(yaml_parser_t *p)
+unsigned int get_parser_error_index(yaml_parser_t *p)
 {
-	return p->offset;
+	return p->problem_mark.index;
+}
+
+unsigned int get_parser_error_line(yaml_parser_t *p)
+{
+	return p->problem_mark.line;
+}
+
+unsigned int get_parser_error_column(yaml_parser_t *p)
+{
+	return p->problem_mark.column;
 }
 
 unsigned char const * get_emitter_error(yaml_emitter_t *e)

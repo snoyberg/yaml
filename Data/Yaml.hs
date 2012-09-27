@@ -12,6 +12,7 @@ module Data.Yaml
     , Parser
     , Object
     , Array
+    , ParseException(..)
       -- * Constructors and accessors
     , object
     , array
@@ -33,6 +34,8 @@ module Data.Yaml
     , decodeFile
       -- ** Better error information
     , decodeEither
+      -- ** More control over decoding
+    , decodeHelper
     ) where
 
 import qualified Text.Libyaml as Y
@@ -114,7 +117,7 @@ data ParseException = NonScalarKey
                     | UnexpectedEvent { _received :: Maybe Event
                                       , _expected :: Maybe Event
                                       }
-                    | InvalidYaml (Maybe String)
+                    | InvalidYaml (Maybe YamlException)
     deriving (Show, Typeable)
 instance Exception ParseException
 
@@ -264,7 +267,7 @@ decodeHelper src = do
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
-            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just $ show (ye :: YamlException)
+            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
         Right y -> return $ Right $ parseEither parseJSON y
 
