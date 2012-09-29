@@ -23,8 +23,9 @@ module Text.Libyaml
     , decode
     , encodeFile
     , decodeFile
-      -- * Exception
+      -- * Error handling
     , YamlException (..)
+    , YamlMark (..)
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -164,8 +165,14 @@ foreign import ccall "get_parser_error_problem"
 foreign import ccall "get_parser_error_context"
     c_get_parser_error_context :: Parser -> IO (Ptr CUChar)
 
-foreign import ccall unsafe "get_parser_error_offset"
-    c_get_parser_error_offset :: Parser -> IO CULong
+foreign import ccall unsafe "get_parser_error_index"
+    c_get_parser_error_index :: Parser -> IO CULong
+
+foreign import ccall unsafe "get_parser_error_line"
+    c_get_parser_error_line :: Parser -> IO CULong
+
+foreign import ccall unsafe "get_parser_error_column"
+    c_get_parser_error_column :: Parser -> IO CULong
 
 makeString :: MonadIO m => (a -> m (Ptr CUChar)) -> a -> m String
 makeString f a = do
@@ -511,12 +518,12 @@ runParser :: MonadResource m => Parser -> GSource m Event
 runParser parser = do
     e <- liftIO $ parserParseOne' parser
     case e of
-        Left err -> liftIO $ throwIO $ YamlException err
+        Left err -> liftIO $ throwIO err
         Right Nothing -> return ()
         Right (Just ev) -> yield ev >> runParser parser
 
 parserParseOne' :: Parser
-                -> IO (Either String (Maybe Event))
+                -> IO (Either YamlException (Maybe Event))
 parserParseOne' parser = allocaBytes eventSize $ \er -> do
     res <- liftIO $ c_yaml_parser_parse parser er
     flip finally (c_yaml_event_delete er) $
@@ -524,16 +531,11 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
         then do
           problem <- makeString c_get_parser_error_problem parser
           context <- makeString c_get_parser_error_context parser
-          offset <- c_get_parser_error_offset parser
-          return $ Left $ concat
-            [ "YAML parse error: "
-            , problem
-            , "\nContext: "
-            , context
-            , "\nOffset: "
-            , show offset
-            , "\n"
-            ]
+          index <- c_get_parser_error_index parser
+          line <- c_get_parser_error_line parser
+          column <- c_get_parser_error_column parser
+          let problemMark = YamlMark (fromIntegral index) (fromIntegral line) (fromIntegral column)
+          return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
 encode :: MonadResource m => GSink Event m ByteString
@@ -593,6 +595,12 @@ runEmitter allocI closeI =
             loop
         close u = liftIO $ closeI u a
 
+-- | The pointer position
+data YamlMark = YamlMark { yamlIndex :: Int, yamlLine :: Int, yamlColumn :: Int }
+    deriving Show
+
 data YamlException = YamlException String
+                   -- | problem, context, index, position line, position column
+                   | YamlParseException { yamlProblem :: String, yamlContext :: String, yamlProblemMark :: YamlMark }
     deriving (Show, Typeable)
 instance Exception YamlException
