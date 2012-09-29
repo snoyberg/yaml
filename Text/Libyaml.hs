@@ -23,8 +23,9 @@ module Text.Libyaml
     , decode
     , encodeFile
     , decodeFile
-      -- * Exception
+      -- * Error handling
     , YamlException (..)
+    , YamlMark (..)
     ) where
 
 import qualified Data.ByteString.Internal as B
@@ -533,7 +534,8 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           index <- c_get_parser_error_index parser
           line <- c_get_parser_error_line parser
           column <- c_get_parser_error_column parser
-          return $ Left $ YamlParseException problem context (fromIntegral index, fromIntegral line, fromIntegral column)
+          let problemMark = YamlMark (fromIntegral index) (fromIntegral line) (fromIntegral column)
+          return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
 encode :: MonadResource m => GSink Event m ByteString
@@ -593,8 +595,12 @@ runEmitter allocI closeI =
             loop
         close u = liftIO $ closeI u a
 
+-- | The pointer position
+data YamlMark = YamlMark { yamlIndex :: Int, yamlLine :: Int, yamlColumn :: Int }
+    deriving Show
+
 data YamlException = YamlException String
                    -- | problem, context, index, position line, position column
-                   | YamlParseException String String (Int, Int, Int)
+                   | YamlParseException { yamlProblem :: String, yamlContext :: String, yamlProblemMark :: YamlMark }
     deriving (Show, Typeable)
 instance Exception YamlException
