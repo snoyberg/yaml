@@ -6,6 +6,21 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+-- | Provides a high-level interface for processing YAML files.
+--
+-- This module reuses most of the infrastructure from the @aeson@ package.
+-- This means that you can use all of the existing tools for JSON
+-- processing for processing YAML files. As a result, much of the
+-- documentation below mentions JSON; do not let that confuse you, it's
+-- intentional.
+--
+-- For the most part, YAML content translates directly into JSON, and
+-- therefore there is very little data loss. If you need to deal with YAML
+-- more directly (e.g., directly deal with aliases), you should use the
+-- "Text.Libyaml" module instead.
+--
+-- For documentation on the @aeson@ types, functions, classes, and
+-- operators, please see the @Data.Aeson@ module of the @aeson@ package.
 module Data.Yaml
     ( -- * Types
       Value (..)
