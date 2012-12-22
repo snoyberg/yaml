@@ -62,6 +62,12 @@ main = hspec $ do
         it "parses when titlecase" caseTitlecaseBool
     describe "empty input" $ do
         it "doesn't crash" caseEmptyInput
+    describe "nulls" $ do
+        checkNull "null"
+        checkNull "Null"
+        checkNull "NULL"
+        checkNull "~"
+        checkNull ""
 
 counter :: Monad m => (Y.Event -> Bool) -> C.Sink Y.Event m Int
 counter pred' =
@@ -326,3 +332,9 @@ caseTitlecaseBool = D.decode "foo: No\nbar: Yes\nbaz: True" @?= obj
 
 caseEmptyInput :: Assertion
 caseEmptyInput = D.decode B8.empty @?= (Nothing :: Maybe D.Value)
+
+checkNull :: T.Text -> Spec
+checkNull x =
+    it ("null recognized: " ++ show x) assertion
+  where
+    assertion = Just (object [("foo", D.Null)]) @=? D.decode (B8.pack $ "foo: " ++ T.unpack x)

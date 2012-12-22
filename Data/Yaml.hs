@@ -182,8 +182,8 @@ textToValue SingleQuoted _ t = String t
 textToValue DoubleQuoted _ t = String t
 textToValue _ StrTag t = String t
 textToValue Folded _ t = String t
-textToValue _ _ "null" = Null
 textToValue _ _ t
+    | t `elem` ["null", "Null", "NULL", "~", ""] = Null
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
     | Right (x, "") <- signed decimal t = Number $ I x
