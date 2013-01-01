@@ -114,15 +114,15 @@ objToEvents' (Array list) rest =
 objToEvents' (Object pairs) rest =
     EventMappingStart Nothing
   : foldr ($) (EventMappingEnd : rest) (map pairToEvents $ M.toList pairs)
-objToEvents' (String s) rest = EventScalar (encodeUtf8 s) NoTag Any Nothing : rest
-objToEvents' Null rest = EventScalar "null" NoTag Literal Nothing : rest
-objToEvents' (Bool True) rest = EventScalar "true" NoTag Literal Nothing : rest
-objToEvents' (Bool False) rest = EventScalar "false" NoTag Literal Nothing : rest
-objToEvents' (Number n) rest = EventScalar (S8.pack $ show n) NoTag Literal Nothing : rest
+objToEvents' (String s) rest = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing : rest
+objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
+objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
+objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
+objToEvents' (Number n) rest = EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing : rest
 
 pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
 pairToEvents (k, v) rest =
-    EventScalar (encodeUtf8 k) NoTag Any Nothing
+    EventScalar (encodeUtf8 k) StrTag PlainNoTag Nothing
   : objToEvents' v rest
 
 -- Parsing

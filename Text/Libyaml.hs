@@ -67,6 +67,7 @@ data Style = Any
            | DoubleQuoted
            | Literal
            | Folded
+           | PlainNoTag
     deriving (Show, Read, Eq, Enum, Bounded, Ord, Data, Typeable)
 
 data Tag = StrTag
@@ -378,13 +379,17 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
             c_simple_document_start er
         EventDocumentEnd ->
             c_yaml_document_end_event_initialize er 1
-        EventScalar bs thetag style anchor -> do
+        EventScalar bs thetag style0 anchor -> do
             BU.unsafeUseAsCStringLen bs $ \(value, len) -> do
                 let value' = castPtr value :: Ptr CUChar
                     len' = fromIntegral len :: CInt
                 let thetag' = tagToString thetag
                 withCString thetag' $ \tag' -> do
-                    let style' = toEnum $ fromEnum style
+                    let (pi, style) =
+                            case style0 of
+                                PlainNoTag -> (1, Plain)
+                                x -> (0, x)
+                        style' = toEnum $ fromEnum style
                         tagP = castPtr tag'
                         qi = if null thetag' then 1 else 0
                     case anchor of
@@ -395,7 +400,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                 tagP    -- tag
                                 value'  -- value
                                 len'    -- length
-                                0       -- plain_implicit
+                                pi      -- plain_implicit
                                 qi      -- quoted_implicit
                                 style'  -- style
                         Just anchor' ->
