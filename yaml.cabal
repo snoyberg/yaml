@@ -36,7 +36,7 @@ library
     build-depends:   base >= 4 && < 5
                    , transformers >= 0.1 && < 0.4
                    , bytestring >= 0.9.1.4
-                   , conduit >= 0.5 && < 0.6
+                   , conduit >= 0.5 && < 1.1
                    , resourcet >= 0.3 && < 0.5
                    , aeson >= 0.5
                    , containers
