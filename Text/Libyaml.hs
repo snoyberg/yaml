@@ -467,7 +467,7 @@ instance Exception ToEventRawException
 
 decode :: MonadResource m => B.ByteString
 #if MIN_VERSION_conduit(1, 0, 0)
-       -> MonadSource m Event
+       -> Producer m Event
 #else
        -> GSource m Event
 #endif
@@ -496,7 +496,7 @@ decode bs =
 
 decodeFile :: MonadResource m => FilePath
 #if MIN_VERSION_conduit(1, 0, 0)
-           -> MonadSource m Event
+           -> Producer m Event
 #else
            -> GSource m Event
 #endif
@@ -532,22 +532,14 @@ decodeFile file =
 
 runParser :: MonadResource m => Parser
 #if MIN_VERSION_conduit(1, 0, 0)
-           -> MonadSource m Event
+           -> Producer m Event
 #else
            -> GSource m Event
 #endif
 runParser parser = do
-#if MIN_VERSION_conduit(1, 0, 0)
-    e <- liftStreamIO $ parserParseOne' parser
-#else
     e <- liftIO $ parserParseOne' parser
-#endif
     case e of
-#if MIN_VERSION_conduit(1, 0, 0)
-        Left err -> liftStreamIO $ throwIO err
-#else
         Left err -> liftIO $ throwIO err
-#endif
         Right Nothing -> return ()
         Right (Just ev) -> yield ev >> runParser parser
 
@@ -569,7 +561,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
 
 encode :: MonadResource m
 #if MIN_VERSION_conduit(1, 0, 0)
-       => MonadSink Event m ByteString
+       => Consumer Event m ByteString
 #else
        => GSink Event m ByteString
 #endif
@@ -590,7 +582,7 @@ encode =
 encodeFile :: MonadResource m
            => FilePath
 #if MIN_VERSION_conduit(1, 0, 0)
-           -> MonadSink Event m ()
+           -> Consumer Event m ()
 #else
            -> GInfSink Event m
 #endif
@@ -611,7 +603,7 @@ runEmitter :: MonadResource m
            => (Emitter -> IO a) -- ^ alloc
 #if MIN_VERSION_conduit(1, 0, 0)
            -> (() -> a -> IO b) -- ^ close
-           -> MonadSink Event m b
+           -> Consumer Event m b
 #else
            -> (u -> a -> IO b) -- ^ close
            -> Pipe l Event o u m b
@@ -638,17 +630,10 @@ runEmitter allocI closeI =
         loop = awaitE >>= either close push
 #endif
 
-#if MIN_VERSION_conduit(1, 0, 0)
-        push e = do
-            _ <- liftStreamIO $ toEventRaw e $ c_yaml_emitter_emit emitter
-            loop
-        close u = liftStreamIO $ closeI u a
-#else
         push e = do
             _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
             loop
         close u = liftIO $ closeI u a
-#endif
 
 -- | The pointer position
 data YamlMark = YamlMark { yamlIndex :: Int, yamlLine :: Int, yamlColumn :: Int }
