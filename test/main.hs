@@ -241,7 +241,9 @@ sample = array
     [ D.String "foo"
     , object
         [ ("bar1", D.String "bar2")
+        , ("bar3", D.String "")
         ]
+    , D.String ""
     ]
 
 caseEncodeDecodeData :: Assertion

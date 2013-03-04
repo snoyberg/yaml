@@ -114,6 +114,11 @@ objToEvents' (Array list) rest =
 objToEvents' (Object pairs) rest =
     EventMappingStart Nothing
   : foldr ($) (EventMappingEnd : rest) (map pairToEvents $ M.toList pairs)
+
+-- Empty strings need special handling to ensure they get quoted. This avoids:
+-- https://github.com/snoyberg/yaml/issues/24
+objToEvents' (String "") rest = EventScalar "" StrTag SingleQuoted Nothing : rest
+
 objToEvents' (String s) rest = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing : rest
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
 objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
