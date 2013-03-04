@@ -117,7 +117,7 @@ objToEvents' (Object pairs) rest =
 
 -- Empty strings need special handling to ensure they get quoted. This avoids:
 -- https://github.com/snoyberg/yaml/issues/24
-objToEvents' (String "") rest = EventScalar "" StrTag SingleQuoted Nothing : rest
+objToEvents' (String "") rest = EventScalar "" NoTag SingleQuoted Nothing : rest
 
 objToEvents' (String s) rest = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing : rest
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
