@@ -38,6 +38,9 @@ import Control.Monad
 import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
+#if MIN_VERSION_base(4,7,0)
+import Foreign.ForeignPtr.Unsafe
+#endif
 import Foreign.Marshal.Alloc
 import Data.Data
 
