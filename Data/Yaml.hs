@@ -28,6 +28,8 @@ module Data.Yaml
     , Object
     , Array
     , ParseException(..)
+    , YamlException (..)
+    , YamlMark (..)
       -- * Constructors and accessors
     , object
     , array
