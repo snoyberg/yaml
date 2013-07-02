@@ -49,6 +49,7 @@ module Data.Yaml
     , decodeFile
       -- ** Better error information
     , decodeEither
+    , decodeEither'
       -- ** More control over decoding
     , decodeHelper
     ) where
@@ -138,6 +139,7 @@ data ParseException = NonScalarKey
                                       , _expected :: Maybe Event
                                       }
                     | InvalidYaml (Maybe YamlException)
+                    | AesonException String
     deriving (Show, Typeable)
 instance Exception ParseException
 
@@ -278,6 +280,15 @@ decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
                 $ fmap (either (Left . show) id)
                 $ decodeHelper (Y.decode bs)
+
+-- | More helpful version of 'decodeEither' which returns the 'YamlException'.
+--
+-- Since 0.8.3
+decodeEither' :: FromJSON a => ByteString -> Either ParseException a
+decodeEither' = either Left (either (Left . AesonException) Right)
+              . unsafePerformIO
+              . decodeHelper
+              . Y.decode
 
 decodeHelper :: FromJSON a
              => C.Source Parse Y.Event
