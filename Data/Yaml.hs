@@ -52,6 +52,7 @@ module Data.Yaml
       -- ** Better error information
     , decodeEither
     , decodeEither'
+    , decodeFileEither
       -- ** More control over decoding
     , decodeHelper
     ) where
@@ -68,7 +69,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (try, throwIO, fromException, Exception)
+import Control.Exception (try, throwIO, fromException, Exception, SomeException, AsyncException)
 import Control.Monad.Trans.State
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
@@ -142,6 +143,7 @@ data ParseException = NonScalarKey
                                       }
                     | InvalidYaml (Maybe YamlException)
                     | AesonException String
+                    | OtherParseException SomeException
     deriving (Show, Typeable)
 instance Exception ParseException
 
@@ -277,6 +279,32 @@ decodeFile :: FromJSON a
            => FilePath
            -> IO (Maybe a)
 decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO (return . either (const Nothing) id)
+
+-- | A version of 'decodeFile' which should not throw runtime exceptions.
+--
+-- Since 0.8.4
+decodeFileEither
+    :: FromJSON a
+    => FilePath
+    -> IO (Either ParseException a)
+decodeFileEither fp = do
+    x <- try $ C.runResourceT $ flip evalStateT Map.empty $ Y.decodeFile fp C.$$ parse
+    case x of
+        Left e
+            | Just pe <- fromException e -> return $ Left pe
+            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
+            | shouldBeCaught e -> return $ Left $ OtherParseException e
+            | otherwise -> throwIO e
+        Right y ->
+            return $ case parseEither parseJSON y of
+                Left s -> Left $ AesonException s
+                Right v -> Right v
+  where
+    -- FIXME this function needs more thought
+    shouldBeCaught e
+        | Just (_ :: AsyncException) <- fromException e = False
+        -- Would be nice... | Just (_ :: Timeout) <- fromException e = False
+        | otherwise = True
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
