@@ -260,11 +260,11 @@ parseM a front = do
             let al  = M.insert s o front
                 al' = if s == pack "<<"
                          then case o of
-                                  Object l  -> M.union al l
-                                  Array l -> M.union al $ foldl merge' M.empty $ V.toList l
+                                  Object l  -> M.union front l
+                                  Array l -> M.union front $ foldl merge' M.empty $ V.toList l
                                   _          -> al
                          else al
-            parseM a $ M.insert s o al'
+            parseM a al'
     where merge' al (Object om) = M.union al om
           merge' al _           = al
 

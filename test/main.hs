@@ -62,6 +62,8 @@ main = hspec $ do
         it "parses when titlecase" caseTitlecaseBool
     describe "empty input" $ do
         it "doesn't crash" caseEmptyInput
+    describe "alias stripping" $ do
+        it "works" caseStripAlias
     describe "nulls" $ do
         checkNull "null"
         checkNull "Null"
@@ -365,3 +367,19 @@ checkNull x =
     it ("null recognized: " ++ show x) assertion
   where
     assertion = Just (object [("foo", D.Null)]) @=? D.decode (B8.pack $ "foo: " ++ T.unpack x)
+
+caseStripAlias :: Assertion
+caseStripAlias =
+    D.decode src @?= Just (object
+        [ "Default" .= object
+            [ "foo" .= (1 :: Int)
+            , "bar" .= (2 :: Int)
+            ]
+        , "Obj" .= object
+            [ "foo" .= (1 :: Int)
+            , "bar" .= (2 :: Int)
+            , "key" .= (3 :: Int)
+            ]
+        ])
+  where
+    src = "Default: &def\n  foo: 1\n  bar: 2\nObj:\n  <<: *def\n  key: 3\n"
