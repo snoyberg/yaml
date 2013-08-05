@@ -49,6 +49,7 @@ module Data.Yaml
     , encodeFile
     , decode
     , decodeFile
+    , yamlFileJSONparse
       -- ** Better error information
     , decodeEither
     , decodeEither'
@@ -63,7 +64,8 @@ import Data.Aeson
     , (.=) , (.:) , (.:?) , (.!=)
     , Object, Array
     )
-import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
+import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser, Result(..))
+import qualified Data.Aeson.Types as JSON
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
@@ -331,6 +333,17 @@ decodeHelper src = do
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
         Right y -> return $ Right $ parseEither parseJSON y
+
+yamlFileJSONparse :: FromJSON fromJ => FilePath -> IO (Either String fromJ)
+yamlFileJSONparse fp = eithConfig `fmap` decodeFileEither fp
+  where
+    eithConfig eith =
+      case eith of
+        Left err -> Left (show err)
+        Right configJSON ->
+          case JSON.parse parseJSON configJSON of
+              Error err -> Left err
+              Success configConf -> Right configConf
 
 array :: [Value] -> Value
 array = Array . V.fromList
