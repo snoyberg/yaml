@@ -2,6 +2,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 import qualified Text.Libyaml as Y
 import qualified Data.ByteString.Char8 as B8
@@ -21,6 +22,21 @@ import Data.Yaml (object, array, (.=))
 import Data.Maybe
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
+import Data.Aeson.TH
+import Data.Text (Text)
+import Data.Vector (Vector)
+import qualified Data.Vector as V
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
+
+data TestJSON = TestJSON
+              { string :: Text
+              , number :: Int
+              , anArray  :: Vector Text
+              , hash   :: HashMap Text Text
+              } deriving (Show, Eq)
+
+deriveJSON id ''TestJSON
 
 main :: IO ()
 main = hspec $ do
@@ -70,22 +86,37 @@ main = hspec $ do
         checkNull "NULL"
         checkNull "~"
         checkNull ""
+
     describe "pretty output" $ do
         it "simple nulls" $ D.encode (object ["foo" .= D.Null]) `shouldBe` "foo: null\n"
         it "simple numbers" $ D.encode (object ["foo" .= (4 :: Int)]) `shouldBe` "foo: 4\n"
         it "True" $ D.encode (object ["foo" .= True]) `shouldBe` "foo: true\n"
         it "False" $ D.encode (object ["foo" .= False]) `shouldBe` "foo: false\n"
         it "simple string" $ D.encode (object ["foo" .= ("bar" :: T.Text)]) `shouldBe` "foo: bar\n"
+
     describe "special keys" $ do
         let tester key = it (T.unpack key) $
                 let value = object [key .= True]
                  in D.decode (D.encode value) `shouldBe` Just value
         mapM_ tester specialStrings
+
     describe "special values" $ do
         let tester value = it (T.unpack value) $
                 let value' = object ["foo" .= value]
                  in D.decode (D.encode value') `shouldBe` Just value'
         mapM_ tester specialStrings
+
+    describe "yamlFileJSONparse" $
+        it "loads YAML through JSON into Haskell data" $ do
+          tj <- either error id `fmap` D.decodeFileEither "test/json.yaml"
+          tj `shouldBe` TestJSON
+                          { string = "str"
+                          , number = 2
+                          , anArray = V.fromList ["a", "b"]
+                          , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
+                          }
+
+
 
 specialStrings :: [T.Text]
 specialStrings =
