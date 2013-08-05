@@ -76,7 +76,9 @@ test-suite test
                    , conduit
                    , yaml
                    , text
+                   , aeson
                    , unordered-containers
+                   , vector
     ghc-options:     -Wall
 
 source-repository head
