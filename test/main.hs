@@ -108,7 +108,7 @@ main = hspec $ do
 
     describe "yamlFileJSONparse" $
         it "loads YAML through JSON into Haskell data" $ do
-          tj <- either error id `fmap` D.decodeFileEither "test/json.yaml"
+          tj <- either (error . show) id `fmap` D.decodeFileEither "test/json.yaml"
           tj `shouldBe` TestJSON
                           { string = "str"
                           , number = 2
