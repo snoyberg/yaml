@@ -27,6 +27,7 @@ extra-source-files: c/helper.h,
 		            libyaml/LICENSE
                     test/main.hs
                     test/largest-string.yaml
+                    test/json.yaml
 
 flag system-libyaml
   description: Use the system-wide libyaml instead of the bundled copy
