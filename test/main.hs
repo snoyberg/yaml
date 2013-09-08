@@ -36,7 +36,7 @@ data TestJSON = TestJSON
               , hash   :: HashMap Text Text
               } deriving (Show, Eq)
 
-deriveJSON id ''TestJSON
+deriveJSON defaultOptions ''TestJSON
 
 main :: IO ()
 main = hspec $ do
