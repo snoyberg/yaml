@@ -9,7 +9,7 @@ import Data.ByteString.Lazy (putStr)
 import Data.ByteString (getContents)
 
 helpMessage :: IO ()
-helpMessage = print "yaml2json FILE\n  use - to indicate stdin" >> exitFailure
+helpMessage = putStrLn "yaml2json FILE\n  use - as FILE to indicate stdin" >> exitFailure
 
 showJSON ejson =
     case ejson of
