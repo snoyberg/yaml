@@ -29,6 +29,10 @@ extra-source-files: c/helper.h,
                     test/largest-string.yaml
                     test/json.yaml
 
+flag no-exe
+  description: don't install the yaml2json executable
+  default: False
+
 flag system-libyaml
   description: Use the system-wide libyaml instead of the bundled copy
   default: False
@@ -62,6 +66,20 @@ library
                              libyaml/scanner.c,
                              libyaml/writer.c
             include-dirs:    libyaml
+
+executable yaml2json
+    if flag(no-exe)
+      Buildable: False
+    else
+      Buildable: True
+
+    hs-source-dirs: exe
+    main-is: yaml2json.hs
+    build-depends: base >= 4 && < 5
+                 , yaml
+                 , bytestring >= 0.9.1.4
+                 , aeson >= 0.5
+
 
 test-suite test
     type: exitcode-stdio-1.0

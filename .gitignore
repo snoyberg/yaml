@@ -3,3 +3,5 @@ dist
 tmp.yaml
 tmp2.yaml
 cabal-dev/
+.cabal-sandbox/
+cabal.sandbox.config
