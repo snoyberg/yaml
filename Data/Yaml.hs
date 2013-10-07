@@ -86,6 +86,7 @@ import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
 import Data.Attoparsec.Number
+import qualified Data.HashSet as HashSet
 
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $
@@ -123,7 +124,13 @@ objToEvents' (Object pairs) rest =
 -- https://github.com/snoyberg/yaml/issues/24
 objToEvents' (String "") rest = EventScalar "" NoTag SingleQuoted Nothing : rest
 
-objToEvents' (String s) rest = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing : rest
+objToEvents' (String s) rest =
+    event : rest
+  where
+    event
+        -- Make sure that special strings are encoded as strings properly.
+        | s `HashSet.member` specialStrings = EventScalar (encodeUtf8 s) StrTag SingleQuoted Nothing
+        | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
 objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
 objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
@@ -133,6 +140,11 @@ pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
 pairToEvents (k, v) rest =
     EventScalar (encodeUtf8 k) StrTag PlainNoTag Nothing
   : objToEvents' v rest
+
+-- | Strings which must be escaped so as not to be treated as non-string scalars.
+specialStrings :: HashSet.HashSet Text
+specialStrings = HashSet.fromList $ T.words
+    "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
 
 -- Parsing
 

@@ -116,6 +116,12 @@ main = hspec $ do
                           , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
                           }
 
+    describe "round-tripping of special scalars" $ do
+        let special = words "y Y On ON false"
+        forM_ special $ \w -> it w $
+            let v = object ["word" .= w]
+             in D.decode (D.encode v) `shouldBe` Just v
+
 
 
 specialStrings :: [T.Text]
