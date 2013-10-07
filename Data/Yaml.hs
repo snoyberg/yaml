@@ -129,7 +129,8 @@ objToEvents' (String s) rest =
   where
     event
         -- Make sure that special strings are encoded as strings properly.
-        | s `HashSet.member` specialStrings = EventScalar (encodeUtf8 s) StrTag SingleQuoted Nothing
+        -- See: https://github.com/snoyberg/yaml/issues/31
+        | s `HashSet.member` specialStrings = EventScalar (encodeUtf8 s) NoTag SingleQuoted Nothing
         | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
 objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest

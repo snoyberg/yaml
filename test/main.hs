@@ -121,7 +121,7 @@ main = hspec $ do
         forM_ special $ \w -> it w $
             let v = object ["word" .= w]
              in D.decode (D.encode v) `shouldBe` Just v
-
+        it "no tags" $ D.encode (object ["word" .= ("true" :: String)]) `shouldBe` "word: 'true'\n"
 
 
 specialStrings :: [T.Text]
