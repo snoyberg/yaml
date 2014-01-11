@@ -80,12 +80,12 @@ import Data.Char (toUpper)
 import qualified Data.Vector as V
 import Data.Text (Text, pack)
 import qualified Data.Text as T
-import Data.Text.Read (signed, decimal, double)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
-import Data.Attoparsec.Number
+import Data.Attoparsec.ByteString (parseOnly)
+import Data.Aeson.Parser (value)
 import qualified Data.HashSet as HashSet
 
 encode :: ToJSON a => a -> ByteString
@@ -210,8 +210,7 @@ textToValue _ _ t
     | t `elem` ["null", "Null", "NULL", "~", ""] = Null
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
-    | Right (x, "") <- signed decimal t = Number $ I x
-    | Right (x, "") <- double t = Number $ D x
+    | Right (Number n) <- parseOnly value (encodeUtf8 t) = Number n
     | otherwise = String t
   where x `isLike` ref = x `elem` [ref, T.toUpper ref, titleCased]
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
