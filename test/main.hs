@@ -34,6 +34,7 @@ data TestJSON = TestJSON
               , number :: Int
               , anArray  :: Vector Text
               , hash   :: HashMap Text Text
+              , extrastring :: Text
               } deriving (Show, Eq)
 
 deriveJSON defaultOptions ''TestJSON
@@ -119,6 +120,7 @@ main = hspec $ do
                           , number = 2
                           , anArray = V.fromList ["a", "b"]
                           , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
+                          , extrastring = "1234-foo"
                           }
 
     describe "round-tripping of special scalars" $ do
