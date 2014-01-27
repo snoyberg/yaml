@@ -84,9 +84,13 @@ import Data.Text.Encoding (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
-import Data.Attoparsec.ByteString (parseOnly)
-import Data.Aeson.Parser (value)
 import qualified Data.HashSet as HashSet
+import Data.Text.Read
+#if MIN_VERSION_aeson(0, 7, 0)
+import Data.Scientific (fromFloatDigits)
+#else
+import Data.Attoparsec.Number
+#endif
 
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $
@@ -210,7 +214,13 @@ textToValue _ _ t
     | t `elem` ["null", "Null", "NULL", "~", ""] = Null
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
-    | Right (Number n) <- parseOnly value (encodeUtf8 t) = Number n
+#if MIN_VERSION_aeson(0, 7, 0)
+    | Right (x, "") <- signed decimal t = Number $ fromIntegral (x :: Integer)
+    | Right (x, "") <- double t = Number $ fromFloatDigits x
+#else
+    | Right (x, "") <- signed decimal t = Number $ I x
+    | Right (x, "") <- double t = Number $ D x
+#endif
     | otherwise = String t
   where x `isLike` ref = x `elem` [ref, T.toUpper ref, titleCased]
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref

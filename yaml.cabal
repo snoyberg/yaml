@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.5.3
+version:         0.8.5.4
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -49,6 +49,7 @@ library
                    , vector
                    , text
                    , attoparsec
+                   , scientific
     exposed-modules: Text.Libyaml
                      Data.Yaml
     ghc-options:     -Wall
