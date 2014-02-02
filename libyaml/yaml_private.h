@@ -113,6 +113,11 @@ yaml_string_join(
 
 #define STRING(string,length)   { (string), (string)+(length), (string) }
 
+#define STRING_ASSIGN(value,string,length)                                      \
+    ((value).start = (string),                                                  \
+     (value).end = (string)+(length),                                           \
+     (value).pointer = (string))
+
 #define STRING_INIT(context,string,size)                                        \
     (((string).start = yaml_malloc(size)) ?                                     \
         ((string).pointer = (string).start,                                     \
@@ -633,7 +638,7 @@ yaml_queue_extend(void **start, void **head, void **tail, void **end);
      (node).data.mapping.pairs.top = (node_pairs_start),                        \
      (node).data.mapping.style = (node_style))
 
-#define YAML_VERSION_STRING "0.1.2"
+#define YAML_VERSION_STRING "0.1.4"
 #define YAML_VERSION_MAJOR 0
 #define YAML_VERSION_MINOR 1
-#define YAML_VERSION_PATCH 2
+#define YAML_VERSION_PATCH 4
