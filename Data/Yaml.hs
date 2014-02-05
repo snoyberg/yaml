@@ -134,7 +134,7 @@ objToEvents' (String s) rest =
     event
         -- Make sure that special strings are encoded as strings properly.
         -- See: https://github.com/snoyberg/yaml/issues/31
-        | s `HashSet.member` specialStrings = EventScalar (encodeUtf8 s) NoTag SingleQuoted Nothing
+        | s `HashSet.member` specialStrings || isNumeric s = EventScalar (encodeUtf8 s) NoTag SingleQuoted Nothing
         | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
 objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
@@ -150,6 +150,16 @@ pairToEvents (k, v) rest =
 specialStrings :: HashSet.HashSet Text
 specialStrings = HashSet.fromList $ T.words
     "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
+
+isNumeric :: Text -> Bool
+isNumeric =
+    T.all isNumeric'
+  where
+    isNumeric' c = ('0' <= c && c <= '9')
+                || c == 'e'
+                || c == 'E'
+                || c == '.'
+                || c == '-'
 
 -- Parsing
 

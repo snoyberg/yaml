@@ -124,7 +124,7 @@ main = hspec $ do
                           }
 
     describe "round-tripping of special scalars" $ do
-        let special = words "y Y On ON false"
+        let special = words "y Y On ON false 12345 12345.0 12345a 12e3"
         forM_ special $ \w -> it w $
             let v = object ["word" .= w]
              in D.decode (D.encode v) `shouldBe` Just v
