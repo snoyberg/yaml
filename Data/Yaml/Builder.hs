@@ -60,11 +60,11 @@ toEvents :: YamlBuilder -> [Event]
 toEvents (YamlBuilder front) =
     EventStreamStart : EventDocumentStart : front [EventDocumentEnd, EventStreamEnd]
 
-toSource :: Monad m => YamlBuilder -> Source m Event
-toSource = mapM_ yield . toEvents
+toSource :: (Monad m, ToYaml a) => a -> Source m Event
+toSource = mapM_ yield . toEvents . toYaml
 
-toByteString :: YamlBuilder -> ByteString
+toByteString :: ToYaml a => a -> ByteString
 toByteString yb = unsafePerformIO $ runResourceT $ toSource yb $$ encode
 
-writeYamlFile :: FilePath -> YamlBuilder -> IO ()
+writeYamlFile :: ToYaml a => FilePath -> a -> IO ()
 writeYamlFile fp yb = runResourceT $ toSource yb $$ encodeFile fp
