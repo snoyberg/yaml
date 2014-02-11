@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+-- | NOTE: This module is a highly experimental preview release. It may change
+-- drastically, or be entirely removed, in a future release.
 module Data.Yaml.Parser where
 
 import Text.Libyaml
@@ -178,6 +180,7 @@ sinkValue =
                 let k = decodeUtf8 a
                 v <- start
                 goM (front . ((k, v):))
+            Just e -> monadThrow $ UnexpectedEvent e
 
 sinkRawDoc :: MonadThrow m => Consumer Event m RawDoc
 sinkRawDoc = uncurry RawDoc <$> runWriterSC sinkValue

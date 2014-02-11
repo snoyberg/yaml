@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.6.2
+version:         0.8.7
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -52,6 +52,9 @@ library
                    , scientific
     exposed-modules: Text.Libyaml
                      Data.Yaml
+                     Data.Yaml.Aeson
+                     Data.Yaml.Builder
+                     Data.Yaml.Parser
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c

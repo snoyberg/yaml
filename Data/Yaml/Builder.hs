@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
+-- | NOTE: This module is a highly experimental preview release. It may change
+-- drastically, or be entirely removed, in a future release.
 module Data.Yaml.Builder
     ( YamlBuilder (..)
     , ToYaml (..)

@@ -18,4 +18,10 @@ main = do
     S.putStr $ toByteString
         [ Person "Alice" 57
         , Person "Bob" 23
+        , Person "12345" 23
+        ]
+    writeYamlFile "/tmp/foo.yaml" $
+        [ Person "Alice" 57
+        , Person "Bob" 23
+        , Person "12345" 23
         ]
