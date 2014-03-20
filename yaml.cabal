@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.7.2
+version:         0.8.8
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -30,7 +30,7 @@ extra-source-files: c/helper.h,
                     test/json.yaml
 
 flag no-exe
-  description: don't install the yaml2json executable
+  description: don't install the yaml2json or json2yaml executables
   default: False
 
 flag system-libyaml
@@ -79,6 +79,19 @@ executable yaml2json
 
     hs-source-dirs: exe
     main-is: yaml2json.hs
+    build-depends: base >= 4 && < 5
+                 , yaml
+                 , bytestring >= 0.9.1.4
+                 , aeson >= 0.5
+
+executable json2yaml
+    if flag(no-exe)
+      Buildable: False
+    else
+      Buildable: True
+
+    hs-source-dirs: exe
+    main-is: json2yaml.hs
     build-depends: base >= 4 && < 5
                  , yaml
                  , bytestring >= 0.9.1.4
