@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | NOTE: This module is a highly experimental preview release. It may change
@@ -10,9 +11,15 @@ import Data.Monoid (Monoid (..))
 import Control.Monad (MonadPlus (..), liftM, ap)
 import Control.Monad.Trans.Writer.Strict (tell, WriterT)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Resource (MonadThrow, monadThrow, runResourceT)
 import qualified Data.Map as Map
 import Data.Conduit
+#if MIN_VERSION_conduit(1,1,0)
+import Data.Conduit.Lift (runWriterC)
+#define runWriterSC runWriterC
+#else
 import Data.Conduit.Lift (runWriterSC)
+#endif
 import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8)
 import Data.ByteString (ByteString)

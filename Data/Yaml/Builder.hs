@@ -22,6 +22,7 @@ import qualified Data.Conduit.List as CL
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Arrow (second)
 import qualified Data.ByteString.Char8 as S8
+import Control.Monad.Trans.Resource (runResourceT)
 
 (.=) :: ToYaml a => Text -> a -> (Text, YamlBuilder)
 k .= v = (k, toYaml v)

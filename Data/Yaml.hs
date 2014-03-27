@@ -91,14 +91,15 @@ import Data.Scientific (fromFloatDigits)
 #else
 import Data.Attoparsec.Number
 #endif
+import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $
-    C.runResourceT $ CL.sourceList (objToEvents $ toJSON obj)
+    runResourceT $ CL.sourceList (objToEvents $ toJSON obj)
                 C.$$ Y.encode
 
 encodeFile :: ToJSON a => FilePath -> a -> IO ()
-encodeFile fp obj = C.runResourceT
+encodeFile fp obj = runResourceT
             $ CL.sourceList (objToEvents $ toJSON obj)
          C.$$ Y.encodeFile fp
 
@@ -187,7 +188,7 @@ instance MonadTrans PErrorT where
 instance MonadIO m => MonadIO (PErrorT m) where
     liftIO = lift . liftIO
 
-type Parse = StateT (Map.Map String Value) (C.ResourceT IO)
+type Parse = StateT (Map.Map String Value) (ResourceT IO)
 
 requireEvent :: Event -> C.Sink Event Parse ()
 requireEvent e = do
@@ -320,7 +321,7 @@ decodeFileEither
     => FilePath
     -> IO (Either ParseException a)
 decodeFileEither fp = do
-    x <- try $ C.runResourceT $ flip evalStateT Map.empty $ Y.decodeFile fp C.$$ parse
+    x <- try $ runResourceT $ flip evalStateT Map.empty $ Y.decodeFile fp C.$$ parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
@@ -356,7 +357,7 @@ decodeHelper :: FromJSON a
              => C.Source Parse Y.Event
              -> IO (Either ParseException (Either String a))
 decodeHelper src = do
-    x <- try $ C.runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    x <- try $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
