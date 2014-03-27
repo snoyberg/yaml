@@ -115,6 +115,7 @@ test-suite test
                    , aeson
                    , unordered-containers
                    , vector
+                   , resourcet
     ghc-options:     -Wall
 
 source-repository head

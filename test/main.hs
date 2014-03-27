@@ -10,6 +10,7 @@ import qualified Data.ByteString.Char8 as B8
 import Test.HUnit hiding (Test, path)
 
 import qualified Data.Conduit as C
+import qualified Control.Monad.Trans.Resource as C
 import qualified Data.Conduit.List as CL
 
 import System.Directory
