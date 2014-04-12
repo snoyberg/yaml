@@ -92,12 +92,7 @@ main = hspec $ do
 
     describe "pretty output" $ do
         it "simple nulls" $ D.encode (object ["foo" .= D.Null]) `shouldBe` "foo: null\n"
-        it "simple numbers" $ D.encode (object ["foo" .= (4 :: Int)]) `shouldBe`
-#if MIN_VERSION_aeson(0, 7, 0)
-            "foo: 4.0\n" -- FIXME should this be reported as a bug upstream to aeson?
-#else
-            "foo: 4\n"
-#endif
+        it "simple numbers" $ D.encode (object ["foo" .= (4 :: Int)]) `shouldBe` "foo: 4\n"
         it "True" $ D.encode (object ["foo" .= True]) `shouldBe` "foo: true\n"
         it "False" $ D.encode (object ["foo" .= False]) `shouldBe` "foo: false\n"
         it "simple string" $ D.encode (object ["foo" .= ("bar" :: T.Text)]) `shouldBe` "foo: bar\n"
