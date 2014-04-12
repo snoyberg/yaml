@@ -66,7 +66,6 @@ import Data.Aeson
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Exception (try, throwIO, fromException, Exception, SomeException, AsyncException)
@@ -88,8 +87,13 @@ import qualified Data.HashSet as HashSet
 import Data.Text.Read
 #if MIN_VERSION_aeson(0, 7, 0)
 import Data.Scientific (fromFloatDigits)
+import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Lazy as TL
+import Data.Text.Lazy.Builder (toLazyText)
+import Data.Aeson.Encode (encodeToTextBuilder)
 #else
 import Data.Attoparsec.Number
+import qualified Data.ByteString.Char8 as S8
 #endif
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 
@@ -140,7 +144,12 @@ objToEvents' (String s) rest =
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
 objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
 objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
+#if MIN_VERSION_aeson(0,7,0)
+-- Use aeson's implementation which gets rid of annoying decimal points
+objToEvents' n@Number{} rest = EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder n) IntTag PlainNoTag Nothing : rest
+#else
 objToEvents' (Number n) rest = EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing : rest
+#endif
 
 pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
 pairToEvents (k, v) rest =

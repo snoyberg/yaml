@@ -74,6 +74,7 @@ main = hspec $ do
         it "parses as string when quoted" caseQuotedNumber
         it "parses as number when unquoted" caseUnquotedNumber
         it "parses as number !!str is present" caseAttribNumber
+        it "integers have no decimals" caseIntegerDecimals
     describe "booleans" $ do
         it "parses when all lowercase" caseLowercaseBool
         it "parses when all uppercase" caseUppercaseBool
@@ -391,10 +392,11 @@ caseDataTypes =
         , ("null", D.Null)
         ]
 
-caseQuotedNumber, caseUnquotedNumber, caseAttribNumber :: Assertion
+caseQuotedNumber, caseUnquotedNumber, caseAttribNumber, caseIntegerDecimals :: Assertion
 caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
 caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])
 caseAttribNumber = D.decode "foo: !!str 1234" @?= Just (object [("foo", D.String "1234")])
+caseIntegerDecimals = D.encode (1 :: Int) @?= "1\n...\n"
 
 obj :: Maybe D.Value
 obj = Just (object [("foo", D.Bool False), ("bar", D.Bool True), ("baz", D.Bool True)])
