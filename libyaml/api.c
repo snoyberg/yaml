@@ -5,6 +5,14 @@
  * Get the library version.
  */
 
+#if __x86_64__
+#define STRDUP _strdup
+#pragma message ("64 bits")
+#else
+#define STRDUP strdup
+#pragma message "32 bits"
+#endif
+
 YAML_DECLARE(const char *)
 yaml_get_version_string(void)
 {
@@ -63,7 +71,7 @@ yaml_strdup(const yaml_char_t *str)
     if (!str)
         return NULL;
 
-    return (yaml_char_t *)strdup((char *)str);
+    return (yaml_char_t *) STRDUP((char *)str);
 }
 
 /*
