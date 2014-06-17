@@ -5,9 +5,9 @@
  * Get the library version.
  */
 
-#if __x86_64__
+#if _WIN64
 #define STRDUP _strdup
-#pragma message ("64 bits")
+#pragma message ("Windows 64 bits")
 #else
 #define STRDUP strdup
 #pragma message "32 bits"
