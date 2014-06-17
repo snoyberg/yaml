@@ -5,6 +5,9 @@
  * Get the library version.
  */
 
+/*
+ * added to support _WIN64
+ */
 #if _WIN64
 #define STRDUP _strdup
 #else
