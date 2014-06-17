@@ -7,10 +7,8 @@
 
 #if _WIN64
 #define STRDUP _strdup
-#pragma message ("Windows 64 bits")
 #else
 #define STRDUP strdup
-#pragma message "32 bits"
 #endif
 
 YAML_DECLARE(const char *)
