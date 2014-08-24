@@ -74,7 +74,8 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (liftM)
+import Control.Monad (liftM, ap)
+import Control.Applicative (Applicative(..))
 import Data.Char (toUpper)
 import qualified Data.Vector as V
 import Data.Text (Text, pack)
@@ -185,6 +186,11 @@ data ParseException = NonScalarKey
 instance Exception ParseException
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
+instance Monad m => Functor (PErrorT m) where
+    fmap = liftM
+instance Monad m => Applicative (PErrorT m) where
+    pure  = return
+    (<*>) = ap
 instance Monad m => Monad (PErrorT m) where
     return = PErrorT . return . Right
     (PErrorT m) >>= f = PErrorT $ do
