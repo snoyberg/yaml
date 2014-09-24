@@ -37,6 +37,10 @@ flag system-libyaml
   description: Use the system-wide libyaml instead of the bundled copy
   default: False
 
+flag no-unicode
+  description: Don't enable unicode output. Instead, unicode characters will be escaped.
+  default: False
+
 library
     build-depends:   base >= 4 && < 5
                    , transformers >= 0.1
@@ -58,6 +62,8 @@ library
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
+    if flag(no-unicode)
+            cpp-options:     -D__NO_UNICODE__
     if flag(system-libyaml)
             pkgconfig-depends: yaml-0.1
     else

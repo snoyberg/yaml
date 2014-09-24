@@ -310,6 +310,11 @@ foreign import ccall unsafe "get_buffer_used"
 foreign import ccall unsafe "my_emitter_set_output"
     c_my_emitter_set_output :: Emitter -> Buffer -> IO ()
 
+#ifndef __NO_UNICODE__
+foreign import ccall unsafe "yaml_emitter_set_unicode"
+    c_yaml_emitter_set_unicode :: Emitter -> CInt -> IO ()
+#endif
+
 foreign import ccall unsafe "yaml_emitter_set_output_file"
     c_yaml_emitter_set_output_file :: Emitter -> File -> IO ()
 
@@ -618,6 +623,9 @@ runEmitter allocI closeI =
         emitter <- mallocBytes emitterSize
         res <- c_yaml_emitter_initialize emitter
         when (res == 0) $ throwIO $ YamlException "c_yaml_emitter_initialize failed"
+#ifndef __NO_UNICODE__
+        c_yaml_emitter_set_unicode emitter 1
+#endif
         a <- allocI emitter
         return (emitter, a)
     cleanup (emitter, _) = do
