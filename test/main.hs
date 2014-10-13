@@ -127,6 +127,8 @@ main = hspec $ do
              in D.decode (D.encode v) `shouldBe` Just v
         it "no tags" $ D.encode (object ["word" .= ("true" :: String)]) `shouldBe` "word: 'true'\n"
 
+    it "aliases in keys #49" caseIssue49
+
 
 specialStrings :: [T.Text]
 specialStrings =
@@ -425,3 +427,12 @@ caseStripAlias =
         ])
   where
     src = "Default: &def\n  foo: 1\n  bar: 2\nObj:\n  <<: *def\n  key: 3\n"
+
+caseIssue49 :: Assertion
+caseIssue49 =
+    D.decodeEither src @?= Right (object
+        [ "a" .= object [ "value" .= (1.0 :: Double) ]
+        , "b" .= object [ "value" .= (1.2 :: Double) ]
+        ])
+  where
+    src = "---\na:\n  &id5 value: 1.0\nb:\n  *id5: 1.2"

@@ -182,6 +182,7 @@ data ParseException = NonScalarKey
                     | InvalidYaml (Maybe YamlException)
                     | AesonException String
                     | OtherParseException SomeException
+                    | NonStringKeyAlias Y.AnchorName Value
     deriving (Show, Typeable)
 instance Exception ParseException
 
@@ -302,6 +303,12 @@ parseM a front = do
             CL.drop 1
             s <- case me of
                     Just (EventScalar v tag style a') -> parseScalar v a' style tag
+                    Just (EventAlias an) -> do
+                        m <- lift get
+                        case Map.lookup an m of
+                            Nothing -> liftIO $ throwIO $ UnknownAlias an
+                            Just (String t) -> return t
+                            Just v -> liftIO $ throwIO $ NonStringKeyAlias an v
                     _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
             o <- parseO
 
