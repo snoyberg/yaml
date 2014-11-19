@@ -29,6 +29,8 @@ module Text.Libyaml
     , YamlMark (..)
     ) where
 
+import Prelude hiding (pi)
+
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString
