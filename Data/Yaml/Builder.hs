@@ -14,11 +14,9 @@ module Data.Yaml.Builder
 
 import Data.Conduit
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
 import Text.Libyaml
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Conduit.List as CL
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Arrow (second)
 import qualified Data.ByteString.Char8 as S8
