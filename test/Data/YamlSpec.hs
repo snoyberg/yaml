@@ -4,6 +4,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+module Data.YamlSpec (main, spec) where
+
 import qualified Text.Libyaml as Y
 import qualified Data.ByteString.Char8 as B8
 
@@ -41,7 +43,10 @@ data TestJSON = TestJSON
 deriveJSON defaultOptions ''TestJSON
 
 main :: IO ()
-main = hspec $ do
+main = hspec spec
+
+spec :: Spec
+spec = do
     describe "streaming" $ do
         it "count scalars with anchor" caseCountScalarsWithAnchor
         it "count sequences with anchor" caseCountSequencesWithAnchor

@@ -104,10 +104,11 @@ executable json2yaml
                  , aeson >= 0.5
 
 
-test-suite test
+test-suite spec
     type: exitcode-stdio-1.0
     hs-source-dirs:  test
-    main-is:         main.hs
+    main-is:         Spec.hs
+    other-modules:   Data.YamlSpec
     cpp-options:     -DTEST
     build-depends:   hspec >= 1.3
                    , HUnit
