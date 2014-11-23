@@ -183,6 +183,7 @@ data ParseException = NonScalarKey
                     | AesonException String
                     | OtherParseException SomeException
                     | NonStringKeyAlias Y.AnchorName Value
+                    | CyclicIncludes
     deriving (Show, Typeable)
 instance Exception ParseException
 
