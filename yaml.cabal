@@ -1,29 +1,19 @@
 name:            yaml
-version:         0.8.9.4
+version:         0.8.10
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Support for parsing and rendering YAML documents.
-description:     Provides support for parsing and emitting Yaml documents.
-                 .
-                 This package includes the full libyaml C library version 0.1.2 by Kirill
-                 Simonov (<http://pyyaml.org/wiki/LibYAML>) in the package so you
-                 don't need to worry about any non-Haskell dependencies.
-                 .
-                 The package is broken down into two modules.
-                 "Data.Yaml" provides a high-level interface based
-                 around the JSON datatypes provided by the @aeson@
-                 package. "Text.Libyaml" provides a lower-level,
-                 streaming interface. For most users, "Data.Yaml" is recommended.
+description:     Please see the README.md file.
 category:        Web
 stability:       stable
 cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://github.com/snoyberg/yaml/
-extra-source-files: c/helper.h,
-                    libyaml/yaml_private.h,
-                    libyaml/yaml.h,
+extra-source-files: c/helper.h
+                    libyaml/yaml_private.h
+                    libyaml/yaml.h
                     libyaml/LICENSE
                     test/largest-string.yaml
                     test/json.yaml
@@ -32,6 +22,8 @@ extra-source-files: c/helper.h,
                     test/resources/baz.yaml
                     test/resources/loop/foo.yaml
                     test/resources/loop/bar.yaml
+                    README.md
+                    ChangeLog.md
 
 flag no-exe
   description: don't install the yaml2json or json2yaml executables
