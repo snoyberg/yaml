@@ -7,6 +7,7 @@ module Data.Yaml.Internal
       ParseException(..)
     , parse
     , decodeHelper
+    , decodeHelper_
     ) where
 
 import qualified Text.Libyaml as Y
@@ -16,6 +17,7 @@ import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.Map as Map
 import Control.Exception
+import Control.Exception.Enclosed
 import Control.Monad.Trans.State
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
@@ -193,10 +195,25 @@ decodeHelper :: FromJSON a
              => C.Source Parse Y.Event
              -> IO (Either ParseException (Either String a))
 decodeHelper src = do
-    x <- try $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    x <- tryAny $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
         Right y -> return $ Right $ parseEither parseJSON y
+
+decodeHelper_ :: FromJSON a
+              => C.Source Parse Event
+              -> IO (Either ParseException a)
+decodeHelper_ src = do
+    x <- tryAny $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    return $ case x of
+        Left e
+            | Just pe <- fromException e -> Left pe
+            | Just ye <- fromException e -> Left $ InvalidYaml $ Just (ye :: YamlException)
+            | otherwise -> Left $ OtherParseException e
+        Right y -> either
+            (Left . AesonException)
+            Right
+            (parseEither parseJSON y)

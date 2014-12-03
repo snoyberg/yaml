@@ -19,6 +19,7 @@ import System.Directory
 import Control.Monad
 import Control.Exception (try, SomeException)
 import Test.Hspec
+import Test.Hspec.Expectations.Contrib
 
 import qualified Data.Yaml as D
 import Data.Yaml (object, array, (.=))
@@ -114,7 +115,7 @@ spec = do
                  in D.decode (D.encode value') `shouldBe` Just value'
         mapM_ tester specialStrings
 
-    describe "yamlFileJSONparse" $
+    describe "decodeFileEither" $ do
         it "loads YAML through JSON into Haskell data" $ do
           tj <- either (error . show) id `fmap` D.decodeFileEither "test/json.yaml"
           tj `shouldBe` TestJSON
@@ -124,6 +125,11 @@ spec = do
                           , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
                           , extrastring = "1234-foo"
                           }
+
+        context "when file does not exist" $ do
+            it "returns Left" $ do
+                (D.decodeFileEither "./does_not_exist.yaml" :: IO (Either D.ParseException D.Value)) >>= (`shouldSatisfy` isLeft)
+
 
     describe "round-tripping of special scalars" $ do
         let special = words "y Y On ON false 12345 12345.0 12345a 12e3"

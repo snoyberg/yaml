@@ -62,10 +62,8 @@ import Data.Aeson
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
-import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (try, throwIO, fromException, AsyncException)
-import Control.Monad.Trans.State
+import Control.Exception
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.Vector as V
@@ -164,8 +162,8 @@ decode :: FromJSON a
        => ByteString
        -> Maybe a
 decode bs = unsafePerformIO
-          $ fmap (either (const Nothing) (either (const Nothing) Just))
-          $ decodeHelper (Y.decode bs)
+          $ fmap (either (const Nothing) id)
+          $ decodeHelper_ (Y.decode bs)
 
 decodeFile :: FromJSON a
            => FilePath
@@ -179,24 +177,7 @@ decodeFileEither
     :: FromJSON a
     => FilePath
     -> IO (Either ParseException a)
-decodeFileEither fp = do
-    x <- try $ runResourceT $ flip evalStateT Map.empty $ Y.decodeFile fp C.$$ parse
-    case x of
-        Left e
-            | Just pe <- fromException e -> return $ Left pe
-            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
-            | shouldBeCaught e -> return $ Left $ OtherParseException e
-            | otherwise -> throwIO e
-        Right y ->
-            return $ case parseEither parseJSON y of
-                Left s -> Left $ AesonException s
-                Right v -> Right v
-  where
-    -- FIXME this function needs more thought
-    shouldBeCaught e
-        | Just (_ :: AsyncException) <- fromException e = False
-        -- Would be nice... | Just (_ :: Timeout) <- fromException e = False
-        | otherwise = True
+decodeFileEither = decodeHelper_ . Y.decodeFile
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO

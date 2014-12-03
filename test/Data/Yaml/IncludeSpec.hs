@@ -2,8 +2,10 @@
 module Data.Yaml.IncludeSpec (main, spec) where
 
 import           Test.Hspec
+import           Test.Hspec.Expectations.Contrib
 import           Data.Aeson
 import           Data.Aeson.QQ
+import           Data.Yaml (ParseException)
 
 import           Data.Yaml.Include
 
@@ -35,3 +37,8 @@ spec = do
 
     it "aborts on cyclic includes" $ do
       (decodeFile "test/resources/loop/foo.yaml" :: IO (Maybe Value)) `shouldThrow` anyException
+
+  describe "decodeFileEither" $ do
+    context "when file does not exist" $ do
+      it "returns Left" $ do
+        (decodeFileEither "./does_not_exist.yaml" :: IO (Either ParseException Value)) >>= (`shouldSatisfy` isLeft)
