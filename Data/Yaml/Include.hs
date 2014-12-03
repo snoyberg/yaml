@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 module Data.Yaml.Include (decodeFile, decodeFileEither) where
 
-import Control.Applicative
 import Control.Monad (when)
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
@@ -13,7 +12,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Aeson (FromJSON)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
-import Data.Yaml (ParseException(..), decodeHelper)
+import Data.Yaml.Internal (ParseException(..), decodeHelper_, decodeHelper)
 import Text.Libyaml hiding (decodeFile)
 import qualified Text.Libyaml as Y
 
@@ -59,4 +58,4 @@ decodeFileEither
     :: FromJSON a
     => FilePath
     -> IO (Either ParseException a)
-decodeFileEither fp = either Left (either (Left . AesonException) Right) <$> decodeHelper (eventsFromFile fp)
+decodeFileEither = decodeHelper_ . eventsFromFile
