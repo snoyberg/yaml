@@ -58,6 +58,8 @@ library
                      Data.Yaml.Builder
                      Data.Yaml.Parser
                      Data.Yaml.Include
+    other-modules:
+                     Data.Yaml.Internal
     ghc-options:     -Wall
     c-sources:       c/helper.c
     include-dirs:    c
