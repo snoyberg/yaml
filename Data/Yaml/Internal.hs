@@ -54,6 +54,28 @@ data ParseException = NonScalarKey
     deriving (Show, Typeable)
 instance Exception ParseException
 
+-- | Alternative to 'show' to display a 'ParseException' on the screen.
+--   Instead of displaying the data constructors applied to their arguments,
+--   a more textual output is returned. For example, instead of printing:
+--
+-- > AesonException "The key \"foo\" was not found"
+--
+--   It looks more pleasant to print:
+--
+-- > Aeson exception: The key "foo" was not found
+--
+prettyPrintParseException :: ParseException -> String
+prettyPrintParseException NonScalarKey = "Non scalar key"
+prettyPrintParseException InvalidYaml mye =
+  case mye of
+    Just ye -> "Invalid yaml: " ++ show ye
+    _ -> "Invalid yaml"
+prettyPrintParseException (AesonException e) =
+  "Aeson exception: " ++ e
+prettyPrintParseException pe = show pe
+-- TODO: This is just a stab at the implementation.
+--       If the idea is likely to be merged, I can develop it further.
+
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
     fmap = liftM
