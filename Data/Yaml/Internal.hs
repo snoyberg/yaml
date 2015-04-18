@@ -71,15 +71,6 @@ instance Exception ParseException where
 --
 prettyPrintParseException :: ParseException -> String
 prettyPrintParseException NonScalarKey = "Non scalar key"
-prettyPrintParseException (InvalidYaml mye) =
-  case mye of
-    Just ye -> "Invalid yaml: " ++ show ye
-    _ -> "Invalid yaml"
-prettyPrintParseException (AesonException e) =
-  "Aeson exception: " ++ e
-prettyPrintParseException CyclicIncludes = "Cyclic includes"
-prettyPrintParseException (OtherParseException e) =
-  "Parse exception: " ++ show e
 prettyPrintParseException (UnknownAlias n) =
   "Unknown alias: " ++ n
 prettyPrintParseException (UnexpectedEvent r e) = unlines
@@ -87,11 +78,20 @@ prettyPrintParseException (UnexpectedEvent r e) = unlines
   , "  Received: " ++ maybe "None" show r
   , "  Expected: " ++ maybe "None" show e
     ]
+prettyPrintParseException (InvalidYaml mye) =
+  case mye of
+    Just ye -> "Invalid yaml: " ++ show ye
+    _ -> "Invalid yaml"
+prettyPrintParseException (AesonException e) =
+  "Aeson exception: " ++ e
+prettyPrintParseException (OtherParseException e) =
+  "Parse exception: " ++ show e
 prettyPrintParseException (NonStringKeyAlias n v) = unlines
   [ "Non-string key alias:"
   , "  Anchor name: " ++ n
   , "  Value: " ++ show v 
     ]
+prettyPrintParseException CyclicIncludes = "Cyclic includes"
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
