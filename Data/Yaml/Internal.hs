@@ -91,7 +91,7 @@ prettyPrintParseException (NonStringKeyAlias n v) = unlines
   [ "Non-string key alias:"
   , "  Anchor name: " ++ n
   , "  Value: " ++ show v 
-prettyPrintParseException pe = show pe
+    ]
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
