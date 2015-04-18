@@ -80,6 +80,17 @@ prettyPrintParseException (AesonException e) =
 prettyPrintParseException CyclicIncludes = "Cyclic includes"
 prettyPrintParseException (OtherParseException e) =
   "Parse exception: " ++ show e
+prettyPrintParseException (UnknownAlias n) =
+  "Unknown alias: " ++ n
+prettyPrintParseException (UnexpectedEvent r e) = unlines
+  [ "Unexpected event:"
+  , "  Received: " ++ maybe "None" show r
+  , "  Expected: " ++ maybe "None" show e
+    ]
+prettyPrintParseException (NonStringKeyAlias n v) = unlines
+  [ "Non-string key alias:"
+  , "  Anchor name: " ++ n
+  , "  Value: " ++ show v 
 prettyPrintParseException pe = show pe
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
