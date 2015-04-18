@@ -5,6 +5,7 @@
 module Data.Yaml.Internal
     (
       ParseException(..)
+    , prettyPrintParseException
     , parse
     , decodeHelper
     , decodeHelper_
@@ -52,7 +53,11 @@ data ParseException = NonScalarKey
                     | NonStringKeyAlias Y.AnchorName Value
                     | CyclicIncludes
     deriving (Show, Typeable)
-instance Exception ParseException
+
+instance Exception ParseException where
+#if MIN_VERSION_base(4, 8, 0)
+  displayException = prettyPrintParseException
+#endif
 
 -- | Alternative to 'show' to display a 'ParseException' on the screen.
 --   Instead of displaying the data constructors applied to their arguments,
@@ -66,15 +71,16 @@ instance Exception ParseException
 --
 prettyPrintParseException :: ParseException -> String
 prettyPrintParseException NonScalarKey = "Non scalar key"
-prettyPrintParseException InvalidYaml mye =
+prettyPrintParseException (InvalidYaml mye) =
   case mye of
     Just ye -> "Invalid yaml: " ++ show ye
     _ -> "Invalid yaml"
 prettyPrintParseException (AesonException e) =
   "Aeson exception: " ++ e
+prettyPrintParseException CyclicIncludes = "Cyclic includes"
+prettyPrintParseException (OtherParseException e) =
+  "Parse exception: " ++ show e
 prettyPrintParseException pe = show pe
--- TODO: This is just a stab at the implementation.
---       If the idea is likely to be merged, I can develop it further.
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where

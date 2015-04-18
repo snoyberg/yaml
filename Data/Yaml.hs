@@ -24,6 +24,7 @@ module Data.Yaml
     , Object
     , Array
     , ParseException(..)
+    , prettyPrintParseException
     , YamlException (..)
     , YamlMark (..)
       -- * Constructors and accessors
