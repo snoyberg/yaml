@@ -5,6 +5,7 @@
 module Data.Yaml.Internal
     (
       ParseException(..)
+    , prettyPrintParseException
     , parse
     , decodeHelper
     , decodeHelper_
@@ -52,7 +53,45 @@ data ParseException = NonScalarKey
                     | NonStringKeyAlias Y.AnchorName Value
                     | CyclicIncludes
     deriving (Show, Typeable)
-instance Exception ParseException
+
+instance Exception ParseException where
+#if MIN_VERSION_base(4, 8, 0)
+  displayException = prettyPrintParseException
+#endif
+
+-- | Alternative to 'show' to display a 'ParseException' on the screen.
+--   Instead of displaying the data constructors applied to their arguments,
+--   a more textual output is returned. For example, instead of printing:
+--
+-- > AesonException "The key \"foo\" was not found"
+--
+--   It looks more pleasant to print:
+--
+-- > Aeson exception: The key "foo" was not found
+--
+prettyPrintParseException :: ParseException -> String
+prettyPrintParseException NonScalarKey = "Non scalar key"
+prettyPrintParseException (UnknownAlias n) =
+  "Unknown alias: " ++ n
+prettyPrintParseException (UnexpectedEvent r e) = unlines
+  [ "Unexpected event:"
+  , "  Received: " ++ maybe "None" show r
+  , "  Expected: " ++ maybe "None" show e
+    ]
+prettyPrintParseException (InvalidYaml mye) =
+  case mye of
+    Just ye -> "Invalid yaml: " ++ show ye
+    _ -> "Invalid yaml"
+prettyPrintParseException (AesonException e) =
+  "Aeson exception: " ++ e
+prettyPrintParseException (OtherParseException e) =
+  "Parse exception: " ++ show e
+prettyPrintParseException (NonStringKeyAlias n v) = unlines
+  [ "Non-string key alias:"
+  , "  Anchor name: " ++ n
+  , "  Value: " ++ show v 
+    ]
+prettyPrintParseException CyclicIncludes = "Cyclic includes"
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
