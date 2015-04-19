@@ -69,6 +69,7 @@ instance Exception ParseException where
 --
 -- > Aeson exception: The key "foo" was not found
 --
+-- Since 0.8.11
 prettyPrintParseException :: ParseException -> String
 prettyPrintParseException NonScalarKey = "Non scalar key"
 prettyPrintParseException (UnknownAlias n) =
