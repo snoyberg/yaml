@@ -2,7 +2,7 @@
 module Data.Yaml.IncludeSpec (main, spec) where
 
 import           Test.Hspec
-import           Test.Hspec.Expectations.Contrib
+import           Data.Either.Compat
 import           Data.Aeson
 import           Data.Aeson.QQ
 import           Data.Yaml (ParseException)

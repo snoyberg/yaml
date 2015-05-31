@@ -15,11 +15,11 @@ import qualified Data.Conduit as C
 import qualified Control.Monad.Trans.Resource as C
 import qualified Data.Conduit.List as CL
 
-import System.Directory
 import Control.Monad
 import Control.Exception (try, SomeException)
 import Test.Hspec
-import Test.Hspec.Expectations.Contrib
+import Data.Either.Compat
+import Test.Mockery.Directory
 
 import qualified Data.Yaml as D
 import Data.Yaml (object, array, (.=))
@@ -237,26 +237,17 @@ caseEncodeDecode = do
     yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
     yamlBS = B8.pack yamlString
 
-removeFile' :: FilePath -> IO ()
-removeFile' fp = do
-    x <- doesFileExist fp
-    when x $ removeFile fp
-
 caseEncodeDecodeFile :: Assertion
-caseEncodeDecodeFile = do
-    removeFile' tmpPath
+caseEncodeDecodeFile = withFile "" $ \tmpPath -> do
     eList <- C.runResourceT $ Y.decodeFile filePath C.$$ CL.consume
     C.runResourceT $ CL.sourceList eList C.$$ Y.encodeFile tmpPath
     eList2 <- C.runResourceT $ Y.decodeFile filePath C.$$ CL.consume
     map MyEvent eList @=? map MyEvent eList2
   where
     filePath = "test/largest-string.yaml"
-    tmpPath = "tmp.yaml"
 
 caseInterleave :: Assertion
-caseInterleave = do
-    removeFile' tmpPath
-    removeFile' tmpPath2
+caseInterleave = withFile "" $ \tmpPath -> withFile "" $ \tmpPath2 -> do
     () <- C.runResourceT $ Y.decodeFile filePath C.$$ Y.encodeFile tmpPath
     () <- C.runResourceT $ Y.decodeFile tmpPath C.$$ Y.encodeFile tmpPath2
     f1 <- readFile tmpPath
@@ -264,8 +255,6 @@ caseInterleave = do
     f1 @=? f2
   where
     filePath = "test/largest-string.yaml"
-    tmpPath = "tmp.yaml"
-    tmpPath2 = "tmp2.yaml"
 
 caseDecodeInvalidDocument :: Assertion
 caseDecodeInvalidDocument = do
@@ -308,8 +297,7 @@ caseEncodeDecodeData = do
     out @?= Just sample
 
 caseEncodeDecodeFileData :: Assertion
-caseEncodeDecodeFileData = do
-    let fp = "tmp.yaml"
+caseEncodeDecodeFileData = withFile "" $ \fp -> do
     D.encodeFile fp sample
     out <- D.decodeFile fp
     out @?= Just sample
