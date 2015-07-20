@@ -140,6 +140,9 @@ spec = do
 
     it "aliases in keys #49" caseIssue49
 
+    it "serialization of +123 #64" $ do
+        D.decode (D.encode ("+123" :: String)) `shouldBe` Just ("+123" :: String)
+
 
 specialStrings :: [T.Text]
 specialStrings =

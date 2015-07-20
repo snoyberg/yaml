@@ -158,6 +158,7 @@ isNumeric =
                 || c == 'E'
                 || c == '.'
                 || c == '-'
+                || c == '+'
 
 decode :: FromJSON a
        => ByteString
