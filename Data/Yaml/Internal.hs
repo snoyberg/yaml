@@ -9,6 +9,8 @@ module Data.Yaml.Internal
     , parse
     , decodeHelper
     , decodeHelper_
+    , specialStrings
+    , isNumeric
     ) where
 
 import qualified Text.Libyaml as Y
@@ -41,6 +43,7 @@ import Data.Scientific (fromFloatDigits)
 import Data.Attoparsec.Number
 #endif
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import qualified Data.HashSet as HashSet
 
 data ParseException = NonScalarKey
                     | UnknownAlias { _anchorName :: Y.AnchorName }
@@ -257,3 +260,19 @@ decodeHelper_ src = do
             (Left . AesonException)
             Right
             (parseEither parseJSON y)
+
+-- | Strings which must be escaped so as not to be treated as non-string scalars.
+specialStrings :: HashSet.HashSet Text
+specialStrings = HashSet.fromList $ T.words
+    "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
+
+isNumeric :: Text -> Bool
+isNumeric =
+    T.all isNumeric'
+  where
+    isNumeric' c = ('0' <= c && c <= '9')
+                || c == 'e'
+                || c == 'E'
+                || c == '.'
+                || c == '-'
+                || c == '+'

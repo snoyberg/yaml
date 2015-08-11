@@ -144,22 +144,6 @@ pairToEvents (k, v) rest =
     EventScalar (encodeUtf8 k) StrTag PlainNoTag Nothing
   : objToEvents' v rest
 
--- | Strings which must be escaped so as not to be treated as non-string scalars.
-specialStrings :: HashSet.HashSet Text
-specialStrings = HashSet.fromList $ T.words
-    "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
-
-isNumeric :: Text -> Bool
-isNumeric =
-    T.all isNumeric'
-  where
-    isNumeric' c = ('0' <= c && c <= '9')
-                || c == 'e'
-                || c == 'E'
-                || c == '.'
-                || c == '-'
-                || c == '+'
-
 decode :: FromJSON a
        => ByteString
        -> Maybe a
