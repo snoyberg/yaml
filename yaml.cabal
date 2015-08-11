@@ -57,6 +57,7 @@ library
                      Data.Yaml
                      Data.Yaml.Aeson
                      Data.Yaml.Builder
+                     Data.Yaml.Pretty
                      Data.Yaml.Parser
                      Data.Yaml.Include
     other-modules:
