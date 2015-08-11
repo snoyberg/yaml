@@ -22,6 +22,7 @@ import Data.Either.Compat
 import Test.Mockery.Directory
 
 import qualified Data.Yaml as D
+import qualified Data.Yaml.Pretty as Pretty
 import Data.Yaml (object, array, (.=))
 import Data.Maybe
 import qualified Data.HashMap.Strict as M
@@ -65,6 +66,10 @@ spec = do
         it "encode/decode strings" caseEncodeDecodeStrings
         it "decode invalid file" caseDecodeInvalid
         it "processes datatypes" caseDataTypes
+    describe "Data.Yaml.Pretty" $ do
+        it "encode/decode" caseEncodeDecodeDataPretty
+        it "encode/decode strings" caseEncodeDecodeStringsPretty
+        it "processes datatypes" caseDataTypesPretty
     describe "Data.Yaml aliases" $ do
         it "simple scalar alias" caseSimpleScalarAlias
         it "simple sequence alias" caseSimpleSequenceAlias
@@ -299,6 +304,11 @@ caseEncodeDecodeData = do
     let out = D.decode $ D.encode sample
     out @?= Just sample
 
+caseEncodeDecodeDataPretty :: Assertion
+caseEncodeDecodeDataPretty = do
+    let out = D.decode $ Pretty.encodePretty Pretty.defConfig sample
+    out @?= Just sample
+
 caseEncodeDecodeFileData :: Assertion
 caseEncodeDecodeFileData = withFile "" $ \fp -> do
     D.encodeFile fp sample
@@ -308,6 +318,11 @@ caseEncodeDecodeFileData = withFile "" $ \fp -> do
 caseEncodeDecodeStrings :: Assertion
 caseEncodeDecodeStrings = do
     let out = D.decode $ D.encode sample
+    out @?= Just sample
+
+caseEncodeDecodeStringsPretty :: Assertion
+caseEncodeDecodeStringsPretty = do
+    let out = D.decode $ Pretty.encodePretty Pretty.defConfig sample
     out @?= Just sample
 
 caseDecodeInvalid :: Assertion
@@ -391,6 +406,18 @@ caseDataTypes =
         , ("null", D.Null)
         ]
 
+caseDataTypesPretty :: Assertion
+caseDataTypesPretty =
+    D.decode (Pretty.encodePretty Pretty.defConfig val) @?= Just val
+  where
+    val = object
+        [ ("string", D.String "foo")
+        , ("int", D.Number 5)
+        , ("float", D.Number 4.3)
+        , ("true", D.Bool True)
+        , ("false", D.Bool False)
+        , ("null", D.Null)
+        ]
 caseQuotedNumber, caseUnquotedNumber, caseAttribNumber, caseIntegerDecimals :: Assertion
 caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
 caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])
