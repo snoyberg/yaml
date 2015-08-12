@@ -1,7 +1,9 @@
 -- | Prettier YAML encoding.
 module Data.Yaml.Pretty
     ( encodePretty
-    , Config(..)
+    , Config
+    , getConfCompare
+    , setConfCompare
     , defConfig
     ) where
 
@@ -23,6 +25,12 @@ data Config = Config
 -- | The default configuration: do not sort objects.
 defConfig :: Config
 defConfig = Config mempty
+
+getConfCompare :: Config -> Text -> Text -> Ordering
+getConfCompare = confCompare
+
+setConfCompare :: (Text -> Text -> Ordering) -> Config -> Config
+setConfCompare cmp c = c { confCompare = cmp }
 
 pretty :: Config -> Value -> YamlBuilder
 pretty cfg = go

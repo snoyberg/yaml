@@ -21,6 +21,7 @@ module Data.Yaml.Builder
 import Data.Conduit
 import Data.ByteString (ByteString)
 import Text.Libyaml
+import Data.Yaml.Internal
 import Data.Text (Text)
 import Data.Scientific (Scientific)
 import Data.Aeson.Types (Value(..))
@@ -85,23 +86,6 @@ string s   =
         -- See: https://github.com/snoyberg/yaml/issues/31
         | s `HashSet.member` specialStrings || isNumeric s = EventScalar (encodeUtf8 s) NoTag SingleQuoted Nothing
         | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
-
-    -- | Strings which must be escaped so as not to be treated as non-string scalars.
-    specialStrings :: HashSet.HashSet Text
-    specialStrings = HashSet.fromList $ T.words
-          "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
-
-    isNumeric :: Text -> Bool
-    isNumeric =
-        T.all isNumeric'
-      where
-        isNumeric' c = ('0' <= c && c <= '9')
-                    || c == 'e'
-                    || c == 'E'
-                    || c == '.'
-                    || c == '-'
-                    || c == '+'
-
  
 -- Use aeson's implementation which gets rid of annoying decimal points
 scientific :: Scientific -> YamlBuilder
