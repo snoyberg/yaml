@@ -1,3 +1,7 @@
+## 0.8.13
+
+* Pretty module [#66](https://github.com/snoyberg/yaml/pull/66)
+
 ## 0.8.12
 
 * Proper handling of `String "+123"` [#64](https://github.com/snoyberg/yaml/issues/64)

@@ -1,4 +1,6 @@
 -- | Prettier YAML encoding.
+--
+-- Since 0.8.13
 module Data.Yaml.Pretty
     ( encodePretty
     , Config
@@ -18,17 +20,25 @@ import Data.List (sortBy)
 import Data.ByteString (ByteString)
 import Prelude hiding (null)
 
+-- |
+-- Since 0.8.13
 data Config = Config
   { confCompare :: Text -> Text -> Ordering -- ^ Function used to sort keys in objects
   }
 
 -- | The default configuration: do not sort objects.
+--
+-- Since 0.8.13
 defConfig :: Config
 defConfig = Config mempty
 
+-- |
+-- Since 0.8.13
 getConfCompare :: Config -> Text -> Text -> Ordering
 getConfCompare = confCompare
 
+-- |
+-- Since 0.8.13
 setConfCompare :: (Text -> Text -> Ordering) -> Config -> Config
 setConfCompare cmp c = c { confCompare = cmp }
 
@@ -42,5 +52,7 @@ pretty cfg = go
         go (Bool b)   = bool b
 
 -- | Configurable 'encode'.
+--
+-- Since 0.8.13
 encodePretty :: ToJSON a => Config -> a -> ByteString
 encodePretty cfg = toByteString . pretty cfg . toJSON
