@@ -66,36 +66,56 @@ instance Exception ParseException where
 --   Instead of displaying the data constructors applied to their arguments,
 --   a more textual output is returned. For example, instead of printing:
 --
--- > AesonException "The key \"foo\" was not found"
+-- > InvalidYaml (Just (YamlParseException {yamlProblem = "did not find expected ',' or '}'", yamlContext = "while parsing a flow mapping", yamlProblemMark = YamlMark {yamlIndex = 42, yamlLine = 2, yamlColumn = 12}})))
 --
 --   It looks more pleasant to print:
 --
--- > Aeson exception: The key "foo" was not found
+-- > YAML parse exception at line 2, column 12,
+-- > while parsing a flow mapping:
+-- > did not find expected ',' or '}'
 --
 -- Since 0.8.11
 prettyPrintParseException :: ParseException -> String
-prettyPrintParseException NonScalarKey = "Non scalar key"
-prettyPrintParseException (UnknownAlias n) =
-  "Unknown alias: " ++ n
-prettyPrintParseException (UnexpectedEvent r e) = unlines
-  [ "Unexpected event:"
-  , "  Received: " ++ maybe "None" show r
-  , "  Expected: " ++ maybe "None" show e
+prettyPrintParseException pe = case pe of
+  NonScalarKey -> "Non scalar key"
+  UnknownAlias anchor -> "Unknown alias `" ++ anchor ++ "`"
+  UnexpectedEvent mbExpected mbUnexpected -> case (mbExpected, mbUnexpected) of
+    (Nothing, Nothing) ->
+      error $ "prettyPrintYamlParseException: Got UnexpectedEvent with two `Nothing`s"
+    (Just expected, Just received) -> unlines
+      [ "Unexpected event: expected"
+      , "  " ++ show expected
+      , "but received"
+      , "  " ++ show received
+      ]
+    (Just expected, Nothing) -> unlines
+      [ "Expected event"
+      , "  " ++ show expected
+      , "but got none"
+      ]
+    (Nothing, Just received) -> unlines
+      [ "Expected no events, but received"
+      , "  " ++ show received
+      ]
+  InvalidYaml mbYamlError -> case mbYamlError of
+    Nothing -> "Unspecified YAML error"
+    Just yamlError -> case yamlError of
+      YamlException s -> "YAML exception:\n" ++ s
+      YamlParseException problem context mark -> unlines
+        [ "YAML parse exception at line " ++ show (yamlLine mark) ++
+          ", column " ++ show (yamlColumn mark) ++ ","
+        -- The context seems to include a leading "while" or similar.
+        , context ++ ":"
+        , problem
+        ]
+  AesonException s -> "Aeson exception:\n" ++ s
+  OtherParseException exc -> "Generic parse exception:\n" ++ show exc
+  NonStringKeyAlias anchor value -> unlines
+    [ "Non-string key alias:"
+    , "  Anchor name: " ++ anchor
+    , "  Value: " ++ show value
     ]
-prettyPrintParseException (InvalidYaml mye) =
-  case mye of
-    Just ye -> "Invalid yaml: " ++ show ye
-    _ -> "Invalid yaml"
-prettyPrintParseException (AesonException e) =
-  "Aeson exception: " ++ e
-prettyPrintParseException (OtherParseException e) =
-  "Parse exception: " ++ show e
-prettyPrintParseException (NonStringKeyAlias n v) = unlines
-  [ "Non-string key alias:"
-  , "  Anchor name: " ++ n
-  , "  Value: " ++ show v 
-    ]
-prettyPrintParseException CyclicIncludes = "Cyclic includes"
+  CyclicIncludes -> "Cyclic includes"
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
