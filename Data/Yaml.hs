@@ -167,7 +167,7 @@ decodeFileEither = decodeHelper_ . Y.decodeFile
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
-                $ fmap (either (Left . show) id)
+                $ fmap (either (Left . prettyPrintParseException) id)
                 $ decodeHelper (Y.decode bs)
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
