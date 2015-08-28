@@ -19,6 +19,7 @@ import Data.Aeson.Types hiding (parse)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.Map as Map
+import Data.Maybe (isNothing)
 import Control.Exception
 import Control.Exception.Enclosed
 import Control.Monad.Trans.State
@@ -79,24 +80,28 @@ prettyPrintParseException :: ParseException -> String
 prettyPrintParseException pe = case pe of
   NonScalarKey -> "Non scalar key"
   UnknownAlias anchor -> "Unknown alias `" ++ anchor ++ "`"
-  UnexpectedEvent mbExpected mbUnexpected -> case (mbExpected, mbUnexpected) of
-    (Nothing, Nothing) ->
-      error $ "prettyPrintYamlParseException: Got UnexpectedEvent with two `Nothing`s"
-    (Just expected, Just received) -> unlines
-      [ "Unexpected event: expected"
-      , "  " ++ show expected
-      , "but received"
-      , "  " ++ show received
-      ]
-    (Just expected, Nothing) -> unlines
-      [ "Expected event"
-      , "  " ++ show expected
-      , "but got none"
-      ]
-    (Nothing, Just received) -> unlines
-      [ "Expected no events, but received"
-      , "  " ++ show received
-      ]
+  UnexpectedEvent mbExpected mbUnexpected ->
+    assert (not (isNothing mbExpected && isNothing mbUnexpected)) $
+    case (mbExpected, mbUnexpected) of
+      (Nothing, Nothing) -> unlines
+        [ "Got UnexpectedEvent with two `Nothing`s, this should never happen."
+        , "Please report it as a bug at <https://github.com/snoyberg/yaml/>"
+        ]
+      (Just expected, Just received) -> unlines
+        [ "Unexpected event: expected"
+        , "  " ++ show expected
+        , "but received"
+        , "  " ++ show received
+        ]
+      (Just expected, Nothing) -> unlines
+        [ "Expected event"
+        , "  " ++ show expected
+        , "but got none"
+        ]
+      (Nothing, Just received) -> unlines
+        [ "Expected no events, but received"
+        , "  " ++ show received
+        ]
   InvalidYaml mbYamlError -> case mbYamlError of
     Nothing -> "Unspecified YAML error"
     Just yamlError -> case yamlError of
