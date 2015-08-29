@@ -19,6 +19,7 @@ import Data.Aeson.Types hiding (parse)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.Map as Map
+import Data.Maybe (isNothing)
 import Control.Exception
 import Control.Exception.Enclosed
 import Control.Monad.Trans.State
@@ -66,36 +67,44 @@ instance Exception ParseException where
 --   Instead of displaying the data constructors applied to their arguments,
 --   a more textual output is returned. For example, instead of printing:
 --
--- > AesonException "The key \"foo\" was not found"
+-- > InvalidYaml (Just (YamlParseException {yamlProblem = "did not find expected ',' or '}'", yamlContext = "while parsing a flow mapping", yamlProblemMark = YamlMark {yamlIndex = 42, yamlLine = 2, yamlColumn = 12}})))
 --
 --   It looks more pleasant to print:
 --
--- > Aeson exception: The key "foo" was not found
+-- > YAML parse exception at line 2, column 12,
+-- > while parsing a flow mapping:
+-- > did not find expected ',' or '}'
 --
 -- Since 0.8.11
 prettyPrintParseException :: ParseException -> String
-prettyPrintParseException NonScalarKey = "Non scalar key"
-prettyPrintParseException (UnknownAlias n) =
-  "Unknown alias: " ++ n
-prettyPrintParseException (UnexpectedEvent r e) = unlines
-  [ "Unexpected event:"
-  , "  Received: " ++ maybe "None" show r
-  , "  Expected: " ++ maybe "None" show e
+prettyPrintParseException pe = case pe of
+  NonScalarKey -> "Non scalar key"
+  UnknownAlias anchor -> "Unknown alias `" ++ anchor ++ "`"
+  UnexpectedEvent mbExpected mbUnexpected -> unlines
+    [ "Unexpected event: expected"
+    , "  " ++ show mbExpected
+    , "but received"
+    , "  " ++ show mbUnexpected
     ]
-prettyPrintParseException (InvalidYaml mye) =
-  case mye of
-    Just ye -> "Invalid yaml: " ++ show ye
-    _ -> "Invalid yaml"
-prettyPrintParseException (AesonException e) =
-  "Aeson exception: " ++ e
-prettyPrintParseException (OtherParseException e) =
-  "Parse exception: " ++ show e
-prettyPrintParseException (NonStringKeyAlias n v) = unlines
-  [ "Non-string key alias:"
-  , "  Anchor name: " ++ n
-  , "  Value: " ++ show v 
+  InvalidYaml mbYamlError -> case mbYamlError of
+    Nothing -> "Unspecified YAML error"
+    Just yamlError -> case yamlError of
+      YamlException s -> "YAML exception:\n" ++ s
+      YamlParseException problem context mark -> unlines
+        [ "YAML parse exception at line " ++ show (yamlLine mark) ++
+          ", column " ++ show (yamlColumn mark) ++ ","
+        -- The context seems to include a leading "while" or similar.
+        , context ++ ":"
+        , problem
+        ]
+  AesonException s -> "Aeson exception:\n" ++ s
+  OtherParseException exc -> "Generic parse exception:\n" ++ show exc
+  NonStringKeyAlias anchor value -> unlines
+    [ "Non-string key alias:"
+    , "  Anchor name: " ++ anchor
+    , "  Value: " ++ show value
     ]
-prettyPrintParseException CyclicIncludes = "Cyclic includes"
+  CyclicIncludes -> "Cyclic includes"
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
