@@ -1,3 +1,7 @@
+## 0.8.14
+
+* Pretty print improvements for exceptions [#67](https://github.com/snoyberg/yaml/pull/67)
+
 ## 0.8.13
 
 * Pretty module [#66](https://github.com/snoyberg/yaml/pull/66)
