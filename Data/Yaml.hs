@@ -68,8 +68,6 @@ import Control.Exception
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.Vector as V
-import Data.Text (Text)
-import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
