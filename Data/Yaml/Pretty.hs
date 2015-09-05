@@ -48,7 +48,7 @@ pretty cfg = go
         go (Array a)  = array (fmap go $ V.toList a)
         go Null       = null
         go (String s) = string s
-        go (Number n) = number n
+        go (Number n) = scientific n
         go (Bool b)   = bool b
 
 -- | Configurable 'encode'.
