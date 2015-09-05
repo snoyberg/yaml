@@ -39,6 +39,7 @@ import Data.Text.Lazy.Builder (toLazyText)
 import Data.Aeson.Encode (encodeToTextBuilder)
 #else
 import qualified Data.ByteString.Char8 as S8
+import Data.Attoparsec.Number
 #endif
 import Prelude hiding (null)
 
@@ -88,8 +89,13 @@ string s   =
         | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
  
 -- Use aeson's implementation which gets rid of annoying decimal points
+#if MIN_VERSION_aeson(0,7,0)
 scientific :: Scientific -> YamlBuilder
 scientific n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag Nothing :)
+#else
+scientific :: Number -> YamlBuilder
+scientific n = YamlBuilder (EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing :)
+#endif
 
 {-# DEPRECATED number "Use scientific" #-}
 #if MIN_VERSION_aeson(0,7,0)
@@ -97,7 +103,7 @@ number :: Scientific -> YamlBuilder
 number = scientific
 #else
 number :: Number -> YamlBuilder
-number n rest = YamlBuilder (EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing :)
+number n = YamlBuilder (EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing :)
 #endif
 
 bool :: Bool -> YamlBuilder
