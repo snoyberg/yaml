@@ -13,35 +13,36 @@ module Data.Yaml.Internal
     , isNumeric
     ) where
 
-import qualified Text.Libyaml as Y
-import Data.Aeson
-import Data.Aeson.Types hiding (parse)
-import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
-import Data.ByteString (ByteString)
-import qualified Data.Map as Map
-import Control.Exception
-import Control.Exception.Enclosed
-import Control.Monad.Trans.State
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
-import Control.Monad.Trans.Class (MonadTrans, lift)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (liftM, ap, unless)
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>), Applicative(..))
 #endif
+import Control.Exception
+import Control.Exception.Enclosed
+import Control.Monad (liftM, ap, unless)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Control.Monad.Trans.State
+import Data.Aeson
+import Data.Aeson.Types hiding (parse)
+import qualified Data.Attoparsec.Text as Atto
+import Data.ByteString (ByteString)
 import Data.Char (toUpper)
-import qualified Data.Vector as V
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
+import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet as HashSet
+import qualified Data.Map as Map
+import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
-import qualified Data.HashMap.Strict as M
 import Data.Typeable
-import qualified Data.Attoparsec.Text as Atto
-import Data.Scientific (Scientific)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import qualified Data.HashSet as HashSet
+import qualified Data.Vector as V
+
+import qualified Text.Libyaml as Y
+import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 
 data ParseException = NonScalarKey
                     | UnknownAlias { _anchorName :: Y.AnchorName }

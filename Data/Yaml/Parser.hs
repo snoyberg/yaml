@@ -5,16 +5,13 @@
 -- drastically, or be entirely removed, in a future release.
 module Data.Yaml.Parser where
 
-import Text.Libyaml
 import Control.Applicative
-#if !MIN_VERSION_base(4,8,0)
-import Data.Monoid (Monoid (..))
-#endif
+import Control.Exception (Exception)
 import Control.Monad (MonadPlus (..), liftM, ap)
-import Control.Monad.Trans.Writer.Strict (tell, WriterT)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (MonadThrow, monadThrow, runResourceT)
-import qualified Data.Map as Map
+import Control.Monad.Trans.Writer.Strict (tell, WriterT)
+import Data.ByteString (ByteString)
 import Data.Conduit
 #if MIN_VERSION_conduit(1,1,0)
 import Data.Conduit.Lift (runWriterC)
@@ -22,12 +19,16 @@ import Data.Conduit.Lift (runWriterC)
 #else
 import Data.Conduit.Lift (runWriterSC)
 #endif
+import qualified Data.Map as Map
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid (Monoid (..))
+#endif
 import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8)
-import Data.ByteString (ByteString)
-import Control.Exception (Exception)
-import Data.Typeable (Typeable)
 import Data.Text.Read (signed, decimal)
+import Data.Typeable (Typeable)
+
+import Text.Libyaml
 
 newtype YamlParser a = YamlParser
     { unYamlParser :: AnchorMap -> Either Text a

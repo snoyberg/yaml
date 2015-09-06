@@ -1,9 +1,10 @@
-import System.Environment (getArgs)
-import qualified Data.Aeson as J
-import qualified Data.Yaml as Y
 import Control.Monad (when)
+import qualified Data.Aeson as J
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import System.Environment (getArgs)
+
+import qualified Data.Yaml as Y
 
 main :: IO ()
 main = do
