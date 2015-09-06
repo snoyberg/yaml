@@ -50,7 +50,6 @@ import Data.Attoparsec.Number
 #endif
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import qualified Data.HashSet as HashSet
-import Data.Either
 
 data ParseException = NonScalarKey
                     | UnknownAlias { _anchorName :: Y.AnchorName }
