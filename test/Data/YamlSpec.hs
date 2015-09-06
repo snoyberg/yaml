@@ -148,9 +148,7 @@ spec = do
     it "serialization of +123 #64" $ do
         D.decode (D.encode ("+123" :: String)) `shouldBe` Just ("+123" :: String)
 
-#if MIN_VERSION_aeson(0, 7, 0)
     it "preserves Scientific precision" casePreservesScientificPrecision
-#endif
 
 
 specialStrings :: [T.Text]
@@ -470,7 +468,6 @@ caseIssue49 =
   where
     src = "---\na:\n  &id5 value: 1.0\nb:\n  *id5: 1.2"
 
-#if MIN_VERSION_aeson(0, 7, 0)
 -- | We cannot guarantee this before aeson started using 'Scientific'.
 casePreservesScientificPrecision :: Assertion
 casePreservesScientificPrecision = do
@@ -487,4 +484,3 @@ casePreservesScientificPrecision = do
     -- results, because of <https://github.com/bos/text/issues/34>.
     D.decodeEither "x: 9.78159610558926e-5" @?= Right (object
         [ "x" .= D.Number (read "9.78159610558926e-5") ])
-#endif

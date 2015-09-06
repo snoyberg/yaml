@@ -38,13 +38,8 @@ import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
-#if MIN_VERSION_aeson(0, 7, 0)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Scientific (Scientific)
-#else
-import Data.Text.Read
-import Data.Attoparsec.Number
-#endif
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import qualified Data.HashSet as HashSet
 
@@ -163,20 +158,13 @@ textToValue _ _ t
     | t `elem` ["null", "Null", "NULL", "~", ""] = Null
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
-#if MIN_VERSION_aeson(0, 7, 0)
     | Right x <- textToScientific t = Number x
-#else
-    | Right (x, "") <- signed decimal t = Number $ I x
-    | Right (x, "") <- double t = Number $ D x
-#endif
     | otherwise = String t
   where x `isLike` ref = x `elem` [ref, T.toUpper ref, titleCased]
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
 
-#if MIN_VERSION_aeson(0, 7, 0)
 textToScientific :: Text -> Either String Scientific
 textToScientific = Atto.parseOnly (Atto.scientific <* Atto.endOfInput)
-#endif
 
 parseO :: C.Sink Event Parse Value
 parseO = do
