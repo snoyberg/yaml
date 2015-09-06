@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | Provides a high-level interface for processing YAML files.
@@ -54,34 +53,31 @@ module Data.Yaml
     , decodeHelper
     ) where
 
-import qualified Text.Libyaml as Y
+import Control.Applicative((<$>))
+import Control.Exception
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson
     ( Value (..), ToJSON (..), FromJSON (..), object
     , (.=) , (.:) , (.:?) , (.!=)
     , Object, Array
     )
+import Data.Aeson.Encode (encodeToTextBuilder)
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
-import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import qualified Data.Vector as V
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
-#if MIN_VERSION_aeson(0, 7, 0)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
-import Data.Aeson.Encode (encodeToTextBuilder)
-#else
-import qualified Data.ByteString.Char8 as S8
-#endif
-import Control.Monad.Trans.Resource (runResourceT)
+import qualified Data.Vector as V
+import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Yaml.Internal
+import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
+import qualified Text.Libyaml as Y
 
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $
@@ -110,10 +106,10 @@ objToEvents' :: Value -> [Y.Event] -> [Y.Event]
 --objToEvents' (Scalar s) rest = scalarToEvent s : rest
 objToEvents' (Array list) rest =
     EventSequenceStart Nothing
-  : foldr ($) (EventSequenceEnd : rest) (map objToEvents' $ V.toList list)
+  : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
 objToEvents' (Object pairs) rest =
     EventMappingStart Nothing
-  : foldr ($) (EventMappingEnd : rest) (map pairToEvents $ M.toList pairs)
+  : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
 
 -- Empty strings need special handling to ensure they get quoted. This avoids:
 -- https://github.com/snoyberg/yaml/issues/24
@@ -130,12 +126,8 @@ objToEvents' (String s) rest =
 objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
 objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
 objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
-#if MIN_VERSION_aeson(0,7,0)
 -- Use aeson's implementation which gets rid of annoying decimal points
 objToEvents' n@Number{} rest = EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder n) IntTag PlainNoTag Nothing : rest
-#else
-objToEvents' (Number n) rest = EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing : rest
-#endif
 
 pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
 pairToEvents (k, v) rest =
@@ -146,8 +138,8 @@ decode :: FromJSON a
        => ByteString
        -> Maybe a
 decode bs = unsafePerformIO
-          $ fmap (either (const Nothing) id)
-          $ decodeHelper_ (Y.decode bs)
+          $ either (const Nothing) id
+          <$> decodeHelper_ (Y.decode bs)
 
 decodeFile :: FromJSON a
            => FilePath
@@ -165,8 +157,8 @@ decodeFileEither = decodeHelper_ . Y.decodeFile
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
-                $ fmap (either (Left . prettyPrintParseException) id)
-                $ decodeHelper (Y.decode bs)
+                $ either (Left . prettyPrintParseException) id
+                <$> decodeHelper (Y.decode bs)
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
 --
