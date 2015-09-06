@@ -27,7 +27,9 @@ import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (liftM, ap)
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative (Applicative(..))
+#endif
 import Data.Char (toUpper)
 import qualified Data.Vector as V
 import Data.Text (Text, pack)

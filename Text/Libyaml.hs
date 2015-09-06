@@ -49,7 +49,9 @@ import Data.Data
 import Control.Monad.IO.Class
 
 import Control.Exception (throwIO, Exception, finally)
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
+#endif
 import Control.Monad.Trans.Resource
 import Data.Conduit hiding (Source, Sink, Conduit)
 import Control.Exception (mask_)
