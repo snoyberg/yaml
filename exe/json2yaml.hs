@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 import System.Environment (getArgs)
 import qualified Data.Aeson as J
 import qualified Data.Yaml as Y
