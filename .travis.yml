@@ -1,1 +1,7 @@
 language: haskell
+env:
+  # We test with aeson < 0.7.0.0 since we have CPP switches on that.
+  - AESON="aeson>=0.7.0.0"
+  - AESON="aeson==0.6.2.1"
+install:
+  - cabal install --only-dependencies --enable-tests --constraint="$AESON"
