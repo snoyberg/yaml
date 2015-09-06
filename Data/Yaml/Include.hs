@@ -1,17 +1,18 @@
 {-# LANGUAGE RankNTypes #-}
 module Data.Yaml.Include (decodeFile, decodeFileEither) where
 
-import Control.Monad (when)
 import Control.Exception (throwIO)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (MonadResource)
-import System.Directory
-import System.FilePath
-import Data.Text (unpack)
-import Data.Text.Encoding (decodeUtf8)
 import Data.Aeson (FromJSON)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
+import Data.Text (unpack)
+import Data.Text.Encoding (decodeUtf8)
+import System.Directory
+import System.FilePath
+
 import Data.Yaml.Internal (ParseException(..), decodeHelper_, decodeHelper)
 import Text.Libyaml hiding (decodeFile)
 import qualified Text.Libyaml as Y

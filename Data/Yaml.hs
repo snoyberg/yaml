@@ -53,31 +53,31 @@ module Data.Yaml
     , decodeHelper
     ) where
 
-import qualified Text.Libyaml as Y
+import Control.Applicative((<$>))
+import Control.Exception
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson
     ( Value (..), ToJSON (..), FromJSON (..), object
     , (.=) , (.:) , (.:?) , (.!=)
     , Object, Array
     )
+import Data.Aeson.Encode (encodeToTextBuilder)
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
-import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import qualified Data.Vector as V
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
-import Data.Aeson.Encode (encodeToTextBuilder)
-import Control.Monad.Trans.Resource (runResourceT)
-import Control.Applicative((<$>))
+import qualified Data.Vector as V
+import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Yaml.Internal
+import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
+import qualified Text.Libyaml as Y
 
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $

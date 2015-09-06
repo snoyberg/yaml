@@ -1,12 +1,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-import System.Environment (getArgs)
-import qualified Data.Aeson as J
-import qualified Data.Yaml as Y
+import Control.Applicative ((<$>))
 import Control.Monad (when)
+import qualified Data.Aeson as J
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Control.Applicative ((<$>))
+import System.Environment (getArgs)
+
+import qualified Data.Yaml as Y
 
 main :: IO ()
 main = do

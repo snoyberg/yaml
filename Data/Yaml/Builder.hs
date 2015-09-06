@@ -18,24 +18,26 @@ module Data.Yaml.Builder
     , (.=)
     ) where
 
-import Data.Conduit
-import Data.ByteString (ByteString)
-import Text.Libyaml
-import Data.Yaml.Internal
-import Data.Text (Text)
-import Data.Scientific (Scientific)
-import Data.Aeson.Types (Value(..))
-import qualified Data.HashSet as HashSet
-import Data.Text.Encoding (encodeUtf8)
-import System.IO.Unsafe (unsafePerformIO)
+import Prelude hiding (null)
+
 import Control.Arrow (second)
-import qualified Data.ByteString.Char8 as S8
 import Control.Monad.Trans.Resource (runResourceT)
+import Data.Aeson.Encode (encodeToTextBuilder)
+import Data.Aeson.Types (Value(..))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as S8
+import Data.Conduit
+import qualified Data.HashSet as HashSet
+import Data.Scientific (Scientific)
+import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
-import Data.Aeson.Encode (encodeToTextBuilder)
-import Prelude hiding (null)
+import System.IO.Unsafe (unsafePerformIO)
+
+import Data.Yaml.Internal
+import Text.Libyaml
 
 (.=) :: ToYaml a => Text -> a -> (Text, YamlBuilder)
 k .= v = (k, toYaml v)

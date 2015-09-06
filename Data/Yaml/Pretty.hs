@@ -9,17 +9,19 @@ module Data.Yaml.Pretty
     , defConfig
     ) where
 
-import Control.Applicative ((<$>))
-import Data.Yaml.Builder
-import Data.Aeson.Types
-import Data.Text (Text)
-import Data.Monoid
-import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
-import Data.Function (on)
-import Data.List (sortBy)
-import Data.ByteString (ByteString)
 import Prelude hiding (null)
+
+import Control.Applicative ((<$>))
+import Data.Aeson.Types
+import Data.ByteString (ByteString)
+import Data.Function (on)
+import qualified Data.HashMap.Strict as HM
+import Data.List (sortBy)
+import Data.Monoid
+import Data.Text (Text)
+import qualified Data.Vector as V
+
+import Data.Yaml.Builder
 
 -- |
 -- Since 0.8.13
