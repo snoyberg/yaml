@@ -280,7 +280,10 @@ decodeHelper :: FromJSON a
 decodeHelper src = do
   res <- decodeHelperOneOrMany True src
   return $ case res of
-    (Right (Right [x])) -> Right (Right x)
+    -- head below is harmless since decodeHelperOneOrMany
+    -- with first argument True always returns a one-element
+    -- list on success
+    (Right (Right xs)) -> Right $ Right $ head xs
     (Right (Left s)) -> Right (Left s)
     (Left except) -> Left except
 
@@ -311,7 +314,10 @@ decodeHelper_ src
     res <- decodeHelperOneOrMany_ True src
     return $ case res of
               Left except -> Left except
-              Right [x] -> Right x
+              -- head below is harmless since decodeHelperOneOrMany_
+              -- with first argument True always returns a one-element
+              -- list on success
+              Right xs -> Right $ head xs
 
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
 specialStrings :: HashSet.HashSet Text
