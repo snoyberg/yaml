@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | Prettier YAML encoding.
 --
 -- Since 0.8.13
@@ -11,7 +12,9 @@ module Data.Yaml.Pretty
 
 import Prelude hiding (null)
 
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
+#endif
 import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import Data.Function (on)

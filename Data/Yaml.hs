@@ -52,8 +52,9 @@ module Data.Yaml
       -- ** More control over decoding
     , decodeHelper
     ) where
-
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative((<$>))
+#endif
 import Control.Exception
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson
