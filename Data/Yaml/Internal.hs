@@ -19,7 +19,6 @@ import Data.Aeson.Types hiding (parse)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.Map as Map
-import Data.Maybe (isNothing)
 import Control.Exception
 import Control.Exception.Enclosed
 import Control.Monad.Trans.State

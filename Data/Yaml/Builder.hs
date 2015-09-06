@@ -23,10 +23,11 @@ import Data.ByteString (ByteString)
 import Text.Libyaml
 import Data.Yaml.Internal
 import Data.Text (Text)
+#if MIN_VERSION_aeson(0, 7, 0)
 import Data.Scientific (Scientific)
 import Data.Aeson.Types (Value(..))
+#endif
 import qualified Data.HashSet as HashSet
-import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Arrow (second)
@@ -38,7 +39,7 @@ import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Aeson.Encode (encodeToTextBuilder)
 #else
-import qualified Data.ByteString.Char8 as S8
+import Data.Attoparsec.Number
 #endif
 import Prelude hiding (null)
 
@@ -88,8 +89,13 @@ string s   =
         | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
  
 -- Use aeson's implementation which gets rid of annoying decimal points
+#if MIN_VERSION_aeson(0, 7, 0)
 scientific :: Scientific -> YamlBuilder
 scientific n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag Nothing :)
+#else
+scientific :: Number -> YamlBuilder
+scientific n = YamlBuilder (EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing :)
+#endif
 
 {-# DEPRECATED number "Use scientific" #-}
 #if MIN_VERSION_aeson(0,7,0)
@@ -97,7 +103,7 @@ number :: Scientific -> YamlBuilder
 number = scientific
 #else
 number :: Number -> YamlBuilder
-number n rest = YamlBuilder (EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing :)
+number n = YamlBuilder (EventScalar (S8.pack $ show n) IntTag PlainNoTag Nothing :)
 #endif
 
 bool :: Bool -> YamlBuilder
