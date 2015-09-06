@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 import Control.Applicative ((<$>))
 import Control.Monad (when)
 import qualified Data.Aeson as J
