@@ -1,1 +1,26 @@
-language: haskell
+sudo: false
+language: c
+
+addons:
+  apt:
+    packages:
+    - libgmp-dev
+
+env:
+- ARGS=""
+- ARGS="--resolver lts-2"
+- ARGS="--resolver lts-3"
+- ARGS="--resolver lts"
+- ARGS="--resolver nightly"
+
+before_install:
+# stack
+- mkdir -p ~/.local/bin
+- export PATH=$HOME/.local/bin:$PATH
+- travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.4.0/stack-0.1.4.0-x86_64-linux.tar.gz | tar xz -C ~/.local/bin
+
+script: stack $ARGS --no-terminal --install-ghc test
+
+cache:
+  directories:
+  - $HOME/.stack
