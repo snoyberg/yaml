@@ -18,7 +18,6 @@ main = do
             _ -> L.readFile input
     case mval of
         Nothing -> error "Invalid input JSON"
-        Just val -> do
-            case output of
-                "-" -> S.putStr $ Y.encode (val :: Y.Value)
-                _ -> Y.encodeFile output val
+        Just val -> case output of
+            "-" -> S.putStr $ Y.encode (val :: Y.Value)
+            _ -> Y.encodeFile output val

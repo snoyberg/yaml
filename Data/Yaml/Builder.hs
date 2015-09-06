@@ -67,7 +67,7 @@ array :: [YamlBuilder] -> YamlBuilder
 array bs =
     YamlBuilder $ (EventSequenceStart Nothing:) . flip (foldr go) bs . (EventSequenceEnd:)
   where
-    go (YamlBuilder b) rest = b rest
+    go (YamlBuilder b) = b
 
 string :: Text -> YamlBuilder
 -- Empty strings need special handling to ensure they get quoted. This avoids:

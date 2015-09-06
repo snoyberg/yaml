@@ -26,9 +26,9 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (liftM, ap)
+import Control.Monad (liftM, ap, unless)
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
+import Control.Applicative ((<$>), Applicative(..))
 #endif
 import Data.Char (toUpper)
 import qualified Data.Vector as V
@@ -126,9 +126,7 @@ type Parse = StateT (Map.Map String Value) (ResourceT IO)
 requireEvent :: Event -> C.Sink Event Parse ()
 requireEvent e = do
     f <- CL.head
-    if f == Just e
-        then return ()
-        else liftIO $ throwIO $ UnexpectedEvent f $ Just e
+    unless (f == Just e) $ liftIO $ throwIO $ UnexpectedEvent f $ Just e
 
 parse :: C.Sink Event Parse Value
 parse = do
@@ -170,7 +168,7 @@ parseO :: C.Sink Event Parse Value
 parseO = do
     me <- CL.head
     case me of
-        Just (EventScalar v tag style a) -> fmap (textToValue style tag) $ parseScalar v a style tag
+        Just (EventScalar v tag style a) -> textToValue style tag <$> parseScalar v a style tag
         Just (EventSequenceStart a) -> parseS a id
         Just (EventMappingStart a) -> parseM a M.empty
         Just (EventAlias an) -> do
