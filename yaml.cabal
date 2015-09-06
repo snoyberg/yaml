@@ -48,7 +48,7 @@ library
                    , unordered-containers
                    , vector
                    , text
-                   , attoparsec
+                   , attoparsec >= 0.11.3.0
                    , scientific
                    , filepath
                    , directory
