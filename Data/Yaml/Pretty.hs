@@ -20,7 +20,9 @@ import Data.ByteString (ByteString)
 import Data.Function (on)
 import qualified Data.HashMap.Strict as HM
 import Data.List (sortBy)
+#if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
+#endif
 import Data.Text (Text)
 import qualified Data.Vector as V
 
