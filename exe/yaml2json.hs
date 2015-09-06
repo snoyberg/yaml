@@ -1,10 +1,12 @@
-import Data.Yaml (decodeFileEither, decodeEither')
+import Prelude hiding (putStr, getContents)
+
+import Data.Aeson (encode, Value)
+import Data.ByteString (getContents)
+import Data.ByteString.Lazy (putStr)
 import System.Environment (getArgs)
 import System.Exit
-import Data.Aeson (encode, Value)
-import Prelude hiding (putStr, getContents)
-import Data.ByteString.Lazy (putStr)
-import Data.ByteString (getContents)
+
+import Data.Yaml (decodeFileEither, decodeEither')
 
 helpMessage :: IO ()
 helpMessage = putStrLn "yaml2json FILE\n  use - as FILE to indicate stdin" >> exitFailure

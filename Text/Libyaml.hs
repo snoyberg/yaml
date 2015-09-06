@@ -4,8 +4,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -31,12 +29,6 @@ module Text.Libyaml
 
 import Prelude hiding (pi)
 
-import qualified Data.ByteString.Internal as B
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.ByteString
-import qualified Data.ByteString.Unsafe as BU
-import Data.ByteString (ByteString, packCStringLen)
-import Control.Monad
 import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
@@ -44,17 +36,22 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe
 #endif
 import Foreign.Marshal.Alloc
-import Data.Data
 
-import Control.Monad.IO.Class
-
-import Control.Exception (throwIO, Exception, finally)
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
 #endif
+import Control.Exception (mask_, throwIO, Exception, finally)
+import Control.Monad
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
 import Data.Conduit hiding (Source, Sink, Conduit)
-import Control.Exception (mask_)
+import Data.Data
+
+import Data.ByteString (ByteString, packCStringLen)
+import qualified Data.ByteString
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Unsafe as BU
 
 data Event =
       EventStreamStart
@@ -267,20 +264,20 @@ getEvent er = do
             yanchor <- c_get_scalar_anchor er
             anchor <- if yanchor == nullPtr
                           then return Nothing
-                          else fmap Just $ peekCString yanchor
+                          else Just <$> peekCString yanchor
             return $ Just $ EventScalar bs (bsToTag tagbs) style anchor
         YamlSequenceStartEvent -> do
             yanchor <- c_get_sequence_start_anchor er
             anchor <- if yanchor == nullPtr
                           then return Nothing
-                          else fmap Just $ peekCString yanchor
+                          else Just <$> peekCString yanchor
             return $ Just $ EventSequenceStart anchor
         YamlSequenceEndEvent -> return $ Just EventSequenceEnd
         YamlMappingStartEvent -> do
             yanchor <- c_get_mapping_start_anchor er
             anchor <- if yanchor == nullPtr
                           then return Nothing
-                          else fmap Just $ peekCString yanchor
+                          else Just <$> peekCString yanchor
             return $ Just $ EventMappingStart anchor
         YamlMappingEndEvent -> return $ Just EventMappingEnd
 
@@ -605,7 +602,7 @@ encodeFile filePath =
         file <- withCString filePath $
                     \filePath' -> withCString "w" $
                     \w' -> c_fopen filePath' w'
-        if (file == nullPtr)
+        if file == nullPtr
             then throwIO $ YamlException $ "could not open file for write: " ++ filePath
             else return file
 

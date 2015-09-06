@@ -13,40 +13,36 @@ module Data.Yaml.Internal
     , isNumeric
     ) where
 
-import qualified Text.Libyaml as Y
-import Data.Aeson
-import Data.Aeson.Types hiding (parse)
-import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
-import Data.ByteString (ByteString)
-import qualified Data.Map as Map
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative ((<$>), Applicative(..))
+#endif
 import Control.Exception
 import Control.Exception.Enclosed
+import Control.Monad (liftM, ap, unless)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Control.Monad.Trans.State
+import Data.Aeson
+import Data.Aeson.Types hiding (parse)
+import qualified Data.Attoparsec.Text as Atto
+import Data.ByteString (ByteString)
+import Data.Char (toUpper)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Monad.Trans.Class (MonadTrans, lift)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (liftM, ap)
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
-#endif
-import Data.Char (toUpper)
-import qualified Data.Vector as V
+import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet as HashSet
+import qualified Data.Map as Map
+import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
-import qualified Data.HashMap.Strict as M
 import Data.Typeable
-#if MIN_VERSION_aeson(0, 7, 0)
-import qualified Data.Attoparsec.Text as Atto
-import Data.Scientific (Scientific)
-#else
-import Data.Text.Read
-import Data.Attoparsec.Number
-#endif
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import qualified Data.HashSet as HashSet
+import qualified Data.Vector as V
+
+import qualified Text.Libyaml as Y
+import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 
 data ParseException = NonScalarKey
                     | UnknownAlias { _anchorName :: Y.AnchorName }
@@ -131,9 +127,7 @@ type Parse = StateT (Map.Map String Value) (ResourceT IO)
 requireEvent :: Event -> C.Sink Event Parse ()
 requireEvent e = do
     f <- CL.head
-    if f == Just e
-        then return ()
-        else liftIO $ throwIO $ UnexpectedEvent f $ Just e
+    unless (f == Just e) $ liftIO $ throwIO $ UnexpectedEvent f $ Just e
 
 parse :: C.Sink Event Parse Value
 parse = do
@@ -163,26 +157,19 @@ textToValue _ _ t
     | t `elem` ["null", "Null", "NULL", "~", ""] = Null
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
-#if MIN_VERSION_aeson(0, 7, 0)
     | Right x <- textToScientific t = Number x
-#else
-    | Right (x, "") <- signed decimal t = Number $ I x
-    | Right (x, "") <- double t = Number $ D x
-#endif
     | otherwise = String t
   where x `isLike` ref = x `elem` [ref, T.toUpper ref, titleCased]
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
 
-#if MIN_VERSION_aeson(0, 7, 0)
 textToScientific :: Text -> Either String Scientific
 textToScientific = Atto.parseOnly (Atto.scientific <* Atto.endOfInput)
-#endif
 
 parseO :: C.Sink Event Parse Value
 parseO = do
     me <- CL.head
     case me of
-        Just (EventScalar v tag style a) -> fmap (textToValue style tag) $ parseScalar v a style tag
+        Just (EventScalar v tag style a) -> textToValue style tag <$> parseScalar v a style tag
         Just (EventSequenceStart a) -> parseS a id
         Just (EventMappingStart a) -> parseM a M.empty
         Just (EventAlias an) -> do

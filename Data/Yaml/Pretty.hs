@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | Prettier YAML encoding.
 --
 -- Since 0.8.13
@@ -9,16 +10,23 @@ module Data.Yaml.Pretty
     , defConfig
     ) where
 
-import Data.Yaml.Builder
-import Data.Aeson.Types
-import Data.Text (Text)
-import Data.Monoid
-import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
-import Data.Function (on)
-import Data.List (sortBy)
-import Data.ByteString (ByteString)
 import Prelude hiding (null)
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative ((<$>))
+#endif
+import Data.Aeson.Types
+import Data.ByteString (ByteString)
+import Data.Function (on)
+import qualified Data.HashMap.Strict as HM
+import Data.List (sortBy)
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid
+#endif
+import Data.Text (Text)
+import qualified Data.Vector as V
+
+import Data.Yaml.Builder
 
 -- |
 -- Since 0.8.13
@@ -45,7 +53,7 @@ setConfCompare cmp c = c { confCompare = cmp }
 pretty :: Config -> Value -> YamlBuilder
 pretty cfg = go
   where go (Object o) = mapping (sortBy (confCompare cfg `on` fst) $ HM.toList $ HM.map go o)
-        go (Array a)  = array (fmap go $ V.toList a)
+        go (Array a)  = array (go <$> V.toList a)
         go Null       = null
         go (String s) = string s
         go (Number n) = scientific n
