@@ -1,3 +1,11 @@
+## 0.8.15.1
+
+* Compile with aeson below 0.7 [#70](https://github.com/snoyberg/yaml/pull/70)
+
+## 0.8.15
+
+* Parse `Scientific` directly, avoiding loss in precision. [#68](https://github.com/snoyberg/yaml/pull/68)
+
 ## 0.8.14
 
 * Pretty print improvements for exceptions [#67](https://github.com/snoyberg/yaml/pull/67)

@@ -22,7 +22,6 @@ import Data.Aeson.Types hiding (parse)
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import Data.ByteString (ByteString)
 import qualified Data.Map as Map
-import Data.Maybe (isNothing)
 import Control.Exception
 import Control.Exception.Enclosed
 import Control.Monad.Trans.State
@@ -31,7 +30,9 @@ import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (liftM, ap)
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative (Applicative(..))
+#endif
 import Data.Char (toUpper)
 import qualified Data.Vector as V
 import Data.Text (Text, pack)
@@ -40,10 +41,11 @@ import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.HashMap.Strict as M
 import Data.Typeable
-import Data.Text.Read
 #if MIN_VERSION_aeson(0, 7, 0)
-import Data.Scientific (fromFloatDigits)
+import qualified Data.Attoparsec.Text as Atto
+import Data.Scientific (Scientific)
 #else
+import Data.Text.Read
 import Data.Attoparsec.Number
 #endif
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
@@ -175,8 +177,7 @@ textToValue _ _ t
     | any (t `isLike`) ["y", "yes", "on", "true"] = Bool True
     | any (t `isLike`) ["n", "no", "off", "false"] = Bool False
 #if MIN_VERSION_aeson(0, 7, 0)
-    | Right (x, "") <- signed decimal t = Number $ fromIntegral (x :: Integer)
-    | Right (x, "") <- double t = Number $ fromFloatDigits x
+    | Right x <- textToScientific t = Number x
 #else
     | Right (x, "") <- signed decimal t = Number $ I x
     | Right (x, "") <- double t = Number $ D x
@@ -185,6 +186,10 @@ textToValue _ _ t
   where x `isLike` ref = x `elem` [ref, T.toUpper ref, titleCased]
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
 
+#if MIN_VERSION_aeson(0, 7, 0)
+textToScientific :: Text -> Either String Scientific
+textToScientific = Atto.parseOnly (Atto.scientific <* Atto.endOfInput)
+#endif
 
 parseO :: C.Consumer Event Parse Value
 parseO = do

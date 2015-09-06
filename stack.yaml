@@ -1,9 +1,1 @@
-flags:
-  yaml:
-    no-exe: false
-    system-libyaml: false
-    no-unicode: false
-packages:
-- '.'
-extra-deps: []
-resolver: lts-2.22
+resolver: lts-3.0

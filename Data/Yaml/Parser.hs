@@ -6,8 +6,10 @@
 module Data.Yaml.Parser where
 
 import Text.Libyaml
-import Control.Applicative ((<$>), Applicative (..), Alternative (..))
+import Control.Applicative
+#if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (Monoid (..))
+#endif
 import Control.Monad (MonadPlus (..), liftM, ap)
 import Control.Monad.Trans.Writer.Strict (tell, WriterT)
 import Control.Monad.Trans.Class (lift)
