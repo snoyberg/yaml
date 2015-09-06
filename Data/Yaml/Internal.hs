@@ -2,13 +2,16 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module Data.Yaml.Internal
     (
       ParseException(..)
     , prettyPrintParseException
     , parse
     , decodeHelper
+    , decodeHelperOneOrMany
     , decodeHelper_
+    , decodeHelperOneOrMany_
     , specialStrings
     , isNumeric
     ) where
@@ -45,6 +48,7 @@ import Data.Attoparsec.Number
 #endif
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import qualified Data.HashSet as HashSet
+import Data.Either
 
 data ParseException = NonScalarKey
                     | UnknownAlias { _anchorName :: Y.AnchorName }
@@ -56,6 +60,7 @@ data ParseException = NonScalarKey
                     | OtherParseException SomeException
                     | NonStringKeyAlias Y.AnchorName Value
                     | CyclicIncludes
+                    | ExpectedOneDocument
     deriving (Show, Typeable)
 
 instance Exception ParseException where
@@ -105,6 +110,7 @@ prettyPrintParseException pe = case pe of
     , "  Value: " ++ show value
     ]
   CyclicIncludes -> "Cyclic includes"
+  ExpectedOneDocument -> "Expected one YAML document. Encountered many"
 
 newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
@@ -126,24 +132,31 @@ instance MonadIO m => MonadIO (PErrorT m) where
 
 type Parse = StateT (Map.Map String Value) (ResourceT IO)
 
-requireEvent :: Event -> C.Sink Event Parse ()
+requireEvent :: Event -> C.Consumer Event Parse ()
 requireEvent e = do
     f <- CL.head
     if f == Just e
         then return ()
         else liftIO $ throwIO $ UnexpectedEvent f $ Just e
 
-parse :: C.Sink Event Parse Value
+parse :: C.Sink Event Parse [Value]
 parse = do
-    requireEvent EventStreamStart
-    requireEvent EventDocumentStart
-    res <- parseO
-    requireEvent EventDocumentEnd
-    requireEvent EventStreamEnd
-    return res
+  requireEvent EventStreamStart
+  res <- valueConduit C.=$= CL.consume
+  requireEvent EventStreamEnd
+  return res
+    where
+      valueConduit = do
+        requireEvent EventDocumentStart
+        parseO >>= C.yield
+        requireEvent EventDocumentEnd
+        nxt <- CL.peek
+        case nxt of
+         Just EventDocumentStart -> valueConduit
+         _ -> return ()
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
-            -> C.Sink Event Parse Text
+            -> C.Consumer Event Parse Text
 parseScalar v a style tag = do
     let res = decodeUtf8With lenientDecode v
     case a of
@@ -173,7 +186,7 @@ textToValue _ _ t
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
 
 
-parseO :: C.Sink Event Parse Value
+parseO :: C.Consumer Event Parse Value
 parseO = do
     me <- CL.head
     case me of
@@ -189,7 +202,7 @@ parseO = do
 
 parseS :: Y.Anchor
        -> ([Value] -> [Value])
-       -> C.Sink Event Parse Value
+       -> C.Consumer Event Parse Value
 parseS a front = do
     me <- CL.peek
     case me of
@@ -207,7 +220,7 @@ parseS a front = do
 
 parseM :: Y.Anchor
        -> M.HashMap Text Value
-       -> C.Sink Event Parse Value
+       -> C.Consumer Event Parse Value
 parseM a front = do
     me <- CL.peek
     case me of
@@ -243,32 +256,62 @@ parseM a front = do
     where merge' al (Object om) = M.union al om
           merge' al _           = al
 
-decodeHelper :: FromJSON a
-             => C.Source Parse Y.Event
-             -> IO (Either ParseException (Either String a))
-decodeHelper src = do
+
+decodeHelperOneOrMany :: FromJSON a
+                         => Bool
+                         -> C.Source Parse Y.Event
+                         -> IO (Either ParseException (Either String [a]))
+decodeHelperOneOrMany one src = do
     x <- tryAny $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
-        Right y -> return $ Right $ parseEither parseJSON y
+        Right y -> return $
+                   if one && length y > 1 then
+                     Left ExpectedOneDocument
+                   else
+                     Right $ mapM (parseEither parseJSON) y
 
-decodeHelper_ :: FromJSON a
-              => C.Source Parse Event
-              -> IO (Either ParseException a)
-decodeHelper_ src = do
+decodeHelper :: FromJSON a
+                => C.Source Parse Y.Event
+                -> IO (Either ParseException (Either String a))
+decodeHelper src = do
+  res <- decodeHelperOneOrMany True src
+  return $ case res of
+    (Right (Right [x])) -> Right (Right x)
+    (Right (Left s)) -> Right (Left s)
+    (Left except) -> Left except
+
+decodeHelperOneOrMany_ :: FromJSON a
+                          => Bool
+                          -> C.Source Parse Event
+                          -> IO (Either ParseException [a])
+decodeHelperOneOrMany_ one src = do
     x <- tryAny $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     return $ case x of
         Left e
             | Just pe <- fromException e -> Left pe
             | Just ye <- fromException e -> Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> Left $ OtherParseException e
-        Right y -> either
-            (Left . AesonException)
-            Right
-            (parseEither parseJSON y)
+        Right y -> if one && length y > 1 then
+                     Left ExpectedOneDocument
+                   else
+                     let res = mapM (parseEither parseJSON) y in
+                      case res of
+                           Left err -> Left (AesonException err)
+                           Right ans -> Right ans
+
+decodeHelper_ :: FromJSON a
+                 => C.Source Parse Event
+                 -> IO (Either ParseException a)
+decodeHelper_ src
+  = do
+    res <- decodeHelperOneOrMany_ True src
+    return $ case res of
+              Left except -> Left except
+              Right [x] -> Right x
 
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
 specialStrings :: HashSet.HashSet Text
