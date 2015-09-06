@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | Provides a high-level interface for processing YAML files.
@@ -76,6 +75,7 @@ import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Aeson.Encode (encodeToTextBuilder)
 import Control.Monad.Trans.Resource (runResourceT)
+import Control.Applicative((<$>))
 
 import Data.Yaml.Internal
 
@@ -106,10 +106,10 @@ objToEvents' :: Value -> [Y.Event] -> [Y.Event]
 --objToEvents' (Scalar s) rest = scalarToEvent s : rest
 objToEvents' (Array list) rest =
     EventSequenceStart Nothing
-  : foldr ($) (EventSequenceEnd : rest) (map objToEvents' $ V.toList list)
+  : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
 objToEvents' (Object pairs) rest =
     EventMappingStart Nothing
-  : foldr ($) (EventMappingEnd : rest) (map pairToEvents $ M.toList pairs)
+  : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
 
 -- Empty strings need special handling to ensure they get quoted. This avoids:
 -- https://github.com/snoyberg/yaml/issues/24
@@ -138,8 +138,8 @@ decode :: FromJSON a
        => ByteString
        -> Maybe a
 decode bs = unsafePerformIO
-          $ fmap (either (const Nothing) id)
-          $ decodeHelper_ (Y.decode bs)
+          $ either (const Nothing) id
+          <$> decodeHelper_ (Y.decode bs)
 
 decodeFile :: FromJSON a
            => FilePath
@@ -157,8 +157,8 @@ decodeFileEither = decodeHelper_ . Y.decodeFile
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
-                $ fmap (either (Left . prettyPrintParseException) id)
-                $ decodeHelper (Y.decode bs)
+                $ either (Left . prettyPrintParseException) id
+                <$> decodeHelper (Y.decode bs)
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
 --

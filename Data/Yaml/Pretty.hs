@@ -9,6 +9,7 @@ module Data.Yaml.Pretty
     , defConfig
     ) where
 
+import Control.Applicative ((<$>))
 import Data.Yaml.Builder
 import Data.Aeson.Types
 import Data.Text (Text)
@@ -45,7 +46,7 @@ setConfCompare cmp c = c { confCompare = cmp }
 pretty :: Config -> Value -> YamlBuilder
 pretty cfg = go
   where go (Object o) = mapping (sortBy (confCompare cfg `on` fst) $ HM.toList $ HM.map go o)
-        go (Array a)  = array (fmap go $ V.toList a)
+        go (Array a)  = array (go <$> V.toList a)
         go Null       = null
         go (String s) = string s
         go (Number n) = scientific n
