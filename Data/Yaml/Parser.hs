@@ -36,7 +36,7 @@ newtype YamlParser a = YamlParser
 instance Functor YamlParser where
     fmap = liftM
 instance Applicative YamlParser where
-    pure = return
+    pure = YamlParser . const . Right
     (<*>) = ap
 instance Alternative YamlParser where
     empty = fail "empty"
@@ -45,7 +45,7 @@ instance Monoid (YamlParser a) where
     mempty = fail "mempty"
     mappend = mplus
 instance Monad YamlParser where
-    return = YamlParser . const . Right
+    return = pure
     YamlParser f >>= g = YamlParser $ \am ->
         case f am of
             Left t -> Left t
