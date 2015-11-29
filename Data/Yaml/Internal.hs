@@ -108,10 +108,10 @@ newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
 instance Monad m => Functor (PErrorT m) where
     fmap = liftM
 instance Monad m => Applicative (PErrorT m) where
-    pure  = return
+    pure  = PErrorT . return . Right
     (<*>) = ap
 instance Monad m => Monad (PErrorT m) where
-    return = PErrorT . return . Right
+    return = pure
     (PErrorT m) >>= f = PErrorT $ do
         e <- m
         case e of
