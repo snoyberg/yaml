@@ -1,3 +1,7 @@
+## 0.8.15.2
+
+* Canonicalise Monad instances [#76](https://github.com/snoyberg/yaml/pull/76)
+
 ## 0.8.15.1
 
 * Compile with aeson below 0.7 [#70](https://github.com/snoyberg/yaml/pull/70)

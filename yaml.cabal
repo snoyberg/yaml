@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.15.1
+version:         0.8.15.2
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
