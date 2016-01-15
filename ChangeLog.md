@@ -1,3 +1,10 @@
+## 0.8.16
+
+Add env variable parsing. `loadYamlSettings` can read config values from the environment with Yaml that specifies an env var.
+The syntax is
+
+`var: _env:ENV_VAR:default`
+
 ## 0.8.15.3
 
 * Give a warning when compiling with GHCJS

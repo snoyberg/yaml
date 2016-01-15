@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.15.3
+version:         0.8.16
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -53,10 +53,12 @@ library
                    , filepath
                    , directory
                    , enclosed-exceptions
+                   , semigroups
     exposed-modules: Text.Libyaml
                      Data.Yaml
                      Data.Yaml.Aeson
                      Data.Yaml.Builder
+                     Data.Yaml.Config
                      Data.Yaml.Pretty
                      Data.Yaml.Parser
                      Data.Yaml.Include
