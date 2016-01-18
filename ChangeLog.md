@@ -1,3 +1,7 @@
+## 0.8.15.3
+
+* Give a warning when compiling with GHCJS
+
 ## 0.8.15.2
 
 * Canonicalise Monad instances [#76](https://github.com/snoyberg/yaml/pull/76)
