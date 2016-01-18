@@ -16,7 +16,11 @@
 --
 -- For documentation on the @aeson@ types, functions, classes, and
 -- operators, please see the @Data.Aeson@ module of the @aeson@ package.
+#if (defined (ghcjs_HOST_OS))
+module Data.Yaml {-# WARNING "GHCJS is not supported yet (will break at runtime once called)." #-}
+#else
 module Data.Yaml
+#endif
     ( -- * Types
       Value (..)
     , Parser
