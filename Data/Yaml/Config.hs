@@ -1,6 +1,13 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
--- | Some next-gen helper functions for the scaffolding's configuration system.
+-- | Functionality for using YAML as configuration files
+--
+-- In particular, merging environment variables with yaml values
+--
+-- 'loadYamlSettings' is a high-level API for loading YAML and merging environment variables.
+-- A yaml value of @_env:ENV_VAR:default@ will lookup the environment variable @ENV_VAR@.
+--
+-- On a historical note, this code was taken directly from the yesod web framework's configuration module.
 module Data.Yaml.Config
     ( applyCurrentEnv
     , getCurrentEnv
