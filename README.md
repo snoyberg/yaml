@@ -12,6 +12,8 @@ around the JSON datatypes provided by the @aeson@
 package. "Text.Libyaml" provides a lower-level,
 streaming interface. For most users, "Data.Yaml" is recommended.
 
+Usage examples can be found in the "Data.Yaml" documentation.
+
 Additional modules:
 
 * Data.Yaml.Include supports adding `!include` directives to your YAML files.
