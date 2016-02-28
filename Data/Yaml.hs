@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 -- | Provides a high-level interface for processing YAML files.
 --
 -- This module reuses most of the infrastructure from the @aeson@ package.
@@ -27,7 +28,7 @@
 -- > import qualified Data.Yaml as Y
 -- >
 -- > main = do
--- >   putStrLn . show $ (Y.decode "[1,2,3]" :: Maybe [Integer])
+-- >   print $ (Y.decode "[1,2,3]" :: Maybe [Integer])
 --
 -- You can go one step further and decode into a custom type by implementing
 -- 'FromJSON' for that type. This is also appropriate where extra

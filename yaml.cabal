@@ -133,6 +133,19 @@ test-suite spec
                    , base-compat
     ghc-options:     -Wall
 
+executable examples
+   if flag(no-exe)
+      Buildable: False
+   else
+      Buildable: True
+   hs-source-dirs: examples
+   main-is: Main.hs
+   build-depends: base
+                , raw-strings-qq
+                , text
+                , yaml
+   ghc-options:   -Wall
+
 source-repository head
   type:     git
   location: https://github.com/snoyberg/yaml
