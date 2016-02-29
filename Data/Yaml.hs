@@ -18,21 +18,8 @@
 -- For documentation on the @aeson@ types, functions, classes, and
 -- operators, please see the @Data.Aeson@ module of the @aeson@ package.
 --
--- == Examples
---
--- Decode into a data structure by specifying the desired type to the 'decode'
--- method.
---
--- > {-# LANGUAGE OverloadedStrings #-}
--- >
--- > import qualified Data.Yaml as Y
--- >
--- > main = do
--- >   print $ (Y.decode "[1,2,3]" :: Maybe [Integer])
---
--- You can go one step further and decode into a custom type by implementing
--- 'FromJSON' for that type. This is also appropriate where extra
--- normalization, formatting or manipulation of the YAML is required on decode.
+-- Look in the examples directory of the source repository for some initial
+-- pointers on how to use this library.
 
 #if (defined (ghcjs_HOST_OS))
 module Data.Yaml {-# WARNING "GHCJS is not supported yet (will break at runtime once called)." #-}
