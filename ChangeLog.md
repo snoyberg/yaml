@@ -1,3 +1,7 @@
+## 0.8.17
+
+* `loadYamlSettingsArgs`
+
 ## 0.8.16.1
 
 * Slight doc improvement

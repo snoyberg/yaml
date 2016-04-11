@@ -11,6 +11,7 @@
 module Data.Yaml.Config
     ( -- * High-level
       loadYamlSettings
+    , loadYamlSettingsArgs
       -- ** EnvUsage
     , EnvUsage
     , ignoreEnv
@@ -34,7 +35,7 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Aeson
 import qualified Data.HashMap.Strict as H
 import Data.Text (Text, pack)
-import System.Environment (getEnvironment)
+import System.Environment (getArgs, getEnvironment)
 import Control.Arrow ((***))
 import Control.Monad (forM)
 import Control.Exception (throwIO)
@@ -195,3 +196,16 @@ loadYamlSettings runTimeFiles compileValues envUsage = do
     case fromJSON value of
         Error s -> error $ "Could not convert to AppSettings: " ++ s
         Success settings -> return settings
+
+-- | Same as @loadYamlSettings@, but get the list of runtime config files from
+-- the command line arguments.
+--
+-- @since 0.8.17
+loadYamlSettingsArgs
+    :: FromJSON settings
+    => [Value] -- ^ any other values to use, usually from compile time config. overridden by files
+    -> EnvUsage -- ^ use environment variables
+    -> IO settings
+loadYamlSettingsArgs values env = do
+    args <- getArgs
+    loadYamlSettings args values env
