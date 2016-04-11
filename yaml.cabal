@@ -140,6 +140,8 @@ executable examples
       Buildable: True
    hs-source-dirs: examples
    main-is: Main.hs
+   other-modules: Config
+                  Simple
    build-depends: base
                 , raw-strings-qq
                 , text
