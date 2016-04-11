@@ -7,7 +7,9 @@ import Data.Text (Text)
 import qualified Data.Yaml as Y
 import Data.Yaml (FromJSON(..), (.:))
 import Text.RawString.QQ
+import Data.ByteString (ByteString)
 
+configYaml :: ByteString
 configYaml = [r|
 resolver: lts-3.7
 packages:

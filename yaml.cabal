@@ -143,6 +143,7 @@ executable examples
    other-modules: Config
                   Simple
    build-depends: base
+                , bytestring
                 , raw-strings-qq
                 , text
                 , yaml
