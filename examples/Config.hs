@@ -8,6 +8,7 @@ import qualified Data.Yaml as Y
 import Data.Yaml (FromJSON(..), (.:))
 import Text.RawString.QQ
 import Data.ByteString (ByteString)
+import Control.Applicative
 
 configYaml :: ByteString
 configYaml = [r|
