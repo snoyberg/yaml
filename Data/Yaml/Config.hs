@@ -9,16 +9,19 @@
 --
 -- On a historical note, this code was taken directly from the yesod web framework's configuration module.
 module Data.Yaml.Config
-    ( applyCurrentEnv
-    , getCurrentEnv
-    , applyEnvValue
-    , loadYamlSettings
+    ( -- * High-level
+      loadYamlSettings
+      -- ** EnvUsage
     , EnvUsage
     , ignoreEnv
     , useEnv
     , requireEnv
     , useCustomEnv
     , requireCustomEnv
+      -- * Lower level
+    , applyCurrentEnv
+    , getCurrentEnv
+    , applyEnvValue
     ) where
 
 
@@ -50,6 +53,14 @@ mergeValues :: Value -> Value -> Value
 mergeValues (Object x) (Object y) = Object $ H.unionWith mergeValues x y
 mergeValues x _ = x
 
+-- | Override environment variable placeholders in the given @Value@ with
+-- values from the environment.
+--
+-- If the first argument is @True@, then all placeholders _must_ be provided by
+-- the actual environment. Otherwise, default values from the @Value@ will be
+-- used.
+--
+-- @since 0.8.16
 applyEnvValue :: Bool -- ^ require an environment variable to be present?
               -> H.HashMap Text Text -> Value -> Value
 applyEnvValue requireEnv' env =
@@ -82,26 +93,62 @@ applyEnvValue requireEnv' env =
 
     parseValue val = fromMaybe (String val) $ Y.decode $ encodeUtf8 val
 
+-- | Get the actual environment as a @HashMap@ from @Text@ to @Text@.
+--
+-- @since 0.8.16
 getCurrentEnv :: IO (H.HashMap Text Text)
 getCurrentEnv = fmap (H.fromList . map (pack *** pack)) getEnvironment
 
+-- | A convenience wrapper around 'applyEnvValue' and 'getCurrentEnv'
+--
+-- @since 0.8.16
 applyCurrentEnv :: Bool -- ^ require an environment variable to be present?
                 -> Value -> IO Value
 applyCurrentEnv requireEnv' orig = flip (applyEnvValue requireEnv') orig <$> getCurrentEnv
 
+-- | Defines how we want to use the environment variables when loading a config
+-- file. Use the smart constructors provided by this module.
+--
+-- @since 0.8.16
 data EnvUsage = IgnoreEnv
               | UseEnv
               | RequireEnv
               | UseCustomEnv (H.HashMap Text Text)
               | RequireCustomEnv (H.HashMap Text Text)
 
-ignoreEnv, useEnv, requireEnv :: EnvUsage
+-- | Do not use any environment variables, instead relying on defaults values
+-- in the config file.
+--
+-- @since 0.8.16
+ignoreEnv :: EnvUsage
 ignoreEnv = IgnoreEnv
+
+-- | Use environment variables when available, otherwise use defaults.
+--
+-- @since 0.8.16
+useEnv :: EnvUsage
 useEnv = UseEnv
+
+-- | Do not use default values from the config file, but instead take all
+-- overrides from the environment. If a value is missing, loading the file will
+-- throw an exception.
+--
+-- @since 0.8.16
+requireEnv :: EnvUsage
 requireEnv = RequireEnv
 
-useCustomEnv, requireCustomEnv :: H.HashMap Text Text -> EnvUsage
+-- | Same as 'useEnv', but instead of the actual environment, use the provided
+-- @HashMap@ as the environment.
+--
+-- @since 0.8.16
+useCustomEnv :: H.HashMap Text Text -> EnvUsage
 useCustomEnv = UseCustomEnv
+
+-- | Same as 'requireEnv', but instead of the actual environment, use the
+-- provided @HashMap@ as the environment.
+--
+-- @since 0.8.16
+requireCustomEnv :: H.HashMap Text Text -> EnvUsage
 requireCustomEnv = RequireCustomEnv
 
 -- | Load the settings from the following three sources:
@@ -111,6 +158,13 @@ requireCustomEnv = RequireCustomEnv
 -- * Run time environment variables
 --
 -- * The default compile time config file
+--
+-- For example, to load up settings from @config/foo.yaml@ and allow overriding
+-- from the actual environment, you can use:
+--
+-- > loadYamlSettings ["config/foo.yaml"] [] useEnv
+--
+-- @since 0.8.16
 loadYamlSettings
     :: FromJSON settings
     => [FilePath] -- ^ run time config files to use, earlier files have precedence

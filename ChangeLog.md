@@ -1,3 +1,7 @@
+## 0.8.16.1
+
+* Slight doc improvement
+
 ## 0.8.16
 
 Add env variable parsing. `loadYamlSettings` can read config values from the environment with Yaml that specifies an env var.
