@@ -1,1 +1,5 @@
 resolver: lts-3.0
+
+flags:
+  yaml:
+    no-examples: false
