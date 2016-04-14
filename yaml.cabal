@@ -142,15 +142,15 @@ executable examples
       Buildable: False
    else
       Buildable: True
+      build-depends: base
+                   , bytestring
+                   , raw-strings-qq
+                   , text
+                   , yaml
    hs-source-dirs: examples
    main-is: Main.hs
    other-modules: Config
                   Simple
-   build-depends: base
-                , bytestring
-                , raw-strings-qq
-                , text
-                , yaml
    ghc-options:   -Wall
 
 source-repository head
