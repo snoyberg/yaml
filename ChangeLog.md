@@ -1,3 +1,7 @@
+## 0.8.17.1
+
+* Avoid bug in Cabal [#83](https://github.com/snoyberg/yaml/pull/83)
+
 ## 0.8.17
 
 * `loadYamlSettingsArgs`
