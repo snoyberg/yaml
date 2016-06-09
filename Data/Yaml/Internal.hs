@@ -78,7 +78,7 @@ prettyPrintParseException :: ParseException -> String
 prettyPrintParseException pe = case pe of
   NonScalarKey -> "Non scalar key"
   UnknownAlias anchor -> "Unknown alias `" ++ anchor ++ "`"
-  UnexpectedEvent mbExpected mbUnexpected -> unlines
+  UnexpectedEvent { _expected = mbExpected, _received = mbUnexpected } -> unlines
     [ "Unexpected event: expected"
     , "  " ++ show mbExpected
     , "but received"
