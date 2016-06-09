@@ -1,3 +1,7 @@
+## 0.8.17.2
+
+* Fix pretty-printing order of UnexpectedEvent's fields (fixes [#84](https://github.com/snoyberg/yaml/issues/84)) [#85](https://github.com/snoyberg/yaml/pull/85)
+
 ## 0.8.17.1
 
 * Avoid bug in Cabal [#83](https://github.com/snoyberg/yaml/pull/83)
