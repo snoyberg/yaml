@@ -1,4 +1,4 @@
-## 0.8.17.3
+## 0.8.18
 
 * Switched yaml decode function for config file readers in `Data.Yaml.Config` to
   the one from `Data.Yaml.Include` that supports `!include` syntax.
