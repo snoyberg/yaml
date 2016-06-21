@@ -1,3 +1,8 @@
+## 0.8.17.3
+
+* Switched yaml decode function for config file readers in `Data.Yaml.Config` to
+  the one from `Data.Yaml.Include` that supports `!include` syntax.
+
 ## 0.8.17.2
 
 * Fix pretty-printing order of UnexpectedEvent's fields (fixes [#84](https://github.com/snoyberg/yaml/issues/84)) [#85](https://github.com/snoyberg/yaml/pull/85)
