@@ -41,6 +41,7 @@ import Control.Monad (forM)
 import Control.Exception (throwIO)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Yaml as Y
+import qualified Data.Yaml.Include as YI
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 
@@ -174,7 +175,7 @@ loadYamlSettings
     -> IO settings
 loadYamlSettings runTimeFiles compileValues envUsage = do
     runValues <- forM runTimeFiles $ \fp -> do
-        eres <- Y.decodeFileEither fp
+        eres <- YI.decodeFileEither fp
         case eres of
             Left e -> do
                 putStrLn $ "loadYamlSettings: Could not parse file as YAML: " ++ fp
