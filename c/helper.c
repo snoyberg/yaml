@@ -13,10 +13,10 @@ int buffer_append(void *ext, unsigned char *str, size_t size)
 {
 	buffer_t *b = ext;
 	int new_size, new_used;
-	char *tmp;
+	unsigned char *tmp;
 
 	new_used = b->used + size;
-	for (new_size = b->size || 8; new_size < new_used; new_size *= 2);
+	for (new_size = 1; new_size < new_used; new_size *= 2);
 
 	if (new_size != b->size) {
 		tmp = realloc(b->buff, new_size);
@@ -46,12 +46,12 @@ void my_emitter_set_output(yaml_emitter_t *e, buffer_t *b)
 	yaml_emitter_set_output(e, buffer_append, b);
 }
 
-unsigned char const * get_parser_error_problem(yaml_parser_t *p)
+char const * get_parser_error_problem(yaml_parser_t *p)
 {
 	return p->problem;
 }
 
-unsigned char const * get_parser_error_context(yaml_parser_t *p)
+char const * get_parser_error_context(yaml_parser_t *p)
 {
 	return p->context;
 }
@@ -71,7 +71,7 @@ unsigned int get_parser_error_column(yaml_parser_t *p)
 	return p->problem_mark.column;
 }
 
-unsigned char const * get_emitter_error(yaml_emitter_t *e)
+char const * get_emitter_error(yaml_emitter_t *e)
 {
 	return e->problem;
 }
@@ -104,13 +104,13 @@ unsigned long get_scalar_length(yaml_event_t *e)
 unsigned char * get_scalar_tag(yaml_event_t *e)
 {
 	unsigned char *s = e->data.scalar.tag;
-	if (!s) s = "";
+	if (!s) s = (unsigned char *) "";
 	return s;
 }
 
 unsigned long get_scalar_tag_len(yaml_event_t *e)
 {
-	return strlen(get_scalar_tag(e));
+	return strlen((char *) get_scalar_tag(e));
 }
 
 int get_scalar_style(yaml_event_t *e)
@@ -143,6 +143,7 @@ int yaml_parser_set_input_filename(yaml_parser_t *parser, const char *filename)
 	FILE *in = fopen(filename, "r");
 	if (!in) return 0;
 	yaml_parser_set_input_file(parser, in);
+	return 1;
 }
 
 int fclose_helper(FILE *file)
