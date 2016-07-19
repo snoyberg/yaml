@@ -1,3 +1,7 @@
+## 0.8.18.1
+
+* Improve prettyPrintParseException when context is empty [#89](https://github.com/snoyberg/yaml/pull/89)
+
 ## 0.8.18
 
 * Switched yaml decode function for config file readers in `Data.Yaml.Config` to
