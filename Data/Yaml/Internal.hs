@@ -88,11 +88,13 @@ prettyPrintParseException pe = case pe of
     Nothing -> "Unspecified YAML error"
     Just yamlError -> case yamlError of
       YamlException s -> "YAML exception:\n" ++ s
-      YamlParseException problem context mark -> unlines
+      YamlParseException problem context mark -> concat
         [ "YAML parse exception at line " ++ show (yamlLine mark) ++
-          ", column " ++ show (yamlColumn mark) ++ ","
-        -- The context seems to include a leading "while" or similar.
-        , context ++ ":"
+          ", column " ++ show (yamlColumn mark)
+        , case context of
+            "" -> ":\n"
+            -- The context seems to include a leading "while" or similar.
+            _  -> ",\n" ++ context ++ ":\n"
         , problem
         ]
   AesonException s -> "Aeson exception:\n" ++ s
