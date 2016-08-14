@@ -29,6 +29,7 @@ module Text.Libyaml
 
 import Prelude hiding (pi)
 
+import Data.Bits ((.|.))
 import Foreign.C
 import Foreign.Ptr
 import Foreign.ForeignPtr
@@ -36,6 +37,7 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe
 #endif
 import Foreign.Marshal.Alloc
+import qualified System.Posix.Internals as Posix
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -147,11 +149,10 @@ foreign import ccall unsafe "yaml_parser_set_input_file"
 data FileStruct
 type File = Ptr FileStruct
 
-foreign import ccall unsafe "fopen"
-    c_fopen :: Ptr CChar
-            -> Ptr CChar
-            -> IO File
-
+foreign import ccall unsafe "fdopen"
+    c_fdopen :: CInt
+             -> Ptr CChar
+             -> IO File
 foreign import ccall unsafe "fclose"
     c_fclose :: File
              -> IO ()
@@ -503,6 +504,24 @@ decode bs =
         c_yaml_parser_delete ptr
         free ptr
 
+-- XXX copied from GHC.IO.FD
+std_flags, read_flags, output_flags, write_flags :: CInt
+std_flags    = Posix.o_NOCTTY
+output_flags = std_flags    .|. Posix.o_CREAT
+read_flags   = std_flags    .|. Posix.o_RDONLY
+write_flags  = output_flags .|. Posix.o_WRONLY
+
+-- | Open a C FILE* from a file path, using internal GHC API to work correctly
+-- on all platforms, even on non-ASCII filenames. The opening mode must be
+-- indicated via both 'rawOpenFlags' and 'openMode'.
+openFile :: FilePath -> CInt -> String -> IO File
+openFile file rawOpenFlags openMode = do
+  fd <- liftIO $ Posix.withFilePath file $ \file' ->
+    Posix.c_open file' rawOpenFlags 0o666
+  if fd /= (-1)
+    then withCString openMode $ \openMode' -> c_fdopen fd openMode'
+    else return nullPtr
+
 decodeFile :: MonadResource m => FilePath
 #if MIN_VERSION_conduit(1, 0, 0)
            -> Producer m Event
@@ -521,9 +540,7 @@ decodeFile file =
                 free ptr
                 throwIO $ YamlException "Yaml out of memory"
             else do
-                file' <- liftIO
-                        $ withCString file $ \file' -> withCString "r" $ \r' ->
-                                c_fopen file' r'
+                file' <- openFile file read_flags "r"
                 if file' == nullPtr
                     then do
                         c_fclose_helper file'
@@ -599,9 +616,7 @@ encodeFile filePath =
     bracketP getFile c_fclose $ \file -> runEmitter (alloc file) (\u _ -> return u)
   where
     getFile = do
-        file <- withCString filePath $
-                    \filePath' -> withCString "w" $
-                    \w' -> c_fopen filePath' w'
+        file <- openFile filePath write_flags "w"
         if file == nullPtr
             then throwIO $ YamlException $ "could not open file for write: " ++ filePath
             else return file
