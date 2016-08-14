@@ -1,3 +1,7 @@
+## 0.8.18.2
+
+* Handle non-ASCII filenames correctly on Windows [#91](https://github.com/snoyberg/yaml/pull/91)
+
 ## 0.8.18.1
 
 * Improve prettyPrintParseException when context is empty [#89](https://github.com/snoyberg/yaml/pull/89)
