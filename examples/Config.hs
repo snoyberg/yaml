@@ -9,6 +9,7 @@ import Data.Yaml (FromJSON(..), (.:))
 import Text.RawString.QQ
 import Data.ByteString (ByteString)
 import Control.Applicative
+import Prelude -- Ensure Applicative is in scope and we have no warnings, before/after AMP.
 
 configYaml :: ByteString
 configYaml = [r|
