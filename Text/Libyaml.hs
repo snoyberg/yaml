@@ -543,7 +543,6 @@ decodeFile file =
                 file' <- openFile file read_flags "r"
                 if file' == nullPtr
                     then do
-                        c_fclose_helper file'
                         c_yaml_parser_delete ptr
                         free ptr
                         throwIO $ YamlException
