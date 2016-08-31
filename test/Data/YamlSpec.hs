@@ -19,6 +19,7 @@ import Control.Monad
 import Control.Exception (try, SomeException)
 import Test.Hspec
 import Data.Either.Compat
+import System.Directory (createDirectory)
 import Test.Mockery.Directory
 
 import qualified Data.Yaml as D
@@ -63,6 +64,7 @@ spec = do
     describe "Data.Yaml" $ do
         it "encode/decode" caseEncodeDecodeData
         it "encode/decode file" caseEncodeDecodeFileData
+        it "encode/decode files with non-ASCII names" caseEncodeDecodeNonAsciiFileData
         it "encode/decode strings" caseEncodeDecodeStrings
         it "decode invalid file" caseDecodeInvalid
         it "processes datatypes" caseDataTypes
@@ -316,6 +318,17 @@ caseEncodeDecodeFileData = withFile "" $ \fp -> do
     D.encodeFile fp sample
     out <- D.decodeFile fp
     out @?= Just sample
+
+caseEncodeDecodeNonAsciiFileData :: Assertion
+caseEncodeDecodeNonAsciiFileData = do
+  let mySample = (object ["foo" .= True])
+  inTempDirectory $ do
+    createDirectory "accenté"
+    D.encodeFile "accenté/bar.yaml" mySample
+    out1 <- D.decodeFile "accenté/bar.yaml"
+    out1 @?= Just mySample
+  out2 <- D.decodeFile "test/resources/accenté/foo.yaml"
+  out2 @?= Just mySample
 
 caseEncodeDecodeStrings :: Assertion
 caseEncodeDecodeStrings = do

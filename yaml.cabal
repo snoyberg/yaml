@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.18.1
+version:         0.8.18.2
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
@@ -20,6 +20,7 @@ extra-source-files: c/helper.h
                     test/resources/foo.yaml
                     test/resources/bar.yaml
                     test/resources/baz.yaml
+                    test/resources/accenté/foo.yaml
                     test/resources/loop/foo.yaml
                     test/resources/loop/bar.yaml
                     README.md
@@ -130,6 +131,7 @@ test-suite spec
                    , text
                    , aeson >= 0.7
                    , unordered-containers
+                   , directory
                    , vector
                    , resourcet
                    , aeson-qq
