@@ -36,6 +36,7 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe
 #endif
 import Foreign.Marshal.Alloc
+import qualified System.Posix.Internals as Posix
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -522,8 +523,8 @@ decodeFile file =
                 throwIO $ YamlException "Yaml out of memory"
             else do
                 file' <- liftIO
-                        $ withCString file $ \file' -> withCString "r" $ \r' ->
-                                c_fopen file' r'
+                        $ Posix.withFilePath file $ \file' -> withCString "r" $ \r' ->
+                                c_fopen (castPtr file') r'
                 if file' == nullPtr
                     then do
                         c_fclose_helper file'
