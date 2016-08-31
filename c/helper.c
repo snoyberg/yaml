@@ -16,7 +16,7 @@ int buffer_append(void *ext, unsigned char *str, size_t size)
 	unsigned char *tmp;
 
 	new_used = b->used + size;
-	for (new_size = 1; new_size < new_used; new_size *= 2);
+	for (new_size = b->size ? b->size : 8; new_size < new_used; new_size *= 2);
 
 	if (new_size != b->size) {
 		tmp = realloc(b->buff, new_size);
