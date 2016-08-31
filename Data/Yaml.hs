@@ -53,11 +53,16 @@ module Data.Yaml
     , encode
     , encodeFile
     , decode
+    , decodeAll
     , decodeFile
+    , decodeAllFile
       -- ** Better error information
     , decodeEither
+    , decodeAllEither
     , decodeEither'
+    , decodeAllEither'
     , decodeFileEither
+    , decodeAllFileEither
       -- ** More control over decoding
     , decodeHelper
     ) where
@@ -151,10 +156,30 @@ decode bs = unsafePerformIO
           $ either (const Nothing) id
           <$> decodeHelper_ (Y.decode bs)
 
+decodeAll :: FromJSON a
+             => ByteString
+             -> Maybe [a]
+decodeAll bs
+  = unsafePerformIO $ do
+    res <- decodeHelperOneOrMany_ False (Y.decode bs)
+    return $ case res of
+              Left _ -> Nothing
+              Right xs -> Just xs
+
 decodeFile :: FromJSON a
            => FilePath
            -> IO (Maybe a)
 decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO (return . either (const Nothing) id)
+
+decodeAllFile :: FromJSON a
+                 => FilePath
+                 -> IO (Maybe [a])
+decodeAllFile fp = do
+  res <- decodeHelperOneOrMany False (Y.decodeFile fp)
+  case res of
+   Left except -> throwIO except
+   Right (Left _) -> return Nothing
+   Right (Right ans) -> return $ Just ans
 
 -- | A version of 'decodeFile' which should not throw runtime exceptions.
 --
@@ -165,10 +190,24 @@ decodeFileEither
     -> IO (Either ParseException a)
 decodeFileEither = decodeHelper_ . Y.decodeFile
 
+decodeAllFileEither
+    :: FromJSON a
+    => FilePath
+    -> IO (Either ParseException [a])
+decodeAllFileEither = decodeHelperOneOrMany_ False . Y.decodeFile
+
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
                 $ either (Left . prettyPrintParseException) id
                 <$> decodeHelper (Y.decode bs)
+
+decodeAllEither :: FromJSON a => ByteString -> Either String [a]
+decodeAllEither bs
+  = unsafePerformIO $ do
+    res <- decodeHelperOneOrMany_ False (Y.decode bs)
+    return $ case res of
+              Left except -> Left $ prettyPrintParseException except
+              Right xs -> Right xs
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
 --
@@ -178,6 +217,12 @@ decodeEither' = either Left (either (Left . AesonException) Right)
               . unsafePerformIO
               . decodeHelper
               . Y.decode
+
+decodeAllEither' :: FromJSON a => ByteString -> Either ParseException [a]
+decodeAllEither' = either Left (either (Left . AesonException) Right)
+                   . unsafePerformIO
+                   . decodeHelperOneOrMany False
+                   . Y.decode
 
 array :: [Value] -> Value
 array = Array . V.fromList
