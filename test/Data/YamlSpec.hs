@@ -19,7 +19,7 @@ import Control.Monad
 import Control.Exception (try, SomeException)
 import Test.Hspec
 import Data.Either.Compat
-import System.Directory (createDirectory)
+import System.Directory (createDirectory, createDirectoryIfMissing)
 import Test.Mockery.Directory
 
 import qualified Data.Yaml as D
@@ -327,6 +327,11 @@ caseEncodeDecodeNonAsciiFileData = do
     D.encodeFile "accenté/bar.yaml" mySample
     out1 <- D.decodeFile "accenté/bar.yaml"
     out1 @?= Just mySample
+
+  createDirectoryIfMissing True "test/resources/accenté/"
+
+  readFile "test/resources/accent/foo.yaml" >>=
+    writeFile "test/resources/accenté/foo.yaml"
   out2 <- D.decodeFile "test/resources/accenté/foo.yaml"
   out2 @?= Just mySample
 

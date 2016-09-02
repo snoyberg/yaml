@@ -1,3 +1,8 @@
+## 0.8.18.4
+
+* Remove file with non-ASCII name due to Stack/cabal-install/Hackage
+  restrictions (see [#92](https://github.com/snoyberg/yaml/issues/92))
+
 ## 0.8.18.2
 
 * Handle non-ASCII filenames correctly on Windows [#91](https://github.com/snoyberg/yaml/pull/91)

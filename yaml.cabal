@@ -1,8 +1,8 @@
 name:            yaml
-version:         0.8.18.2
+version:         0.8.18.4
 license:         BSD3
 license-file:    LICENSE
-author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov 
+author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Support for parsing and rendering YAML documents.
 description:     Please see the README.md file.
