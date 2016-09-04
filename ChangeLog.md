@@ -1,3 +1,7 @@
+## 0.8.18.5
+
+* Properly fix previous bug (fixes #94)
+
 ## 0.8.18.4
 
 * Remove file with non-ASCII name due to Stack/cabal-install/Hackage
