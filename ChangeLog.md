@@ -1,3 +1,7 @@
+## 0.8.18.6
+
+* s/fdopen/_fdopen on Windows [#96](https://github.com/snoyberg/yaml/issues/96)
+
 ## 0.8.18.5
 
 * Properly fix previous bug (fixes #94)

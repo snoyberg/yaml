@@ -149,7 +149,11 @@ foreign import ccall unsafe "yaml_parser_set_input_file"
 data FileStruct
 type File = Ptr FileStruct
 
+#ifdef WINDOWS
+foreign import ccall unsafe "_fdopen"
+#else
 foreign import ccall unsafe "fdopen"
+#endif
     c_fdopen :: CInt
              -> Ptr CChar
              -> IO File
