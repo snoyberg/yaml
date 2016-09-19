@@ -511,7 +511,7 @@ decode bs =
 -- XXX copied from GHC.IO.FD
 std_flags, read_flags, output_flags, write_flags :: CInt
 std_flags    = Posix.o_NOCTTY
-output_flags = std_flags    .|. Posix.o_CREAT
+output_flags = std_flags    .|. Posix.o_CREAT .|. Posix.o_TRUNC
 read_flags   = std_flags    .|. Posix.o_RDONLY
 write_flags  = output_flags .|. Posix.o_WRONLY
 

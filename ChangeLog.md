@@ -1,3 +1,7 @@
+## 0.8.18.7
+
+* Add `O_TRUNC` when opening files
+
 ## 0.8.18.6
 
 * s/fdopen/_fdopen on Windows [#96](https://github.com/snoyberg/yaml/issues/96)

@@ -34,6 +34,8 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import System.IO (hClose)
+import System.IO.Temp (withSystemTempFile)
 
 data TestJSON = TestJSON
               { string :: Text
@@ -151,6 +153,8 @@ spec = do
         D.decode (D.encode ("+123" :: String)) `shouldBe` Just ("+123" :: String)
 
     it "preserves Scientific precision" casePreservesScientificPrecision
+
+    it "truncates files" caseTruncatesFiles
 
 
 specialStrings :: [T.Text]
@@ -502,3 +506,12 @@ casePreservesScientificPrecision = do
     -- results, because of <https://github.com/bos/text/issues/34>.
     D.decodeEither "x: 9.78159610558926e-5" @?= Right (object
         [ "x" .= D.Number (read "9.78159610558926e-5") ])
+
+caseTruncatesFiles :: Assertion
+caseTruncatesFiles = withSystemTempFile "truncate.yaml" $ \fp h -> do
+    replicateM_ 500 $ B8.hPut h "HELLO WORLD!!!!!\n"
+    hClose h
+    let val = object ["hello" .= ("world" :: String)]
+    D.encodeFile fp val
+    res <- D.decodeFileEither fp
+    either (Left . show) Right res `shouldBe` Right val
