@@ -31,6 +31,8 @@ import Language.Haskell.TH.Syntax
 -- config :: Config
 -- config = $$('decodeFile' "config.yaml")
 -- @
+--
+-- @since 0.8.19.0
 decodeFile :: forall a. (Lift a, FromJSON a) => FilePath -> Q (TExp a)
 decodeFile path = do
   addDependentFile path

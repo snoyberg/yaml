@@ -1,3 +1,7 @@
+## 0.8.19.0
+
+* Add `Data.Yaml.TH` module
+
 ## 0.8.18.7
 
 * Add `O_TRUNC` when opening files
