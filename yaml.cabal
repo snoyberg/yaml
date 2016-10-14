@@ -59,14 +59,16 @@ library
                    , directory
                    , enclosed-exceptions
                    , semigroups
+                   , template-haskell
     exposed-modules: Text.Libyaml
                      Data.Yaml
                      Data.Yaml.Aeson
                      Data.Yaml.Builder
                      Data.Yaml.Config
-                     Data.Yaml.Pretty
-                     Data.Yaml.Parser
                      Data.Yaml.Include
+                     Data.Yaml.Parser
+                     Data.Yaml.Pretty
+                     Data.Yaml.TH
     other-modules:
                      Data.Yaml.Internal
     ghc-options:     -Wall
