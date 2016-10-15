@@ -59,7 +59,6 @@ library
                    , directory
                    , enclosed-exceptions
                    , semigroups
-                   , template-haskell
     exposed-modules: Text.Libyaml
                      Data.Yaml
                      Data.Yaml.Aeson
@@ -69,6 +68,7 @@ library
                      Data.Yaml.Parser
                      Data.Yaml.Pretty
     if impl(ghc >= 7.8.1)
+      build-depends: template-haskell >= 2.8.0.0
       exposed-modules: Data.Yaml.TH
     other-modules:
                      Data.Yaml.Internal
