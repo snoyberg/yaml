@@ -68,7 +68,8 @@ library
                      Data.Yaml.Include
                      Data.Yaml.Parser
                      Data.Yaml.Pretty
-                     Data.Yaml.TH
+    if impl(ghc >= 7.8.1)
+      exposed-modules: Data.Yaml.TH
     other-modules:
                      Data.Yaml.Internal
     ghc-options:     -Wall
