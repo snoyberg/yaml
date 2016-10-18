@@ -1106,13 +1106,6 @@ yaml_parser_save_simple_key(yaml_parser_t *parser)
             && parser->indent == (ptrdiff_t)parser->mark.column);
 
     /*
-     * A simple key is required only when it is the first token in the current
-     * line.  Therefore it is always allowed.  But we add a check anyway.
-     */
-
-    assert(parser->simple_key_allowed || !required);    /* Impossible. */
-
-    /*
      * If the current position may start a simple key, save it.
      */
 
@@ -2629,6 +2622,9 @@ yaml_parser_scan_tag_uri(yaml_parser_t *parser, int directive,
         /* Check if it is a URI-escape sequence. */
 
         if (CHECK(parser->buffer, '%')) {
+            if (!STRING_EXTEND(parser, string))
+                goto error;
+
             if (!yaml_parser_scan_uri_escapes(parser,
                         directive, start_mark, &string)) goto error;
         }

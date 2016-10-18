@@ -1,3 +1,7 @@
+## 0.8.20
+
+* Upgrade to libyaml 0.1.7
+
 ## 0.8.19.0
 
 * Add `Data.Yaml.TH` module
