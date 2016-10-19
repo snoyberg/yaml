@@ -2,7 +2,7 @@
 
 Provides support for parsing and emitting Yaml documents.
 
-This package includes the [full libyaml C library version 0.1.5 by Kirill Simonov](http://pyyaml.org/wiki/LibYAML) in the package so you don't need to worry about any non-Haskell dependencies.
+This package includes the [full libyaml C library version 0.1.7 by Kirill Simonov](http://pyyaml.org/wiki/LibYAML) in the package so you don't need to worry about any non-Haskell dependencies.
 
 The package is broken down into two primary modules. `Data.Yaml` provides a high-level interface based around the JSON datatypes provided by the `aeson` package. `Text.Libyaml` provides a lower-level, streaming interface. For most users, `Data.Yaml` is recommended.
 
