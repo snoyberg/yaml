@@ -133,12 +133,24 @@ requireEvent e = do
 
 parse :: C.Sink Event Parse Value
 parse = do
-    requireEvent EventStreamStart
-    requireEvent EventDocumentStart
-    res <- parseO
-    requireEvent EventDocumentEnd
-    requireEvent EventStreamEnd
-    return res
+    streamStart <- CL.head
+    case streamStart of
+        Nothing ->
+            -- empty string input
+            return Null
+        Just EventStreamStart -> do
+            documentStart <- CL.head
+            case documentStart of
+                Just EventStreamEnd ->
+                    -- empty file input, comment only string/file input
+                    return Null
+                Just EventDocumentStart -> do
+                    res <- parseO
+                    requireEvent EventDocumentEnd
+                    requireEvent EventStreamEnd
+                    return res
+                _ -> liftIO $ throwIO $ UnexpectedEvent documentStart Nothing
+        _ -> liftIO $ throwIO $ UnexpectedEvent streamStart Nothing
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> C.Sink Event Parse Text

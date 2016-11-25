@@ -95,7 +95,11 @@ spec = do
         it "parses when all uppercase" caseUppercaseBool
         it "parses when titlecase" caseTitlecaseBool
     describe "empty input" $ do
-        it "doesn't crash" caseEmptyInput
+        it "parses as Null" caseEmptyInput
+        it "parses as Null from file" caseEmptyInputFile
+    describe "comment only input" $ do
+        it "parses as Null" caseCommentOnlyInput
+        it "parses as Null from file" caseCommentOnlyInputFile
     describe "alias stripping" $ do
         it "works" caseStripAlias
     describe "nulls" $ do
@@ -457,7 +461,20 @@ caseUppercaseBool = D.decode "foo: FALSE\nbar: Y\nbaz: ON" @?= obj
 caseTitlecaseBool = D.decode "foo: No\nbar: Yes\nbaz: True" @?= obj
 
 caseEmptyInput :: Assertion
-caseEmptyInput = D.decode B8.empty @?= (Nothing :: Maybe D.Value)
+caseEmptyInput = D.decodeEither B8.empty @?= Right D.Null
+
+caseEmptyInputFile :: Assertion
+caseEmptyInputFile = do
+    out <- D.decodeFileEither "test/resources/empty.yaml"
+    either (Left . D.prettyPrintParseException) Right out @?= Right D.Null
+
+caseCommentOnlyInput :: Assertion
+caseCommentOnlyInput = D.decodeEither "# comment\n" @?= Right D.Null
+
+caseCommentOnlyInputFile :: Assertion
+caseCommentOnlyInputFile = do
+    out <- D.decodeFileEither "test/resources/empty2.yaml"
+    either (Left . D.prettyPrintParseException) Right out @?= Right D.Null
 
 checkNull :: T.Text -> Spec
 checkNull x =
