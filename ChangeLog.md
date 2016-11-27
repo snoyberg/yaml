@@ -1,3 +1,7 @@
+## 0.8.21
+
+* Decode empty inputs as Null [#101](https://github.com/snoyberg/yaml/pull/101)
+
 ## 0.8.20
 
 * Upgrade to libyaml 0.1.7
