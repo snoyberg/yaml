@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.21
+version:         0.8.21.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
@@ -23,6 +23,8 @@ extra-source-files: c/helper.h
                     test/resources/accent/foo.yaml
                     test/resources/loop/foo.yaml
                     test/resources/loop/bar.yaml
+                    test/resources/empty.yaml
+                    test/resources/empty2.yaml
                     README.md
                     ChangeLog.md
 

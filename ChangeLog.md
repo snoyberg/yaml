@@ -1,3 +1,7 @@
+## 0.8.21.1
+
+* Add missing test files [#102](https://github.com/snoyberg/yaml/pull/102)
+
 ## 0.8.21
 
 * Decode empty inputs as Null [#101](https://github.com/snoyberg/yaml/pull/101)
