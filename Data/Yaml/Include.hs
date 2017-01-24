@@ -1,5 +1,12 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 module Data.Yaml.Include (decodeFile, decodeFileEither) where
+
+#if !MIN_VERSION_directory(1, 2, 3)
+import Control.Exception (handleJust)
+import Control.Monad (guard)
+import System.IO.Error (ioeGetFileName, ioeGetLocation, isDoesNotExistError)
+#endif
 
 import Control.Exception (throwIO)
 import Control.Monad (when)
@@ -25,7 +32,7 @@ eventsFromFile = go []
   where
     go :: MonadResource m => [FilePath] -> FilePath -> Producer m Event
     go seen fp = do
-        cfp <- liftIO $ canonicalizePath fp
+        cfp <- liftIO $ handleNotFound $ canonicalizePath fp
         when (cfp `elem` seen) $ do
             liftIO $ throwIO CyclicIncludes
         Y.decodeFile cfp $= do
@@ -36,6 +43,17 @@ eventsFromFile = go []
                 _ -> yield event
 
     irrelevantEvents = [EventStreamStart, EventDocumentStart, EventDocumentEnd, EventStreamEnd]
+
+#if !MIN_VERSION_directory(1, 2, 3)
+    handleNotFound = handleJust
+        (\e -> do
+            guard (isDoesNotExistError e)
+            guard (ioeGetLocation e == "canonicalizePath")
+            ioeGetFileName e)
+        (throwIO . YamlException . ("Yaml file not found: " ++))
+#else
+    handleNotFound = id
+#endif
 
 -- | Like `Data.Yaml.decodeFile` but with support for relative and absolute
 -- includes.
