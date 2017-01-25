@@ -2,12 +2,12 @@
 module Data.Yaml.IncludeSpec (main, spec) where
 
 import           Test.Hspec
-import           Data.Either.Compat
+import           Data.List (isPrefixOf)
 import           Data.Aeson
 import           Data.Aeson.QQ
-import           Data.Yaml (ParseException)
-
+import           Data.Yaml (ParseException(InvalidYaml))
 import           Data.Yaml.Include
+import           Text.Libyaml (YamlException(YamlException))
 
 main :: IO ()
 main = hspec spec
@@ -38,7 +38,17 @@ spec = do
     it "aborts on cyclic includes" $ do
       (decodeFile "test/resources/loop/foo.yaml" :: IO (Maybe Value)) `shouldThrow` anyException
 
+    context "when file does not exist" $ do
+      it "throws Left (InvalidYaml (Just (YamlException \"Yaml file not found: ...\")))" $ do
+        (decodeFile "./does_not_exist.yaml" :: IO (Maybe Value)) `shouldThrow` isYamlFileNotFoundException
+
   describe "decodeFileEither" $ do
     context "when file does not exist" $ do
-      it "returns Left" $ do
-        (decodeFileEither "./does_not_exist.yaml" :: IO (Either ParseException Value)) >>= (`shouldSatisfy` isLeft)
+      it "returns Left (InvalidYaml (Just (YamlException \"Yaml file not found: ...\")))" $ do
+        (decodeFileEither "./does_not_exist.yaml" :: IO (Either ParseException Value)) >>=
+          (`shouldSatisfy` either isYamlFileNotFoundException (const False))
+
+isYamlFileNotFoundException :: ParseException -> Bool
+isYamlFileNotFoundException (InvalidYaml (Just (YamlException msg)))
+  | "Yaml file not found: " `isPrefixOf` msg = True
+isYamlFileNotFoundException _ = False

@@ -1,3 +1,7 @@
+## 0.8.21.2
+
+* Fix wrong file not found exception in `Data.Yaml.Include` with pre-1.2.3.0 `directory` [#104](https://github.com/snoyberg/yaml/pull/104)
+
 ## 0.8.21.1
 
 * Add missing test files [#102](https://github.com/snoyberg/yaml/pull/102)
