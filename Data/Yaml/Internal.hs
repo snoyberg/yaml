@@ -17,7 +17,6 @@ module Data.Yaml.Internal
 import Control.Applicative ((<$>), Applicative(..))
 #endif
 import Control.Exception
-import Control.Exception.Enclosed
 import Control.Monad (liftM, ap, unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Class (MonadTrans, lift)
@@ -253,7 +252,10 @@ decodeHelper :: FromJSON a
              => C.Source Parse Y.Event
              -> IO (Either ParseException (Either String a))
 decodeHelper src = do
-    x <- tryAny $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    -- This used to be tryAny, but the fact is that catching async
+    -- exceptions is fine here. We'll rethrow them immediately in the
+    -- otherwise clause.
+    x <- try $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
@@ -265,7 +267,7 @@ decodeHelper_ :: FromJSON a
               => C.Source Parse Event
               -> IO (Either ParseException a)
 decodeHelper_ src = do
-    x <- tryAny $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    x <- try $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
     return $ case x of
         Left e
             | Just pe <- fromException e -> Left pe

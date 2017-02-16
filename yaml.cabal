@@ -59,7 +59,6 @@ library
                    , scientific
                    , filepath
                    , directory
-                   , enclosed-exceptions
                    , semigroups
     exposed-modules: Text.Libyaml
                      Data.Yaml
