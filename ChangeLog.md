@@ -1,3 +1,7 @@
+## 0.8.22
+
+* Update to libyaml hosted on Github [#105](https://github.com/snoyberg/yaml/issues/105)
+
 ## 0.8.21.2
 
 * Fix wrong file not found exception in `Data.Yaml.Include` with pre-1.2.3.0 `directory` [#104](https://github.com/snoyberg/yaml/pull/104)
