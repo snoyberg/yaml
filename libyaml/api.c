@@ -5,15 +5,6 @@
  * Get the library version.
  */
 
-/*
- * added to support _WIN64
- */
-#if _WIN64
-#define STRDUP _strdup
-#else
-#define STRDUP strdup
-#endif
-
 YAML_DECLARE(const char *)
 yaml_get_version_string(void)
 {
@@ -72,7 +63,14 @@ yaml_strdup(const yaml_char_t *str)
     if (!str)
         return NULL;
 
-    return (yaml_char_t *) STRDUP((char *)str);
+/*
+ * Haskell yaml package: added to support _WIN64
+ */
+#if _WIN64
+    return (yaml_char_t *)_strdup((char *)str);
+#else
+    return (yaml_char_t *)strdup((char *)str);
+#endif
 }
 
 /*
@@ -834,7 +832,7 @@ yaml_scalar_event_initialize(yaml_event_t *event,
 
     assert(event);      /* Non-NULL event object is expected. */
     /* following line added for Haskell yaml library */
-    if (!value && !length) value = "";
+    if (!value && !length) value = (unsigned char*)"";
     assert(value);      /* Non-NULL anchor is expected. */
 
     if (anchor) {

@@ -450,7 +450,7 @@ caseQuotedNumber, caseUnquotedNumber, caseAttribNumber, caseIntegerDecimals :: A
 caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
 caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])
 caseAttribNumber = D.decode "foo: !!str 1234" @?= Just (object [("foo", D.String "1234")])
-caseIntegerDecimals = D.encode (1 :: Int) @?= "1\n...\n"
+caseIntegerDecimals = D.encode (1 :: Int) @?= "1\n"
 
 obj :: Maybe D.Value
 obj = Just (object [("foo", D.Bool False), ("bar", D.Bool True), ("baz", D.Bool True)])

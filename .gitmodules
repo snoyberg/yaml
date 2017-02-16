@@ -1,0 +1,3 @@
+[submodule "vendor/libyaml"]
+	path = vendor/libyaml
+	url = https://github.com/snoyberg/libyaml

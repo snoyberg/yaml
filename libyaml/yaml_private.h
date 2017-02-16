@@ -1,4 +1,3 @@
-
 #if HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -242,9 +241,9 @@ yaml_string_join(
         (string).pointer[offset] <= (yaml_char_t) 'f') ?                        \
        ((string).pointer[offset] - (yaml_char_t) 'a' + 10) :                    \
        ((string).pointer[offset] - (yaml_char_t) '0'))
- 
+
 #define AS_HEX(string)  AS_HEX_AT((string),0)
- 
+
 /*
  * Check if the character is ASCII.
  */
@@ -658,6 +657,7 @@ yaml_queue_extend(void **start, void **head, void **tail, void **end);
      (node).data.mapping.pairs.top = (node_pairs_start),                        \
      (node).data.mapping.style = (node_style))
 
+/* For Haskell yaml package, since we do not use the configure script */
 #define YAML_VERSION_STRING "0.1.7"
 #define YAML_VERSION_MAJOR 0
 #define YAML_VERSION_MINOR 1
