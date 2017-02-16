@@ -26,7 +26,10 @@ extern "C" {
 
 /** The public API declaration. */
 
-#ifdef _WIN32
+/* __MINGW32__ definition added for Haskell yaml package */
+#if defined(__MINGW32__)
+#   define  YAML_DECLARE(type)  type
+#elif _WIN32
 #   if defined(YAML_DECLARE_STATIC)
 #       define  YAML_DECLARE(type)  type
 #   elif defined(YAML_DECLARE_EXPORT)
