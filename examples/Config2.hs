@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Config2 where
 
@@ -10,6 +11,8 @@ import           Data.Aeson (withObject)
 import           Data.Map (Map)
 import           Data.Set (Set)
 import           GHC.Generics (Generic)
+import           Control.Applicative ((<$>), (<*>))
+import           Prelude -- Ensure Applicative is in scope and we have no warnings, before/after AMP.
 
 data Flag = Awesome | Okay | Hack1
   deriving (Eq, Show, Ord, Generic)
