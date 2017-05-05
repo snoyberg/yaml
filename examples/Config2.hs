@@ -11,7 +11,7 @@ import           Data.Aeson (withObject)
 import           Data.Map (Map)
 import           Data.Set (Set)
 import           GHC.Generics (Generic)
-import           Control.Applicative ((<$>), (<*>))
+import           Control.Applicative
 import           Prelude -- Ensure Applicative is in scope and we have no warnings, before/after AMP.
 
 data Flag = Awesome | Okay | Hack1
@@ -21,12 +21,19 @@ instance FromJSON Flag
 
 data Config =
   Config {
-    txtKey :: Text
-  , intKey :: Int
-  , dblKey :: Double
-  , txtListKey :: [Text]
-  , mapIntsKey :: Map Text Int
-  , setEnumsKey :: Set Flag
+    cfgTxtKey :: Text
+  , cfgIntKey :: Int
+  , cfgDblKey :: Double
+  , cfgTxtListKey :: [Text]
+  , cfgMapIntsKey :: Map Text Int
+  , cfgSetEnumsKey :: Set Flag
+  , cfgNestedObjKey :: ConfigExtra
+  , cfgFlattenedKey :: Int
+  } deriving (Eq, Show)
+
+data ConfigExtra =
+  ConfigExtra {
+    cfeKey1 :: Int
   } deriving (Eq, Show)
 
 instance FromJSON Config where
@@ -38,7 +45,15 @@ instance FromJSON Config where
         <*> o .: "dblKey"
         <*> o .: "txtListKey"
         <*> o .: "mapIntsKey"
-        <*> o .: "setEnumsKey")
+        <*> o .: "setEnumsKey"
+        <*> o .: "nestedObjKey"
+        <*> (o .: "flattenedObjKey" >>= (.: "key1")))
+
+instance FromJSON ConfigExtra where
+  parseJSON =
+    withObject "ConfigExtra" (\o ->
+      ConfigExtra
+        <$> o .: "key1")
 
 main :: IO ()
 main = do
@@ -52,5 +67,9 @@ main = do
                \mapIntsKey:\n\
                \  k1: 1\n\
                \  k2: 2\n\
-               \setEnumsKey: [Awesome, Hack1]"
+               \setEnumsKey: [Awesome, Hack1]\n\
+               \nestedObjKey:\n\
+               \  key1: 1\n\
+               \flattenedObjKey:\n\
+               \  key1: 1\n"
   print (Y.decodeEither jsonBS :: Either String Config)
