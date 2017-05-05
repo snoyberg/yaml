@@ -1,11 +1,11 @@
 name:            yaml
-version:         0.8.22
+version:         0.8.22.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Support for parsing and rendering YAML documents.
-description:     Please see the README.md file.
+description:     Please see the README.md file for a detailed description.
 category:        Web
 stability:       stable
 cabal-version:   >= 1.8
@@ -152,13 +152,16 @@ executable examples
    else
       Buildable: True
       build-depends: base
+                   , aeson
                    , bytestring
+                   , containers
                    , raw-strings-qq
                    , text
                    , yaml
    hs-source-dirs: examples
    main-is: Main.hs
    other-modules: Config
+                  Config2
                   Simple
    ghc-options:   -Wall
 
