@@ -70,6 +70,7 @@ spec = do
         it "encode/decode strings" caseEncodeDecodeStrings
         it "decode invalid file" caseDecodeInvalid
         it "processes datatypes" caseDataTypes
+        it "encode invalid numbers" caseEncodeInvalidNumbers
     describe "Data.Yaml.Pretty" $ do
         it "encode/decode" caseEncodeDecodeDataPretty
         it "encode/decode strings" caseEncodeDecodeStringsPretty
@@ -433,6 +434,10 @@ caseDataTypes =
         , ("false", D.Bool False)
         , ("null", D.Null)
         ]
+
+caseEncodeInvalidNumbers :: Assertion
+caseEncodeInvalidNumbers =
+    D.encode (D.String ".") @?= ".\n"
 
 caseDataTypesPretty :: Assertion
 caseDataTypesPretty =

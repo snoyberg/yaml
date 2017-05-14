@@ -284,10 +284,11 @@ specialStrings = HashSet.fromList $ T.words
     "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
 
 isNumeric :: Text -> Bool
-isNumeric =
-    T.all isNumeric'
+isNumeric t =
+    T.all isNumeric' t && T.any isNumber t
   where
-    isNumeric' c = ('0' <= c && c <= '9')
+    isNumber c = '0' <= c && c <= '9'
+    isNumeric' c = isNumber c
                 || c == 'e'
                 || c == 'E'
                 || c == '.'

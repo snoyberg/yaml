@@ -1,3 +1,8 @@
+## 0.8.22.1
+
+* Make numeric string detection slightly smarter so, e.g., `.` does
+  not get quoted
+
 ## 0.8.22
 
 * Update to libyaml hosted on Github [#105](https://github.com/snoyberg/yaml/issues/105)
