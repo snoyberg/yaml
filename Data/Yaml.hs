@@ -42,6 +42,12 @@ module Data.Yaml
     , (.:)
     , (.:?)
     , (.!=)
+      -- ** With helpers (since 0.8.23)
+    , withObject
+    , withText
+    , withArray
+    , withScientific
+    , withBool
       -- * Parsing
     , parseMonad
     , parseEither

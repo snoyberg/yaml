@@ -1,3 +1,7 @@
+## 0.8.23
+
+* Re-export the with helpers from aeson
+
 ## 0.8.22.1
 
 * Make numeric string detection slightly smarter so, e.g., `.` does
