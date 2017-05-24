@@ -76,6 +76,7 @@ import Data.Aeson
     ( Value (..), ToJSON (..), FromJSON (..), object
     , (.=) , (.:) , (.:?) , (.!=)
     , Object, Array
+    , withObject, withText, withArray, withScientific, withBool
     )
 import Data.Aeson.Encode (encodeToTextBuilder)
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
