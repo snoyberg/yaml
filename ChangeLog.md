@@ -1,3 +1,7 @@
+## 0.8.23.1
+
+* Update CPP `MIN_VERSION_*` checks [#109](https://github.com/snoyberg/yaml/pull/109)
+
 ## 0.8.23
 
 * Re-export the with helpers from aeson
