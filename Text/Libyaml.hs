@@ -479,12 +479,7 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: MonadResource m => B.ByteString
-#if MIN_VERSION_conduit(1, 0, 0)
-       -> Producer m Event
-#else
-       -> GSource m Event
-#endif
+decode :: MonadResource m => B.ByteString -> Producer m Event
 decode bs | B8.null bs = return ()
 decode bs =
     bracketP alloc cleanup (runParser . fst)
@@ -526,12 +521,7 @@ openFile file rawOpenFlags openMode = do
     then withCString openMode $ \openMode' -> c_fdopen fd openMode'
     else return nullPtr
 
-decodeFile :: MonadResource m => FilePath
-#if MIN_VERSION_conduit(1, 0, 0)
-           -> Producer m Event
-#else
-           -> GSource m Event
-#endif
+decodeFile :: MonadResource m => FilePath -> Producer m Event
 decodeFile file =
     bracketP alloc cleanup (runParser . fst)
   where
@@ -559,12 +549,7 @@ decodeFile file =
         c_yaml_parser_delete ptr
         free ptr
 
-runParser :: MonadResource m => Parser
-#if MIN_VERSION_conduit(1, 0, 0)
-           -> Producer m Event
-#else
-           -> GSource m Event
-#endif
+runParser :: MonadResource m => Parser -> Producer m Event
 runParser parser = do
     e <- liftIO $ parserParseOne' parser
     case e of
@@ -588,12 +573,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
-encode :: MonadResource m
-#if MIN_VERSION_conduit(1, 0, 0)
-       => Consumer Event m ByteString
-#else
-       => GSink Event m ByteString
-#endif
+encode :: MonadResource m => Consumer Event m ByteString
 encode =
     runEmitter alloc close
   where
@@ -610,11 +590,7 @@ encode =
 
 encodeFile :: MonadResource m
            => FilePath
-#if MIN_VERSION_conduit(1, 0, 0)
            -> Consumer Event m ()
-#else
-           -> GInfSink Event m
-#endif
 encodeFile filePath =
     bracketP getFile c_fclose $ \file -> runEmitter (alloc file) (\u _ -> return u)
   where
@@ -628,13 +604,8 @@ encodeFile filePath =
 
 runEmitter :: MonadResource m
            => (Emitter -> IO a) -- ^ alloc
-#if MIN_VERSION_conduit(1, 0, 0)
            -> (() -> a -> IO b) -- ^ close
            -> Consumer Event m b
-#else
-           -> (u -> a -> IO b) -- ^ close
-           -> Pipe l Event o u m b
-#endif
 runEmitter allocI closeI =
     bracketP alloc cleanup go
   where
@@ -654,11 +625,7 @@ runEmitter allocI closeI =
     go (emitter, a) =
         loop
       where
-#if MIN_VERSION_conduit(1, 0, 0)
         loop = await >>= maybe (close ()) push
-#else
-        loop = awaitE >>= either close push
-#endif
 
         push e = do
             _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter

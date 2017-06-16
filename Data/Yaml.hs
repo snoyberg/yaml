@@ -78,7 +78,11 @@ import Data.Aeson
     , Object, Array
     , withObject, withText, withArray, withScientific, withBool
     )
+#if MIN_VERSION_aeson(1,0,0)
+import Data.Aeson.Text (encodeToTextBuilder)
+#else
 import Data.Aeson.Encode (encodeToTextBuilder)
+#endif
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Data.ByteString (ByteString)
 import qualified Data.Conduit as C

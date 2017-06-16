@@ -22,7 +22,11 @@ import Prelude hiding (null)
 
 import Control.Arrow (second)
 import Control.Monad.Trans.Resource (runResourceT)
+#if MIN_VERSION_aeson(1,0,0)
+import Data.Aeson.Text (encodeToTextBuilder)
+#else
 import Data.Aeson.Encode (encodeToTextBuilder)
+#endif
 import Data.Aeson.Types (Value(..))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8

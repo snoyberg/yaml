@@ -13,12 +13,7 @@ import Control.Monad.Trans.Resource (MonadThrow, monadThrow, runResourceT)
 import Control.Monad.Trans.Writer.Strict (tell, WriterT)
 import Data.ByteString (ByteString)
 import Data.Conduit
-#if MIN_VERSION_conduit(1,1,0)
 import Data.Conduit.Lift (runWriterC)
-#define runWriterSC runWriterC
-#else
-import Data.Conduit.Lift (runWriterSC)
-#endif
 import qualified Data.Map as Map
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (Monoid (..))
@@ -193,7 +188,7 @@ sinkValue =
             Just e -> monadThrow $ UnexpectedEvent e
 
 sinkRawDoc :: MonadThrow m => Consumer Event m RawDoc
-sinkRawDoc = uncurry RawDoc <$> runWriterSC sinkValue
+sinkRawDoc = uncurry RawDoc <$> runWriterC sinkValue
 
 readYamlFile :: FromYaml a => FilePath -> IO a
 readYamlFile fp = runResourceT (decodeFile fp $$ sinkRawDoc) >>= parseRawDoc
