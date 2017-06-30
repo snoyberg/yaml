@@ -1,3 +1,7 @@
+## 0.8.23.2
+
+* Update libyaml [#110](https://github.com/snoyberg/yaml/issues/110)
+
 ## 0.8.23.1
 
 * Update CPP `MIN_VERSION_*` checks [#109](https://github.com/snoyberg/yaml/pull/109)
