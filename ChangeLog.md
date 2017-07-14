@@ -1,3 +1,7 @@
+## 0.8.23.3
+
+* Avoid over-escaping `*` [#113](https://github.com/snoyberg/yaml/issues/113)
+
 ## 0.8.23.2
 
 * Update libyaml [#110](https://github.com/snoyberg/yaml/issues/110)

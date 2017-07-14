@@ -116,6 +116,7 @@ spec = do
         it "True" $ D.encode (object ["foo" .= True]) `shouldBe` "foo: true\n"
         it "False" $ D.encode (object ["foo" .= False]) `shouldBe` "foo: false\n"
         it "simple string" $ D.encode (object ["foo" .= ("bar" :: T.Text)]) `shouldBe` "foo: bar\n"
+        it "*" $ D.encode (object ["foo" .= ("*" :: T.Text)]) `shouldBe` "foo: '*'\n"
 
     describe "special keys" $ do
         let tester key = it (T.unpack key) $

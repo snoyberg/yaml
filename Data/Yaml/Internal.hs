@@ -281,7 +281,7 @@ decodeHelper_ src = do
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
 specialStrings :: HashSet.HashSet Text
 specialStrings = HashSet.fromList $ T.words
-    "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~"
+    "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~ *"
 
 isNumeric :: Text -> Bool
 isNumeric t =
