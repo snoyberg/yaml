@@ -1,3 +1,7 @@
+## 0.8.24
+
+* New encodePretty option `setConfDropNull` to drop null values from objects [#116](https://github.com/snoyberg/yaml/issues/116)
+
 ## 0.8.23.3
 
 * Avoid over-escaping `*` [#113](https://github.com/snoyberg/yaml/issues/113)
