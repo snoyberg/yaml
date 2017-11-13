@@ -1,3 +1,9 @@
+## 0.8.25
+
+* Tweaks to the executable `yaml2json` [#119](https://github.com/snoyberg/yaml/pull/119): 
+    - Add command-line option `-h` and `--help` to show help message
+    - Error messages are now written to `stderr` instead of `stdout`
+
 ## 0.8.24
 
 * New encodePretty option `setConfDropNull` to drop null values from objects [#116](https://github.com/snoyberg/yaml/issues/116)
