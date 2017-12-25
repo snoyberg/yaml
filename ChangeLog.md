@@ -1,3 +1,7 @@
+## 0.8.25.1
+
+* Drop unused aeson-qq dep
+
 ## 0.8.25
 
 * Tweaks to the executable `yaml2json` [#119](https://github.com/snoyberg/yaml/pull/119): 

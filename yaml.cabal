@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.25
+version:         0.8.25.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
@@ -140,7 +140,6 @@ test-suite spec
                    , directory
                    , vector
                    , resourcet
-                   , aeson-qq
                    , mockery
                    , base-compat
                    , temporary
