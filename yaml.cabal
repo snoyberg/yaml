@@ -5,7 +5,7 @@ license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        Support for parsing and rendering YAML documents.
-description:     Please see the README.md file.
+description:     README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:        Web
 stability:       stable
 cabal-version:   >= 1.8
