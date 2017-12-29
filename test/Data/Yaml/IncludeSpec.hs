@@ -1,10 +1,9 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.Yaml.IncludeSpec (main, spec) where
 
 import           Test.Hspec
 import           Data.List (isPrefixOf)
 import           Data.Aeson
-import           Data.Aeson.QQ
 import           Data.Yaml (ParseException(InvalidYaml))
 import           Data.Yaml.Include
 import           Text.Libyaml (YamlException(YamlException))
@@ -12,28 +11,33 @@ import           Text.Libyaml (YamlException(YamlException))
 main :: IO ()
 main = hspec spec
 
+asInt :: Int -> Int
+asInt = id
+
 spec :: Spec
 spec = do
   describe "decodeFile" $ do
     it "supports includes" $ do
-      decodeFile "test/resources/foo.yaml" `shouldReturn` Just [aesonQQ|
-        {
-          foo: 23,
-          bar: {one: 1, two: 2},
-          baz: 42
-        }
-      |]
+      decodeFile "test/resources/foo.yaml" `shouldReturn` Just (object
+          [ "foo" .= asInt 23
+          , "bar" .= object
+              [ "one" .= asInt 1
+              , "two" .= asInt 2
+              ]
+          , "baz" .= asInt 42
+          ])
 
     it "supports recursive includes" $ do
-      decodeFile "test/resources/baz.yaml" `shouldReturn` Just [aesonQQ|
-      {
-        foo: {
-          foo: 23,
-          bar: {one: 1, two: 2},
-          baz: 42
-        }
-      }
-      |]
+      decodeFile "test/resources/baz.yaml" `shouldReturn` Just (object
+        [ "foo" .= object
+          [ "foo" .= asInt 23
+          , "bar" .= object
+            [ "one" .= asInt 1
+            , "two" .= asInt 2
+            ]
+          , "baz" .= asInt 42
+          ]
+        ])
 
     it "aborts on cyclic includes" $ do
       (decodeFile "test/resources/loop/foo.yaml" :: IO (Maybe Value)) `shouldThrow` anyException

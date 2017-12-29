@@ -1,6 +1,6 @@
 ## 0.8.25.1
 
-* Drop unused aeson-qq dep
+* Drop aeson-qq dep (incompatible with Stackage Nightly)
 
 ## 0.8.25
 
