@@ -1,3 +1,7 @@
+## 0.8.25.2
+
+* Use `throwM` instead of `monadThrow`
+
 ## 0.8.25.1
 
 * Drop aeson-qq dep (incompatible with Stackage Nightly)

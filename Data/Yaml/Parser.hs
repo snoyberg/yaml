@@ -9,7 +9,7 @@ import Control.Applicative
 import Control.Exception (Exception)
 import Control.Monad (MonadPlus (..), liftM, ap)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Resource (MonadThrow, monadThrow, runResourceT)
+import Control.Monad.Trans.Resource (MonadThrow, throwM, runResourceT)
 import Control.Monad.Trans.Writer.Strict (tell, WriterT)
 import Data.ByteString (ByteString)
 import Data.Conduit
@@ -124,7 +124,7 @@ data RawDoc = RawDoc YamlValue AnchorMap
 parseRawDoc :: (FromYaml a, MonadThrow m) => RawDoc -> m a
 parseRawDoc (RawDoc val am) =
     case unYamlParser (fromYaml val) am of
-        Left t -> monadThrow $ FromYamlException t
+        Left t -> throwM $ FromYamlException t
         Right x -> return x
 
 (.:) :: FromYaml a => [(Text, YamlValue)] -> Text -> YamlParser a
@@ -144,7 +144,7 @@ sinkValue :: MonadThrow m => Consumer Event (WriterT AnchorMap m) YamlValue
 sinkValue =
     start
   where
-    start = await >>= maybe (monadThrow UnexpectedEndOfEvents) go
+    start = await >>= maybe (throwM UnexpectedEndOfEvents) go
 
     tell' Nothing val = return val
     tell' (Just name) val = do
@@ -164,12 +164,12 @@ sinkValue =
         let val = Mapping pairs mname
         tell' mname val
 
-    go e = monadThrow $ UnexpectedEvent e
+    go e = throwM $ UnexpectedEvent e
 
     goS front = do
         me <- await
         case me of
-            Nothing -> monadThrow UnexpectedEndOfEvents
+            Nothing -> throwM UnexpectedEndOfEvents
             Just EventSequenceEnd -> return $ front []
             Just e -> do
                 val <- go e
@@ -178,14 +178,14 @@ sinkValue =
     goM front = do
         mk <- await
         case mk of
-            Nothing -> monadThrow UnexpectedEndOfEvents
+            Nothing -> throwM UnexpectedEndOfEvents
             Just EventMappingEnd -> return $ front []
             Just (EventScalar a b c d) -> do
                 _ <- tell' d $ Scalar a b c d
                 let k = decodeUtf8 a
                 v <- start
                 goM (front . ((k, v):))
-            Just e -> monadThrow $ UnexpectedEvent e
+            Just e -> throwM $ UnexpectedEvent e
 
 sinkRawDoc :: MonadThrow m => Consumer Event m RawDoc
 sinkRawDoc = uncurry RawDoc <$> runWriterC sinkValue
