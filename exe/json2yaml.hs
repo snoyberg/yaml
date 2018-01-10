@@ -8,7 +8,7 @@ import qualified Data.Yaml as Y
 main :: IO ()
 main = do
     args <- getArgs
-    (input, output) <- case args ++ repeat "-" of
+    (input, output) <- case args ++ replicate (2 - length args) "-" of
         [i, o] -> pure (i, o)
         _ -> fail "Usage: json2yaml [in] [out]"
     mval <- fmap J.decode $
