@@ -9,7 +9,7 @@ main :: IO ()
 main = do
     args <- getArgs
     let (input, output) = case args ++ repeat "-" of
-            (i:o:_) -> (i, o)
+            [i, o] -> (i, o)
             _ -> error "Usage: json2yaml [in] [out]"
     mval <- fmap J.decode $
         case input of
