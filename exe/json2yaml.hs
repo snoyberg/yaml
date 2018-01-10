@@ -9,7 +9,7 @@ main :: IO ()
 main = do
     args <- getArgs
     (input, output) <- case args ++ replicate (2 - length args) "-" of
-        [i, o] -> pure (i, o)
+        [i, o] -> return (i, o)
         _ -> fail "Usage: json2yaml [in] [out]"
     mval <- fmap J.decode $
         case input of
