@@ -338,11 +338,11 @@ caseEncodeDecodeNonAsciiFileData = do
     out1 <- D.decodeFile "accenté/bar.yaml"
     out1 @?= Just mySample
 
-  createDirectoryIfMissing True "test/resources/accenté/"
+  createDirectoryIfMissing True "test/resources/unicode/accenté/"
 
   readFile "test/resources/accent/foo.yaml" >>=
-    writeFile "test/resources/accenté/foo.yaml"
-  out2 <- D.decodeFile "test/resources/accenté/foo.yaml"
+    writeFile "test/resources/unicode/accenté/foo.yaml"
+  out2 <- D.decodeFile "test/resources/unicode/accenté/foo.yaml"
   out2 @?= Just mySample
 
 caseEncodeDecodeStrings :: Assertion
