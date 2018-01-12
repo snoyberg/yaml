@@ -18,6 +18,9 @@ import qualified Data.Map as Map
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (Monoid (..))
 #endif
+#if !MIN_VERSION_base(4,11,0)
+import Data.Semigroup (Semigroup(..))
+#endif
 import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Text.Read (signed, decimal)
@@ -36,9 +39,13 @@ instance Applicative YamlParser where
 instance Alternative YamlParser where
     empty = fail "empty"
     (<|>) = mplus
+instance Semigroup (YamlParser a) where
+    (<>) = mplus
 instance Monoid (YamlParser a) where
     mempty = fail "mempty"
-    mappend = mplus
+#if !MIN_VERSION_base(4,11,0)
+    mappend = (<>)
+#endif
 instance Monad YamlParser where
     return = pure
     YamlParser f >>= g = YamlParser $ \am ->
