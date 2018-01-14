@@ -1,3 +1,7 @@
+## 0.8.26
+
+* Add `Semigroup` instance [#123](https://github.com/snoyberg/yaml/pull/123)
+
 ## 0.8.25.2
 
 * Use `throwM` instead of `monadThrow`
