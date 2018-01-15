@@ -1,3 +1,7 @@
+## 0.8.27
+
+* Support conduit 1.3
+
 ## 0.8.26
 
 * Add `Semigroup` instance [#123](https://github.com/snoyberg/yaml/pull/123)
