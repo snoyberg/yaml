@@ -71,7 +71,6 @@ module Data.Yaml
 import Control.Applicative((<$>))
 #endif
 import Control.Exception
-import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson
     ( Value (..), ToJSON (..), FromJSON (..), object
     , (.=) , (.:) , (.:?) , (.!=)
@@ -85,7 +84,7 @@ import Data.Aeson.Encode (encodeToTextBuilder)
 #endif
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Data.ByteString (ByteString)
-import qualified Data.Conduit as C
+import Data.Conduit ((.|), runConduitRes)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
@@ -101,14 +100,14 @@ import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import qualified Text.Libyaml as Y
 
 encode :: ToJSON a => a -> ByteString
-encode obj = unsafePerformIO $
-    runResourceT $ CL.sourceList (objToEvents $ toJSON obj)
-                C.$$ Y.encode
+encode obj = unsafePerformIO $ runConduitRes
+    $ CL.sourceList (objToEvents $ toJSON obj)
+   .| Y.encode
 
 encodeFile :: ToJSON a => FilePath -> a -> IO ()
-encodeFile fp obj = runResourceT
-            $ CL.sourceList (objToEvents $ toJSON obj)
-         C.$$ Y.encodeFile fp
+encodeFile fp obj = runConduitRes
+    $ CL.sourceList (objToEvents $ toJSON obj)
+   .| Y.encodeFile fp
 
 objToEvents :: Value -> [Y.Event]
 objToEvents o = (:) EventStreamStart

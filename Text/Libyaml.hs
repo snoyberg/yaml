@@ -479,7 +479,7 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
-decode :: MonadResource m => B.ByteString -> Producer m Event
+decode :: MonadResource m => B.ByteString -> ConduitM i Event m ()
 decode bs | B8.null bs = return ()
 decode bs =
     bracketP alloc cleanup (runParser . fst)
@@ -521,7 +521,7 @@ openFile file rawOpenFlags openMode = do
     then withCString openMode $ \openMode' -> c_fdopen fd openMode'
     else return nullPtr
 
-decodeFile :: MonadResource m => FilePath -> Producer m Event
+decodeFile :: MonadResource m => FilePath -> ConduitM i Event m ()
 decodeFile file =
     bracketP alloc cleanup (runParser . fst)
   where
@@ -549,7 +549,7 @@ decodeFile file =
         c_yaml_parser_delete ptr
         free ptr
 
-runParser :: MonadResource m => Parser -> Producer m Event
+runParser :: MonadResource m => Parser -> ConduitM i Event m ()
 runParser parser = do
     e <- liftIO $ parserParseOne' parser
     case e of
@@ -573,7 +573,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
-encode :: MonadResource m => Consumer Event m ByteString
+encode :: MonadResource m => ConduitM Event o m ByteString
 encode =
     runEmitter alloc close
   where
@@ -590,7 +590,7 @@ encode =
 
 encodeFile :: MonadResource m
            => FilePath
-           -> Consumer Event m ()
+           -> ConduitM Event o m ()
 encodeFile filePath =
     bracketP getFile c_fclose $ \file -> runEmitter (alloc file) (\u _ -> return u)
   where
@@ -605,7 +605,7 @@ encodeFile filePath =
 runEmitter :: MonadResource m
            => (Emitter -> IO a) -- ^ alloc
            -> (() -> a -> IO b) -- ^ close
-           -> Consumer Event m b
+           -> ConduitM Event o m b
 runEmitter allocI closeI =
     bracketP alloc cleanup go
   where

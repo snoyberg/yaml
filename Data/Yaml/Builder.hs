@@ -21,7 +21,6 @@ module Data.Yaml.Builder
 import Prelude hiding (null)
 
 import Control.Arrow (second)
-import Control.Monad.Trans.Resource (runResourceT)
 #if MIN_VERSION_aeson(1,0,0)
 import Data.Aeson.Text (encodeToTextBuilder)
 #else
@@ -107,11 +106,11 @@ toEvents :: YamlBuilder -> [Event]
 toEvents (YamlBuilder front) =
     EventStreamStart : EventDocumentStart : front [EventDocumentEnd, EventStreamEnd]
 
-toSource :: (Monad m, ToYaml a) => a -> Source m Event
+toSource :: (Monad m, ToYaml a) => a -> ConduitM i Event m ()
 toSource = mapM_ yield . toEvents . toYaml
 
 toByteString :: ToYaml a => a -> ByteString
-toByteString yb = unsafePerformIO $ runResourceT $ toSource yb $$ encode
+toByteString yb = unsafePerformIO $ runConduitRes $ toSource yb .| encode
 
 writeYamlFile :: ToYaml a => FilePath -> a -> IO ()
-writeYamlFile fp yb = runResourceT $ toSource yb $$ encodeFile fp
+writeYamlFile fp yb = runConduitRes $ toSource yb .| encodeFile fp

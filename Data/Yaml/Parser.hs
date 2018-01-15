@@ -9,7 +9,7 @@ import Control.Applicative
 import Control.Exception (Exception)
 import Control.Monad (MonadPlus (..), liftM, ap)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Resource (MonadThrow, throwM, runResourceT)
+import Control.Monad.Trans.Resource (MonadThrow, throwM)
 import Control.Monad.Trans.Writer.Strict (tell, WriterT)
 import Data.ByteString (ByteString)
 import Data.Conduit
@@ -147,7 +147,7 @@ data YamlParseException
     deriving (Show, Typeable)
 instance Exception YamlParseException
 
-sinkValue :: MonadThrow m => Consumer Event (WriterT AnchorMap m) YamlValue
+sinkValue :: MonadThrow m => ConduitM Event o (WriterT AnchorMap m) YamlValue
 sinkValue =
     start
   where
@@ -194,8 +194,8 @@ sinkValue =
                 goM (front . ((k, v):))
             Just e -> throwM $ UnexpectedEvent e
 
-sinkRawDoc :: MonadThrow m => Consumer Event m RawDoc
+sinkRawDoc :: MonadThrow m => ConduitM Event o m RawDoc
 sinkRawDoc = uncurry RawDoc <$> runWriterC sinkValue
 
 readYamlFile :: FromYaml a => FilePath -> IO a
-readYamlFile fp = runResourceT (decodeFile fp $$ sinkRawDoc) >>= parseRawDoc
+readYamlFile fp = runConduitRes (decodeFile fp .| sinkRawDoc) >>= parseRawDoc

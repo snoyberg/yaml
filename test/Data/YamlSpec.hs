@@ -11,8 +11,7 @@ import qualified Data.ByteString.Char8 as B8
 
 import Test.HUnit hiding (Test, path)
 
-import qualified Data.Conduit as C
-import qualified Control.Monad.Trans.Resource as C
+import Data.Conduit (runConduitRes, (.|), ConduitM)
 import qualified Data.Conduit.List as CL
 
 import Control.Monad
@@ -172,7 +171,7 @@ specialStrings =
     , "foo\nbar\nbaz\n"
     ]
 
-counter :: Monad m => (Y.Event -> Bool) -> C.Sink Y.Event m Int
+counter :: Monad m => (Y.Event -> Bool) -> ConduitM Y.Event o m Int
 counter pred' =
     CL.fold (\cnt e -> (if pred' e then 1 else 0) + cnt) 0
 
@@ -181,7 +180,7 @@ caseHelper :: String
            -> Int
            -> Assertion
 caseHelper yamlString pred' expRes = do
-    res <- C.runResourceT $ Y.decode (B8.pack yamlString) C.$$ counter pred'
+    res <- runConduitRes $ Y.decode (B8.pack yamlString) .| counter pred'
     res @?= expRes
 
 caseCountScalarsWithAnchor :: Assertion
@@ -218,7 +217,7 @@ caseCountAliases =
 
 caseCountScalars :: Assertion
 caseCountScalars = do
-    res <- C.runResourceT $ Y.decode yamlBS C.$$ CL.fold adder accum
+    res <- runConduitRes $ Y.decode yamlBS .| CL.fold adder accum
     res @?= (7, 1, 2)
   where
     yamlString = "foo:\n  baz: [bin1, bin2, bin3]\nbaz: bazval"
@@ -231,7 +230,7 @@ caseCountScalars = do
 
 caseLargestString :: Assertion
 caseLargestString = do
-    res <- C.runResourceT $ Y.decodeFile filePath C.$$ CL.fold adder accum
+    res <- runConduitRes $ Y.decodeFile filePath .| CL.fold adder accum
     res @?= (length expected, expected)
     where
         expected = "this one is just a little bit bigger than the others"
@@ -251,9 +250,9 @@ instance Eq MyEvent where
 
 caseEncodeDecode :: Assertion
 caseEncodeDecode = do
-    eList <- C.runResourceT $ Y.decode yamlBS C.$$ CL.consume
-    bs <- C.runResourceT $ CL.sourceList eList C.$$ Y.encode
-    eList2 <- C.runResourceT $ Y.decode bs C.$$ CL.consume
+    eList <- runConduitRes $ Y.decode yamlBS .| CL.consume
+    bs <- runConduitRes $ CL.sourceList eList .| Y.encode
+    eList2 <- runConduitRes $ Y.decode bs .| CL.consume
     map MyEvent eList @=? map MyEvent eList2
   where
     yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
@@ -261,17 +260,17 @@ caseEncodeDecode = do
 
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = withFile "" $ \tmpPath -> do
-    eList <- C.runResourceT $ Y.decodeFile filePath C.$$ CL.consume
-    C.runResourceT $ CL.sourceList eList C.$$ Y.encodeFile tmpPath
-    eList2 <- C.runResourceT $ Y.decodeFile filePath C.$$ CL.consume
+    eList <- runConduitRes $ Y.decodeFile filePath .| CL.consume
+    runConduitRes $ CL.sourceList eList .| Y.encodeFile tmpPath
+    eList2 <- runConduitRes $ Y.decodeFile filePath .| CL.consume
     map MyEvent eList @=? map MyEvent eList2
   where
     filePath = "test/largest-string.yaml"
 
 caseInterleave :: Assertion
 caseInterleave = withFile "" $ \tmpPath -> withFile "" $ \tmpPath2 -> do
-    () <- C.runResourceT $ Y.decodeFile filePath C.$$ Y.encodeFile tmpPath
-    () <- C.runResourceT $ Y.decodeFile tmpPath C.$$ Y.encodeFile tmpPath2
+    () <- runConduitRes $ Y.decodeFile filePath .| Y.encodeFile tmpPath
+    () <- runConduitRes $ Y.decodeFile tmpPath .| Y.encodeFile tmpPath2
     f1 <- readFile tmpPath
     f2 <- readFile tmpPath2
     f1 @=? f2
@@ -280,7 +279,7 @@ caseInterleave = withFile "" $ \tmpPath -> withFile "" $ \tmpPath2 -> do
 
 caseDecodeInvalidDocument :: Assertion
 caseDecodeInvalidDocument = do
-    x <- try $ C.runResourceT $ Y.decode yamlBS C.$$ CL.sinkNull
+    x <- try $ runConduitRes $ Y.decode yamlBS .| CL.sinkNull
     case x of
         Left (_ :: SomeException) -> return ()
         Right y -> do

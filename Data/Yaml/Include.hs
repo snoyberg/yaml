@@ -27,19 +27,19 @@ import qualified Text.Libyaml as Y
 eventsFromFile
     :: MonadResource m
     => FilePath
-    -> Producer m Event
+    -> ConduitM i Event m ()
 eventsFromFile = go []
   where
-    go :: MonadResource m => [FilePath] -> FilePath -> Producer m Event
+    go :: MonadResource m => [FilePath] -> FilePath -> ConduitM i Event m ()
     go seen fp = do
         cfp <- liftIO $ handleNotFound $ canonicalizePath fp
         when (cfp `elem` seen) $ do
             liftIO $ throwIO CyclicIncludes
-        Y.decodeFile cfp $= do
+        Y.decodeFile cfp .| do
             awaitForever $ \event -> case event of
                 EventScalar f (UriTag "!include") _ _ -> do
                     let includeFile = takeDirectory cfp </> unpack (decodeUtf8 f)
-                    go (cfp : seen) includeFile $= CL.filter (`notElem` irrelevantEvents)
+                    go (cfp : seen) includeFile .| CL.filter (`notElem` irrelevantEvents)
                 _ -> yield event
 
     irrelevantEvents = [EventStreamStart, EventDocumentStart, EventDocumentEnd, EventStreamEnd]

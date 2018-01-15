@@ -27,7 +27,7 @@ import Data.Aeson.Types hiding (parse)
 import qualified Data.Attoparsec.Text as Atto
 import Data.ByteString (ByteString)
 import Data.Char (toUpper)
-import qualified Data.Conduit as C
+import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
@@ -125,12 +125,12 @@ instance MonadIO m => MonadIO (PErrorT m) where
 
 type Parse = StateT (Map.Map String Value) (ResourceT IO)
 
-requireEvent :: Event -> C.Sink Event Parse ()
+requireEvent :: Event -> ConduitM Event o Parse ()
 requireEvent e = do
     f <- CL.head
     unless (f == Just e) $ liftIO $ throwIO $ UnexpectedEvent f $ Just e
 
-parse :: C.Sink Event Parse Value
+parse :: ConduitM Event o Parse Value
 parse = do
     streamStart <- CL.head
     case streamStart of
@@ -152,7 +152,7 @@ parse = do
         _ -> liftIO $ throwIO $ UnexpectedEvent streamStart Nothing
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
-            -> C.Sink Event Parse Text
+            -> ConduitM Event o Parse Text
 parseScalar v a style tag = do
     let res = decodeUtf8With lenientDecode v
     case a of
@@ -178,7 +178,7 @@ textToValue _ _ t
 textToScientific :: Text -> Either String Scientific
 textToScientific = Atto.parseOnly (Atto.scientific <* Atto.endOfInput)
 
-parseO :: C.Sink Event Parse Value
+parseO :: ConduitM Event o Parse Value
 parseO = do
     me <- CL.head
     case me of
@@ -194,7 +194,7 @@ parseO = do
 
 parseS :: Y.Anchor
        -> ([Value] -> [Value])
-       -> C.Sink Event Parse Value
+       -> ConduitM Event o Parse Value
 parseS a front = do
     me <- CL.peek
     case me of
@@ -212,7 +212,7 @@ parseS a front = do
 
 parseM :: Y.Anchor
        -> M.HashMap Text Value
-       -> C.Sink Event Parse Value
+       -> ConduitM Event o Parse Value
 parseM a front = do
     me <- CL.peek
     case me of
@@ -249,13 +249,13 @@ parseM a front = do
           merge' al _           = al
 
 decodeHelper :: FromJSON a
-             => C.Source Parse Y.Event
+             => ConduitM () Y.Event Parse ()
              -> IO (Either ParseException (Either String a))
 decodeHelper src = do
     -- This used to be tryAny, but the fact is that catching async
     -- exceptions is fine here. We'll rethrow them immediately in the
     -- otherwise clause.
-    x <- try $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    x <- try $ runResourceT $ flip evalStateT Map.empty $ runConduit $ src .| parse
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
@@ -264,10 +264,10 @@ decodeHelper src = do
         Right y -> return $ Right $ parseEither parseJSON y
 
 decodeHelper_ :: FromJSON a
-              => C.Source Parse Event
+              => ConduitM () Event Parse ()
               -> IO (Either ParseException a)
 decodeHelper_ src = do
-    x <- try $ runResourceT $ flip evalStateT Map.empty $ src C.$$ parse
+    x <- try $ runResourceT $ flip evalStateT Map.empty $ runConduit $ src .| parse
     return $ case x of
         Left e
             | Just pe <- fromException e -> Left pe
