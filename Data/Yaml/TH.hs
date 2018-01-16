@@ -1,10 +1,10 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
 
 module Data.Yaml.TH
   ( -- * Decoding
     decodeFile
+  , yamlQQ
     -- * Re-exports from "Data.Yaml"
   , Value (..)
   , Parser
@@ -19,9 +19,13 @@ module Data.Yaml.TH
   , FromJSON (..)
   ) where
 
-import Data.Yaml hiding (decodeFile)
-import Language.Haskell.TH
-import Language.Haskell.TH.Syntax
+import           Data.Text.Encoding
+import qualified Data.Text as T
+import           Language.Haskell.TH
+import           Language.Haskell.TH.Syntax
+import           Language.Haskell.TH.Quote
+
+import           Data.Yaml hiding (decodeFile)
 
 -- | Decode a @yaml@ file at compile time. Only available on GHC version @7.8.1@
 -- or higher.
@@ -42,3 +46,20 @@ decodeFile path = do
   runIO (decodeFileEither path) >>= \case
     Left err -> fail (prettyPrintParseException err)
     Right x -> fmap TExp (lift (x :: a))
+
+decodeValue :: String -> Either String Value
+decodeValue = decodeEither . encodeUtf8 . T.pack
+
+yamlExp :: String -> Q Exp
+yamlExp input = case decodeValue input of
+  Left err -> fail err
+  Right a -> lift a
+
+yamlQQ :: QuasiQuoter
+yamlQQ = QuasiQuoter {
+  quoteExp  = yamlExp
+, quotePat  = notDefined "quotePat"
+, quoteType = notDefined "quoteType"
+, quoteDec  = notDefined "quoteDec"
+} where
+    notDefined name _ = fail (name ++ " is not defined for yamlQQ")
