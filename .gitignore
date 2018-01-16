@@ -5,4 +5,3 @@ cabal-dev/
 cabal.sandbox.config
 .stack-work/
 *~
-test/resources/unicode
