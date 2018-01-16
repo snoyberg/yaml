@@ -1,10 +1,13 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.Yaml.TH
   ( -- * Decoding
-    decodeFile
-  , yamlQQ
+    yamlQQ
+#if MIN_VERSION_template_haskell(2,9,0)
+  , decodeFile
+#endif
     -- * Re-exports from "Data.Yaml"
   , Value (..)
   , Parser
@@ -27,6 +30,7 @@ import           Language.Haskell.TH.Quote
 
 import           Data.Yaml hiding (decodeFile)
 
+#if MIN_VERSION_template_haskell(2,9,0)
 -- | Decode a @yaml@ file at compile time. Only available on GHC version @7.8.1@
 -- or higher.
 --
@@ -46,6 +50,7 @@ decodeFile path = do
   runIO (decodeFileEither path) >>= \case
     Left err -> fail (prettyPrintParseException err)
     Right x -> fmap TExp (lift (x :: a))
+#endif
 
 decodeValue :: String -> Either String Value
 decodeValue = decodeEither . encodeUtf8 . T.pack
