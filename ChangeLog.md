@@ -1,3 +1,7 @@
+## 0.8.28
+
+* Add `Data.Yaml.TH.yamlQQ`
+
 ## 0.8.27
 
 * Support conduit 1.3

@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.27
+version:         0.8.28
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
@@ -60,6 +60,7 @@ library
                    , filepath
                    , directory
                    , semigroups
+                   , template-haskell
     exposed-modules: Text.Libyaml
                      Data.Yaml
                      Data.Yaml.Aeson
@@ -68,9 +69,7 @@ library
                      Data.Yaml.Include
                      Data.Yaml.Parser
                      Data.Yaml.Pretty
-    if impl(ghc >= 7.8.1)
-      build-depends: template-haskell >= 2.8.0.0
-      exposed-modules: Data.Yaml.TH
+                     Data.Yaml.TH
     other-modules:
                      Data.Yaml.Internal
     ghc-options:     -Wall
@@ -126,6 +125,7 @@ test-suite spec
     main-is:         Spec.hs
     other-modules:   Data.YamlSpec
                      Data.Yaml.IncludeSpec
+                     Data.Yaml.THSpec
     cpp-options:     -DTEST
     build-depends:   hspec >= 1.3
                    , HUnit
