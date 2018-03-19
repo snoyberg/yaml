@@ -165,6 +165,7 @@ decodeFile :: FromJSON a
            => FilePath
            -> IO (Maybe a)
 decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO (return . either (const Nothing) id)
+{-# DEPRECATED decodeFile "Please use decodeFileEither, which does not confused type-directed and runtime exceptions." #-}
 
 -- | A version of 'decodeFile' which should not throw runtime exceptions.
 --

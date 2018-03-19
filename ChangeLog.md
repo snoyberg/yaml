@@ -1,3 +1,7 @@
+## 0.8.29
+
+* Deprecated `decodeFile` [#129](https://github.com/snoyberg/yaml/issues/129)
+
 ## 0.8.28
 
 * Add `Data.Yaml.TH.yamlQQ`
