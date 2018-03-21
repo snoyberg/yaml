@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.29
+version:         0.8.30
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
@@ -30,7 +30,7 @@ extra-source-files: c/helper.h
 
 flag no-exe
   description: don't install the yaml2json or json2yaml executables
-  default: False
+  default: True
 
 flag no-examples
   description: don't build the examples

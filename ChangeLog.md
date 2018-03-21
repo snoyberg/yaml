@@ -1,3 +1,7 @@
+## 0.8.30
+
+* Turn off executables by default [#103](https://github.com/snoyberg/yaml/issues/103)
+
 ## 0.8.29
 
 * Deprecated `decodeFile` [#129](https://github.com/snoyberg/yaml/issues/129)
