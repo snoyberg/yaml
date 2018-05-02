@@ -195,7 +195,7 @@ loadYamlSettings runTimeFiles compileValues envUsage = do
             RequireCustomEnv env -> return $ applyEnvValue   True  env    value'
 
     case fromJSON value of
-        Error s -> error $ "Could not convert to AppSettings: " ++ s
+        Error s -> error $ "Could not convert: " ++ s
         Success settings -> return settings
 
 -- | Same as @loadYamlSettings@, but get the list of runtime config files from
