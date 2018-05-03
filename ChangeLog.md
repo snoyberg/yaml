@@ -1,3 +1,7 @@
+## 0.8.30
+
+* Removed `AppSettings` mentioned in `loadYamlSettings` error message.
+
 ## 0.8.29
 
 * Deprecated `decodeFile` [#129](https://github.com/snoyberg/yaml/issues/129)
