@@ -1,3 +1,7 @@
+## 0.8.31
+
+* Add `decodeThrow` and `decodeFileThrow` convenience functions.
+
 ## 0.8.30
 
 * Removed `AppSettings` mentioned in `loadYamlSettings` error message.
