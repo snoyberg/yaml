@@ -46,6 +46,11 @@ data TestJSON = TestJSON
 
 deriveJSON defaultOptions ''TestJSON
 
+shouldDecode :: (Show a, D.FromJSON a, Eq a) => B8.ByteString -> a -> IO ()
+shouldDecode bs expected = do
+  actual <- D.decodeThrow bs
+  actual `shouldBe` expected
+
 main :: IO ()
 main = hspec spec
 
@@ -120,13 +125,13 @@ spec = do
     describe "special keys" $ do
         let tester key = it (T.unpack key) $
                 let value = object [key .= True]
-                 in D.decode (D.encode value) `shouldBe` Just value
+                 in D.encode value `shouldDecode` value
         mapM_ tester specialStrings
 
     describe "special values" $ do
         let tester value = it (T.unpack value) $
                 let value' = object ["foo" .= value]
-                 in D.decode (D.encode value') `shouldBe` Just value'
+                 in D.encode value' `shouldDecode` value'
         mapM_ tester specialStrings
 
     describe "decodeFileEither" $ do
@@ -149,13 +154,13 @@ spec = do
         let special = words "y Y On ON false 12345 12345.0 12345a 12e3"
         forM_ special $ \w -> it w $
             let v = object ["word" .= w]
-             in D.decode (D.encode v) `shouldBe` Just v
+             in D.encode v `shouldDecode` v
         it "no tags" $ D.encode (object ["word" .= ("true" :: String)]) `shouldBe` "word: 'true'\n"
 
     it "aliases in keys #49" caseIssue49
 
     it "serialization of +123 #64" $ do
-        D.decode (D.encode ("+123" :: String)) `shouldBe` Just ("+123" :: String)
+        D.encode ("+123" :: String) `shouldDecode` ("+123" :: String)
 
     it "preserves Scientific precision" casePreservesScientificPrecision
 
@@ -299,9 +304,6 @@ mappingKey :: D.Value-> String -> D.Value
 mappingKey (D.Object m) k = (fromJust . M.lookup (T.pack k) $ m)
 mappingKey _ _ = error "expected Object"
 
-decodeYaml :: String -> Maybe D.Value
-decodeYaml s = D.decode $ B8.pack s
-
 sample :: D.Value
 sample = array
     [ D.String "foo"
@@ -313,20 +315,17 @@ sample = array
     ]
 
 caseEncodeDecodeData :: Assertion
-caseEncodeDecodeData = do
-    let out = D.decode $ D.encode sample
-    out @?= Just sample
+caseEncodeDecodeData = D.encode sample `shouldDecode` sample
 
 caseEncodeDecodeDataPretty :: Assertion
-caseEncodeDecodeDataPretty = do
-    let out = D.decode $ Pretty.encodePretty Pretty.defConfig sample
-    out @?= Just sample
+caseEncodeDecodeDataPretty =
+    Pretty.encodePretty Pretty.defConfig sample `shouldDecode` sample
 
 caseEncodeDecodeFileData :: Assertion
 caseEncodeDecodeFileData = withFile "" $ \fp -> do
     D.encodeFile fp sample
-    out <- D.decodeFile fp
-    out @?= Just sample
+    out <- D.decodeFileThrow fp
+    out @?= sample
 
 caseEncodeDecodeNonAsciiFileData :: Assertion
 caseEncodeDecodeNonAsciiFileData = do
@@ -334,89 +333,74 @@ caseEncodeDecodeNonAsciiFileData = do
   inTempDirectory $ do
     createDirectory "accenté"
     D.encodeFile "accenté/bar.yaml" mySample
-    out1 <- D.decodeFile "accenté/bar.yaml"
-    out1 @?= Just mySample
+    out1 <- D.decodeFileThrow "accenté/bar.yaml"
+    out1 @?= mySample
 
   c <- readFile "test/resources/accent/foo.yaml"
   inTempDirectory $ do
     createDirectoryIfMissing True "test/resources/unicode/accenté/"
     writeFile "test/resources/unicode/accenté/foo.yaml" c
-    out2 <- D.decodeFile "test/resources/unicode/accenté/foo.yaml"
-    out2 @?= Just mySample
+    out2 <- D.decodeFileThrow "test/resources/unicode/accenté/foo.yaml"
+    out2 @?= mySample
 
 caseEncodeDecodeStrings :: Assertion
-caseEncodeDecodeStrings = do
-    let out = D.decode $ D.encode sample
-    out @?= Just sample
+caseEncodeDecodeStrings = D.encode sample `shouldDecode` sample
 
 caseEncodeDecodeStringsPretty :: Assertion
-caseEncodeDecodeStringsPretty = do
-    let out = D.decode $ Pretty.encodePretty Pretty.defConfig sample
-    out @?= Just sample
+caseEncodeDecodeStringsPretty =
+    Pretty.encodePretty Pretty.defConfig sample `shouldDecode` sample
 
 caseDecodeInvalid :: Assertion
-caseDecodeInvalid = do
-    let invalid = B8.pack "\tthis is 'not' valid :-)"
-    Nothing @=? (D.decode invalid :: Maybe D.Value)
+caseDecodeInvalid =
+    D.decodeThrow "\tthis is 'not' valid :-)" `shouldBe`
+    (Nothing :: Maybe D.Value)
 
 caseSimpleScalarAlias :: Assertion
-caseSimpleScalarAlias = do
-    let maybeRes = decodeYaml "- &anch foo\n- baz\n- *anch"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
-    res @?= array [(mkScalar "foo"), (mkScalar "baz"), (mkScalar "foo")]
+caseSimpleScalarAlias =
+    "- &anch foo\n- baz\n- *anch" `shouldDecode`
+    array [(mkScalar "foo"), (mkScalar "baz"), (mkScalar "foo")]
 
 caseSimpleSequenceAlias :: Assertion
-caseSimpleSequenceAlias = do
-    let maybeRes = decodeYaml "seq: &anch\n  - foo\n  - baz\nseq2: *anch"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
-    res @?= object [("seq", array [(mkScalar "foo"), (mkScalar "baz")]), ("seq2", array [(mkScalar "foo"), (mkScalar "baz")])]
+caseSimpleSequenceAlias =
+    "seq: &anch\n  - foo\n  - baz\nseq2: *anch" `shouldDecode`
+    object [("seq", array [(mkScalar "foo"), (mkScalar "baz")]), ("seq2", array [(mkScalar "foo"), (mkScalar "baz")])]
 
 caseSimpleMappingAlias :: Assertion
-caseSimpleMappingAlias = do
-    let maybeRes = decodeYaml "map: &anch\n  key1: foo\n  key2: baz\nmap2: *anch"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
-    res @?= object [(T.pack "map", object [("key1", mkScalar "foo"), ("key2", (mkScalar "baz"))]), (T.pack "map2", object [("key1", (mkScalar "foo")), ("key2", mkScalar "baz")])]
+caseSimpleMappingAlias =
+    "map: &anch\n  key1: foo\n  key2: baz\nmap2: *anch" `shouldDecode`
+    object [(T.pack "map", object [("key1", mkScalar "foo"), ("key2", (mkScalar "baz"))]), (T.pack "map2", object [("key1", (mkScalar "foo")), ("key2", mkScalar "baz")])]
 
 caseMappingAliasBeforeAnchor :: Assertion
-caseMappingAliasBeforeAnchor = do
-    let res = decodeYaml "map: *anch\nmap2: &anch\n  key1: foo\n  key2: baz"
-    isNothing res @? "decode should return Nothing due to unknown alias"
+caseMappingAliasBeforeAnchor =
+    case D.decodeThrow "map: *anch\nmap2: &anch\n  key1: foo\n  key2: baz" of
+      Nothing -> pure ()
+      Just (_ :: D.Value) -> error "decode should return Nothing due to unknown alias"
 
 caseMappingAliasInsideAnchor :: Assertion
 caseMappingAliasInsideAnchor = do
-    let res = decodeYaml "map: &anch\n  key1: foo\n  key2: *anch"
-    isNothing res @? "decode should return Nothing due to unknown alias"
+    case D.decodeThrow "map: &anch\n  key1: foo\n  key2: *anch" of
+      Nothing -> pure ()
+      Just (_ :: D.Value) -> error "decode should return Nothing due to unknown alias"
 
 caseScalarAliasOverriding :: Assertion
-caseScalarAliasOverriding = do
-    let maybeRes = decodeYaml "- &anch foo\n- baz\n- *anch\n- &anch boo\n- buz\n- *anch"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
-    res @?= array [(mkScalar "foo"), (mkScalar "baz"), (mkScalar "foo"), (mkScalar "boo"), (mkScalar "buz"), (mkScalar "boo")]
+caseScalarAliasOverriding =
+    "- &anch foo\n- baz\n- *anch\n- &anch boo\n- buz\n- *anch" `shouldDecode`
+    array [(mkScalar "foo"), (mkScalar "baz"), (mkScalar "foo"), (mkScalar "boo"), (mkScalar "buz"), (mkScalar "boo")]
 
 caseAllKeysShouldBeUnique :: Assertion
 caseAllKeysShouldBeUnique = do
-    let maybeRes = decodeYaml "foo1: foo\nfoo2: baz\nfoo1: buz"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
-    mappingKey res "foo1" @?= (mkScalar "buz")
+    res <- D.decodeThrow "foo1: foo\nfoo2: baz\nfoo1: buz"
+    mappingKey res "foo1" `shouldBe` mkScalar "buz"
 
 caseSimpleMappingMerge :: Assertion
 caseSimpleMappingMerge = do
-    let maybeRes = decodeYaml "foo1: foo\nfoo2: baz\n<<:\n  foo1: buz\n  foo3: fuz"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
-    mappingKey res "foo1" @?= (mkScalar "foo")
-    mappingKey res "foo3" @?= (mkScalar "fuz")
+    res <- D.decodeThrow "foo1: foo\nfoo2: baz\n<<:\n  foo1: buz\n  foo3: fuz"
+    mappingKey res "foo1" `shouldBe` mkScalar "foo"
+    mappingKey res "foo3" `shouldBe` mkScalar "fuz"
 
 caseMergeSequence :: Assertion
 caseMergeSequence = do
-    let maybeRes = decodeYaml "m1: &m1\n  k1: !!str 1\n  k2: !!str 2\nm2: &m2\n  k1: !!str 3\n  k3: !!str 4\nfoo1: foo\n<<: [ *m1, *m2 ]"
-    isJust maybeRes @? "decoder should return Just YamlObject but returned Nothing"
-    let res = fromJust maybeRes
+    res <- D.decodeThrow "m1: &m1\n  k1: !!str 1\n  k2: !!str 2\nm2: &m2\n  k1: !!str 3\n  k3: !!str 4\nfoo1: foo\n<<: [ *m1, *m2 ]"
     mappingKey res "foo1" @?= (mkScalar "foo")
     mappingKey res "k1" @?= (D.String "1")
     mappingKey res "k2" @?= (D.String "2")
@@ -424,7 +408,7 @@ caseMergeSequence = do
 
 caseDataTypes :: Assertion
 caseDataTypes =
-    D.decode (D.encode val) @?= Just val
+    D.encode val `shouldDecode` val
   where
     val = object
         [ ("string", D.String "foo")
@@ -437,11 +421,11 @@ caseDataTypes =
 
 caseEncodeInvalidNumbers :: Assertion
 caseEncodeInvalidNumbers =
-    D.encode (D.String ".") @?= ".\n"
+    D.encode (D.String ".") `shouldBe` ".\n"
 
 caseDataTypesPretty :: Assertion
 caseDataTypesPretty =
-    D.decode (Pretty.encodePretty Pretty.defConfig val) @?= Just val
+    Pretty.encodePretty Pretty.defConfig val `shouldDecode` val
   where
     val = object
         [ ("string", D.String "foo")
@@ -452,21 +436,21 @@ caseDataTypesPretty =
         , ("null", D.Null)
         ]
 caseQuotedNumber, caseUnquotedNumber, caseAttribNumber, caseIntegerDecimals :: Assertion
-caseQuotedNumber = D.decode "foo: \"1234\"" @?= Just (object [("foo", D.String "1234")])
-caseUnquotedNumber = D.decode "foo: 1234" @?= Just (object [("foo", D.Number 1234)])
-caseAttribNumber = D.decode "foo: !!str 1234" @?= Just (object [("foo", D.String "1234")])
-caseIntegerDecimals = D.encode (1 :: Int) @?= "1\n"
+caseQuotedNumber = "foo: \"1234\"" `shouldDecode` object [("foo", D.String "1234")]
+caseUnquotedNumber = "foo: 1234" `shouldDecode` object [("foo", D.Number 1234)]
+caseAttribNumber = "foo: !!str 1234" `shouldDecode` object [("foo", D.String "1234")]
+caseIntegerDecimals = "1\n" `shouldDecode` (1 :: Int)
 
-obj :: Maybe D.Value
-obj = Just (object [("foo", D.Bool False), ("bar", D.Bool True), ("baz", D.Bool True)])
+obj :: D.Value
+obj = object [("foo", D.Bool False), ("bar", D.Bool True), ("baz", D.Bool True)]
 
 caseLowercaseBool, caseUppercaseBool, caseTitlecaseBool :: Assertion
-caseLowercaseBool = D.decode "foo: off\nbar: y\nbaz: true" @?= obj
-caseUppercaseBool = D.decode "foo: FALSE\nbar: Y\nbaz: ON" @?= obj
-caseTitlecaseBool = D.decode "foo: No\nbar: Yes\nbaz: True" @?= obj
+caseLowercaseBool = "foo: off\nbar: y\nbaz: true" `shouldDecode` obj
+caseUppercaseBool = "foo: FALSE\nbar: Y\nbaz: ON" `shouldDecode` obj
+caseTitlecaseBool = "foo: No\nbar: Yes\nbaz: True" `shouldDecode` obj
 
 caseEmptyInput :: Assertion
-caseEmptyInput = D.decodeEither B8.empty @?= Right D.Null
+caseEmptyInput = B8.empty `shouldDecode` D.Null
 
 caseEmptyInputFile :: Assertion
 caseEmptyInputFile = do
@@ -474,7 +458,7 @@ caseEmptyInputFile = do
     either (Left . D.prettyPrintParseException) Right out @?= Right D.Null
 
 caseCommentOnlyInput :: Assertion
-caseCommentOnlyInput = D.decodeEither "# comment\n" @?= Right D.Null
+caseCommentOnlyInput = "# comment\n" `shouldDecode` D.Null
 
 caseCommentOnlyInputFile :: Assertion
 caseCommentOnlyInputFile = do
@@ -483,13 +467,12 @@ caseCommentOnlyInputFile = do
 
 checkNull :: T.Text -> Spec
 checkNull x =
-    it ("null recognized: " ++ show x) assertion
-  where
-    assertion = Just (object [("foo", D.Null)]) @=? D.decode (B8.pack $ "foo: " ++ T.unpack x)
+    it ("null recognized: " ++ show x) $
+      B8.pack ("foo: " ++ T.unpack x) `shouldDecode` object [("foo", D.Null)]
 
 caseStripAlias :: Assertion
 caseStripAlias =
-    D.decode src @?= Just (object
+    src `shouldDecode` object
         [ "Default" .= object
             [ "foo" .= (1 :: Int)
             , "bar" .= (2 :: Int)
@@ -499,24 +482,24 @@ caseStripAlias =
             , "bar" .= (2 :: Int)
             , "key" .= (3 :: Int)
             ]
-        ])
+        ]
   where
     src = "Default: &def\n  foo: 1\n  bar: 2\nObj:\n  <<: *def\n  key: 3\n"
 
 caseIssue49 :: Assertion
 caseIssue49 =
-    D.decodeEither src @?= Right (object
+    src `shouldDecode` object
         [ "a" .= object [ "value" .= (1.0 :: Double) ]
         , "b" .= object [ "value" .= (1.2 :: Double) ]
-        ])
+        ]
   where
     src = "---\na:\n  &id5 value: 1.0\nb:\n  *id5: 1.2"
 
 -- | We cannot guarantee this before aeson started using 'Scientific'.
 casePreservesScientificPrecision :: Assertion
 casePreservesScientificPrecision = do
-    D.decodeEither "x: 1e-100000" @?= Right (object
-        [ "x" .= D.Number (read "1e-100000") ])
+    "x: 1e-100000" `shouldDecode` object
+        [ "x" .= D.Number (read "1e-100000") ]
     -- Note that this ought to work also without 'Scientific', given
     -- that @read (show "9.78159610558926e-5") == 9.78159610558926e-5@.
     -- However, it didn't work (and still doesn't work with aeson < 0.7)
@@ -526,8 +509,8 @@ casePreservesScientificPrecision = do
     -- can be;
     -- * Even if we used 'Data.Text.Read.rational' we would not get good
     -- results, because of <https://github.com/bos/text/issues/34>.
-    D.decodeEither "x: 9.78159610558926e-5" @?= Right (object
-        [ "x" .= D.Number (read "9.78159610558926e-5") ])
+    "x: 9.78159610558926e-5" `shouldDecode` object
+        [ "x" .= D.Number (read "9.78159610558926e-5") ]
 
 caseTruncatesFiles :: Assertion
 caseTruncatesFiles = withSystemTempFile "truncate.yaml" $ \fp h -> do
