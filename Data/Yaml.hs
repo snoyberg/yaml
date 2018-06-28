@@ -26,8 +26,18 @@ module Data.Yaml {-# WARNING "GHCJS is not supported yet (will break at runtime 
 #else
 module Data.Yaml
 #endif
-    ( -- * Types
-      Value (..)
+    ( -- * Encoding
+      encode
+    , encodeFile
+      -- * Decoding
+    , decodeEither'
+    , decodeFileEither
+    , decodeThrow
+    , decodeFileThrow
+      -- ** More control over decoding
+    , decodeHelper
+      -- * Types
+    , Value (..)
     , Parser
     , Object
     , Array
@@ -55,19 +65,10 @@ module Data.Yaml
       -- * Classes
     , ToJSON (..)
     , FromJSON (..)
-      -- * Encoding/decoding
-    , encode
-    , encodeFile
+      -- * Deprecated
     , decode
     , decodeFile
-      -- ** Better error information
     , decodeEither
-    , decodeEither'
-    , decodeFileEither
-    , decodeThrow
-    , decodeFileThrow
-      -- ** More control over decoding
-    , decodeHelper
     ) where
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative((<$>))
@@ -103,11 +104,13 @@ import Data.Yaml.Internal
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
 import qualified Text.Libyaml as Y
 
+-- | Encode a value into its YAML representation.
 encode :: ToJSON a => a -> ByteString
 encode obj = unsafePerformIO $ runConduitRes
     $ CL.sourceList (objToEvents $ toJSON obj)
    .| Y.encode
 
+-- | Encode a value into its YAML representation and save to the given file.
 encodeFile :: ToJSON a => FilePath -> a -> IO ()
 encodeFile fp obj = runConduitRes
     $ CL.sourceList (objToEvents $ toJSON obj)
@@ -208,6 +211,7 @@ decodeThrow = either throwM return . decodeEither'
 decodeFileThrow :: (MonadIO m, FromJSON a) => FilePath -> m a
 decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
 
+-- | Construct a new 'Value' from a list of 'Value's.
 array :: [Value] -> Value
 array = Array . V.fromList
 
