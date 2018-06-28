@@ -173,7 +173,7 @@ decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO (return . eith
 
 -- | A version of 'decodeFile' which should not throw runtime exceptions.
 --
--- Since 0.8.4
+-- @since 0.8.4
 decodeFileEither
     :: FromJSON a
     => FilePath
@@ -187,7 +187,7 @@ decodeEither bs = unsafePerformIO
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
 --
--- Since 0.8.3
+-- @since 0.8.3
 decodeEither' :: FromJSON a => ByteString -> Either ParseException a
 decodeEither' = either Left (either (Left . AesonException) Right)
               . unsafePerformIO
@@ -196,13 +196,13 @@ decodeEither' = either Left (either (Left . AesonException) Right)
 
 -- | A version of 'decodeEither'' lifted to MonadThrow
 --
--- Since 0.8.31
+-- @since 0.8.31
 decodeThrow :: (MonadThrow m, FromJSON a) => ByteString -> m a
 decodeThrow = either throwM return . decodeEither'
 
 -- | A version of 'decodeFileEither' lifted to MonadIO
 --
--- Since 0.8.31
+-- @since 0.8.31
 decodeFileThrow :: (MonadIO m, FromJSON a) => FilePath -> m a
 decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
 
