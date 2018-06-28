@@ -46,7 +46,9 @@ flag no-unicode
 
 library
     other-extensions: LambdaCase
-    build-depends:   base >= 4 && < 5
+    if impl(ghc < 8.0.2)
+      buildable: False
+    build-depends:   base >= 4.9.1 && < 5
                    , transformers >= 0.1
                    , bytestring >= 0.9.1.4
                    , conduit >= 1.2.8 && < 1.4
