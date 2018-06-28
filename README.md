@@ -1,8 +1,11 @@
 ## yaml
 
+[![Build Status](https://travis-ci.org/snoyberg/yaml.svg?branch=master)](https://travis-ci.org/snoyberg/yaml)
+[![Build status](https://ci.appveyor.com/api/projects/status/hqy2jketp8m502so/branch/master?svg=true)](https://ci.appveyor.com/project/snoyberg/yaml/branch/master)
+
 Provides support for parsing and emitting Yaml documents.
 
-This package includes the [full libyaml C library version 0.1.7 by Kirill Simonov](http://pyyaml.org/wiki/LibYAML) in the package so you don't need to worry about any non-Haskell dependencies.
+This package includes the [full libyaml C library version 0.2.1 by Kirill Simonov](https://github.com/yaml/libyaml) in the package so you don't need to worry about any non-Haskell dependencies.
 
 The package is broken down into two primary modules. `Data.Yaml` provides a high-level interface based around the JSON datatypes provided by the `aeson` package. `Text.Libyaml` provides a lower-level, streaming interface. For most users, `Data.Yaml` is recommended.
 
