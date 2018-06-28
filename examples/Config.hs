@@ -50,5 +50,6 @@ instance FromJSON Config where
   parseJSON _ = fail "Expected Object for Config value"
 
 main :: IO ()
-main =
-  print $ (Y.decode configYaml :: Maybe Config)
+main = do
+  config <- Y.decodeThrow configYaml
+  print (config :: Config)

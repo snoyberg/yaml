@@ -30,7 +30,6 @@ import           Language.Haskell.TH.Quote
 
 import           Data.Yaml hiding (decodeFile)
 
-#if MIN_VERSION_template_haskell(2,9,0)
 -- | Decode a YAML file at compile time. Only available on GHC version @7.8.1@
 -- or higher.
 --
@@ -47,18 +46,13 @@ import           Data.Yaml hiding (decodeFile)
 decodeFile :: forall a. (Lift a, FromJSON a) => FilePath -> Q (TExp a)
 decodeFile path = do
   addDependentFile path
-  runIO (decodeFileEither path) >>= \case
-    Left err -> fail (prettyPrintParseException err)
-    Right x -> fmap TExp (lift (x :: a))
-#endif
-
-decodeValue :: String -> Either String Value
-decodeValue = decodeEither . encodeUtf8 . T.pack
+  x <- runIO $ decodeFileThrow path
+  fmap TExp (lift (x :: a))
 
 yamlExp :: String -> Q Exp
-yamlExp input = case decodeValue input of
-  Left err -> fail err
-  Right a -> lift a
+yamlExp input = do
+  val <- runIO $ decodeThrow $ encodeUtf8 $ T.pack input
+  lift (val :: Value)
 
 -- | A @QuasiQuoter@ for YAML.
 --

@@ -93,7 +93,10 @@ applyEnvValue requireEnv' env =
                     _ -> Null
     goV v = v
 
-    parseValue val = fromMaybe (String val) $ Y.decode $ encodeUtf8 val
+    parseValue val = either
+      (const (String val))
+      id
+      (Y.decodeThrow $ encodeUtf8 val)
 
 -- | Get the actual environment as a @HashMap@ from @Text@ to @Text@.
 --
