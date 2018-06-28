@@ -164,6 +164,7 @@ decode :: FromJSON a
 decode bs = unsafePerformIO
           $ either (const Nothing) id
           <$> decodeHelper_ (Y.decode bs)
+{-# DEPRECATED decode "Please use decodeEither or decodeThrow, which provide information on how the decode failed" #-}
 
 decodeFile :: FromJSON a
            => FilePath
@@ -184,6 +185,7 @@ decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
                 $ either (Left . prettyPrintParseException) id
                 <$> decodeHelper (Y.decode bs)
+{-# DEPRECATED decodeEither "Please use decodeEither' or decodeThrow, which provide more useful failures" #-}
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
 --

@@ -2,6 +2,7 @@
 
 * Add `decodeThrow` and `decodeFileThrow` convenience functions.
 * Upgrade libyaml versions
+* Deprecate `decode` and `decodeEither`
 
 ## 0.8.30
 
