@@ -64,6 +64,8 @@ module Data.Yaml
     , decodeEither
     , decodeEither'
     , decodeFileEither
+    , decodeThrow
+    , decodeFileThrow
       -- ** More control over decoding
     , decodeHelper
     ) where
@@ -71,6 +73,8 @@ module Data.Yaml
 import Control.Applicative((<$>))
 #endif
 import Control.Exception
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Resource (MonadThrow, throwM)
 import Data.Aeson
     ( Value (..), ToJSON (..), FromJSON (..), object
     , (.=) , (.:) , (.:?) , (.!=)
@@ -189,6 +193,18 @@ decodeEither' = either Left (either (Left . AesonException) Right)
               . unsafePerformIO
               . decodeHelper
               . Y.decode
+
+-- | A version of 'decodeEither'' lifted to MonadThrow
+--
+-- Since 0.8.31
+decodeThrow :: (MonadThrow m, FromJSON a) => ByteString -> m a
+decodeThrow = either throwM return . decodeEither'
+
+-- | A version of 'decodeFileEither' lifted to MonadIO
+--
+-- Since 0.8.31
+decodeFileThrow :: (MonadIO m, FromJSON a) => FilePath -> m a
+decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
 
 array :: [Value] -> Value
 array = Array . V.fromList
