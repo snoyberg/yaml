@@ -1,6 +1,7 @@
 ## 0.8.31
 
 * Add `decodeThrow` and `decodeFileThrow` convenience functions.
+* Upgrade libyaml versions
 
 ## 0.8.30
 

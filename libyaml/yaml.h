@@ -1091,7 +1091,7 @@ typedef struct yaml_parser_s {
     yaml_error_type_t error;
     /** Error description. */
     const char *problem;
-    /** The byte about which the problem occurred. */
+    /** The byte about which the problem occured. */
     size_t problem_offset;
     /** The problematic value (@c -1 is none). */
     int problem_value;
@@ -1940,8 +1940,8 @@ yaml_emitter_close(yaml_emitter_t *emitter);
  *
  * The documen object may be generated using the yaml_parser_load() function
  * or the yaml_document_initialize() function.  The emitter takes the
- * responsibility for the document object and destoys its content after
- * it is emitted. The document object is destroyedeven if the function fails.
+ * responsibility for the document object and destroys its content after
+ * it is emitted. The document object is destroyed even if the function fails.
  *
  * @param[in,out]   emitter     An emitter object.
  * @param[in,out]   document    A document object.
