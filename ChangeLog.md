@@ -1,3 +1,7 @@
+## 0.8.31.1
+
+* Add a workaround for a cabal bug [haskell-infra/hackage-trustees#165](https://github.com/haskell-infra/hackage-trustees/issues/165)
+
 ## 0.8.31
 
 * Add `decodeThrow` and `decodeFileThrow` convenience functions.

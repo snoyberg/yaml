@@ -1,5 +1,5 @@
 name:            yaml
-version:         0.8.31
+version:         0.8.31.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
@@ -47,7 +47,11 @@ flag no-unicode
 library
     other-extensions: LambdaCase
     if impl(ghc < 8.0.2)
-      buildable: False
+      -- Disable building with GHC before 8.0.2.
+      -- Due to a cabal bug, do not use buildable: False,
+      -- but instead give it an impossible constraint.
+      -- See: https://github.com/haskell-infra/hackage-trustees/issues/165
+      build-depends: unsupported-ghc-version > 1 && < 1
     build-depends:   base >= 4.9.1 && < 5
                    , transformers >= 0.1
                    , bytestring >= 0.9.1.4
