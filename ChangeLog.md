@@ -1,3 +1,10 @@
+# ChangeLog for yaml
+
+## Unreleased changes
+
+* hpackify
+* src subdir
+
 ## 0.8.31.1
 
 * Add a workaround for a cabal bug [haskell-infra/hackage-trustees#165](https://github.com/haskell-infra/hackage-trustees/issues/165)
