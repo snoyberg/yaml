@@ -46,7 +46,7 @@ flags:
     default: false
 
 dependencies:
-- base >=4.9.1 && <5
+- base >=4.9.1 && <5 # GHC 8.0.2 and later
 - bytestring >=0.9.1.4
 - transformers >=0.1
 - conduit >=1.2.8 && <1.4
@@ -72,9 +72,6 @@ library:
   - c
   source-dirs: src
   when:
-  - condition: impl(ghc <8.0.2)
-    dependencies:
-    - unsupported-ghc-version >1 && <1
   - condition: flag(no-unicode)
     cpp-options: -D__NO_UNICODE__
   - condition: ! '!(flag(system-libyaml))'
