@@ -157,9 +157,7 @@ objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing 
 objToEvents' n@Number{} rest = EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder n) IntTag PlainNoTag Nothing : rest
 
 pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
-pairToEvents (k, v) rest =
-    EventScalar (encodeUtf8 k) StrTag PlainNoTag Nothing
-  : objToEvents' v rest
+pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v
 
 decode :: FromJSON a
        => ByteString

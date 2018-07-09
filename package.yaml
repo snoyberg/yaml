@@ -1,5 +1,5 @@
 name:        yaml
-version:     0.8.31.1
+version:     0.8.32
 synopsis:    Support for parsing and rendering YAML documents.
 description: README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:    Data
