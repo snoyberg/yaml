@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module Data.YamlSpec (main, spec) where
 
@@ -29,6 +30,7 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 import Data.Aeson.TH
 import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.HashMap.Strict (HashMap)
@@ -165,6 +167,19 @@ spec = do
     it "preserves Scientific precision" casePreservesScientificPrecision
 
     it "truncates files" caseTruncatesFiles
+
+    it "quoting keys #137" $ do
+      let keys = T.words "true false NO YES 1.2 1e5 null"
+          bs = D.encode $ M.fromList $ map (, ()) keys
+          text = decodeUtf8 bs
+      forM_ keys $ \key -> do
+        let quoted = T.concat ["'", key, "'"]
+        unless (quoted `T.isInfixOf` text) $ error $ concat
+          [ "Could not find quoted key: "
+          , T.unpack quoted
+          , "\n\n"
+          , T.unpack text
+          ] :: IO ()
 
 
 specialStrings :: [T.Text]

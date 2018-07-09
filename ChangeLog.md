@@ -1,7 +1,8 @@
 # ChangeLog for yaml
 
-## Unreleased changes
+## 0.8.32
 
+* Escape keys as necessary [#137](https://github.com/snoyberg/yaml/issues/137)
 * hpackify
 * src subdir
 
