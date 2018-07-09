@@ -133,6 +133,16 @@ unsigned char * get_mapping_start_anchor(yaml_event_t *e)
         return e->data.mapping_start.anchor;
 }
 
+unsigned char * get_mapping_start_tag(yaml_event_t *e)
+{
+        return e->data.mapping_start.tag;
+}
+
+unsigned long get_mapping_start_tag_len(yaml_event_t *e)
+{
+	return strlen((char *) get_mapping_start_tag(e));
+}
+
 unsigned char * get_alias_anchor(yaml_event_t *e)
 {
         return e->data.alias.anchor;
