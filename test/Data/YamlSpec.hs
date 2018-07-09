@@ -65,6 +65,10 @@ spec = do
         it "count mappings with anchor" caseCountMappingsWithAnchor
         it "count sequences with custom tag" caseCountSequenceTags
         it "count mappings with custom tag" caseCountMappingTags
+        it "count block style sequences" caseCountBlockStyleSequences
+        it "count flow style sequences" caseCountFlowStyleSequences
+        it "count block style mappings" caseCountBlockStyleMappings
+        it "count flow style mappings" caseCountFlowStyleMappings
         it "count aliases" caseCountAliases
         it "count scalars" caseCountScalars
         it "largest string" caseLargestString
@@ -266,6 +270,38 @@ caseCountSequenceTags =
     yamlString = "foo: !bar [x, y, z]"
     isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!bar") _ _) = True
     isCustomTaggedSequence _ = False
+
+caseCountFlowStyleSequences :: Assertion
+caseCountFlowStyleSequences =
+    caseHelper yamlString isFlowStyleSequence 1
+  where
+    yamlString = "foo: [x, y, z]"
+    isFlowStyleSequence (Y.EventSequenceStart _ Y.FlowSequence _) = True
+    isFlowStyleSequence _ = False
+
+caseCountBlockStyleSequences :: Assertion
+caseCountBlockStyleSequences =
+    caseHelper yamlString isBlockStyleSequence 1
+  where
+    yamlString = "foo:\n- x\n- y\n- z\n"
+    isBlockStyleSequence (Y.EventSequenceStart _ Y.BlockSequence _) = True
+    isBlockStyleSequence _ = False
+
+caseCountFlowStyleMappings :: Assertion
+caseCountFlowStyleMappings =
+    caseHelper yamlString isFlowStyleMapping 1
+  where
+    yamlString = "foo: { bar: 1, baz: 2 }"
+    isFlowStyleMapping (Y.EventMappingStart _ Y.FlowMapping _) = True
+    isFlowStyleMapping _ = False
+
+caseCountBlockStyleMappings :: Assertion
+caseCountBlockStyleMappings =
+    caseHelper yamlString isBlockStyleMapping 1
+  where
+    yamlString = "foo: bar\nbaz: quux"
+    isBlockStyleMapping (Y.EventMappingStart _ Y.BlockMapping _) = True
+    isBlockStyleMapping _ = False
 
 caseCountScalars :: Assertion
 caseCountScalars = do

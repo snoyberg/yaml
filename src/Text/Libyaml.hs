@@ -14,6 +14,8 @@ module Text.Libyaml
     ( -- * The event stream
       Event (..)
     , Style (..)
+    , SequenceStyle (..)
+    , MappingStyle (..)
     , Tag (..)
     , AnchorName
     , Anchor
@@ -62,9 +64,9 @@ data Event =
     | EventDocumentEnd
     | EventAlias !AnchorName
     | EventScalar !ByteString !Tag !Style !Anchor
-    | EventSequenceStart !Tag !Style !Anchor
+    | EventSequenceStart !Tag !SequenceStyle !Anchor
     | EventSequenceEnd
-    | EventMappingStart !Tag !Style !Anchor
+    | EventMappingStart !Tag !MappingStyle !Anchor
     | EventMappingEnd
     deriving (Show, Eq)
 
@@ -76,6 +78,12 @@ data Style = Any
            | Folded
            | PlainNoTag
     deriving (Show, Read, Eq, Enum, Bounded, Ord, Data, Typeable)
+
+data SequenceStyle = AnySequence | BlockSequence | FlowSequence
+    deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
+
+data MappingStyle = AnyMapping | BlockMapping | FlowMapping
+    deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
 
 data Tag = StrTag
          | FloatTag
@@ -260,7 +268,7 @@ readAnchor getAnchor er = do
     then return Nothing
     else Just <$> peekCString yanchor
 
-readStyle :: (EventRaw -> IO CInt) -> (EventRaw -> IO Style)
+readStyle :: (Enum a) => (EventRaw -> IO CInt) -> (EventRaw -> IO a)
 readStyle getStyle er = do
   ystyle <- getStyle er
   return $ toEnum $ fromEnum ystyle

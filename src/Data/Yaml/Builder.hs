@@ -62,7 +62,7 @@ instance ToYaml Int where
 
 mapping :: [(Text, YamlBuilder)] -> YamlBuilder
 mapping pairs = YamlBuilder $ \rest ->
-    EventMappingStart NoTag Any Nothing : foldr addPair (EventMappingEnd : rest) pairs
+    EventMappingStart NoTag AnyMapping Nothing : foldr addPair (EventMappingEnd : rest) pairs
   where
     addPair (key, YamlBuilder value) after
         = EventScalar (encodeUtf8 key) StrTag PlainNoTag Nothing
@@ -70,7 +70,7 @@ mapping pairs = YamlBuilder $ \rest ->
 
 array :: [YamlBuilder] -> YamlBuilder
 array bs =
-    YamlBuilder $ (EventSequenceStart NoTag Any Nothing:) . flip (foldr go) bs . (EventSequenceEnd:)
+    YamlBuilder $ (EventSequenceStart NoTag AnySequence Nothing:) . flip (foldr go) bs . (EventSequenceEnd:)
   where
     go (YamlBuilder b) = b
 
