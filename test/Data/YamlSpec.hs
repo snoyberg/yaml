@@ -230,7 +230,7 @@ caseCountSequencesWithAnchor =
     caseHelper yamlString isSequenceStartA 1
   where
     yamlString = "foo: &anchor\n  - bin1\n  - bin2\n  - bin3"
-    isSequenceStartA (Y.EventSequenceStart (Just _)) = True
+    isSequenceStartA (Y.EventSequenceStart Y.NoTag (Just _)) = True
     isSequenceStartA _ = False
 
 caseCountMappingsWithAnchor :: Assertion

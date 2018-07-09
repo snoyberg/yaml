@@ -70,7 +70,7 @@ mapping pairs = YamlBuilder $ \rest ->
 
 array :: [YamlBuilder] -> YamlBuilder
 array bs =
-    YamlBuilder $ (EventSequenceStart Nothing:) . flip (foldr go) bs . (EventSequenceEnd:)
+    YamlBuilder $ (EventSequenceStart NoTag Nothing:) . flip (foldr go) bs . (EventSequenceEnd:)
   where
     go (YamlBuilder b) = b
 

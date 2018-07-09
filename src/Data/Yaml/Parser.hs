@@ -162,7 +162,7 @@ sinkValue =
     go EventDocumentStart = start
     go (EventAlias a) = return $ Alias a
     go (EventScalar a b c d) = tell' d $ Scalar a b c d
-    go (EventSequenceStart mname) = do
+    go (EventSequenceStart _tag mname) = do
         vals <- goS id
         let val = Sequence vals mname
         tell' mname val

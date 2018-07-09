@@ -128,6 +128,16 @@ unsigned char * get_sequence_start_anchor(yaml_event_t *e)
         return e->data.sequence_start.anchor;
 }
 
+unsigned char * get_sequence_start_tag(yaml_event_t *e)
+{
+        return e->data.sequence_start.tag;
+}
+
+unsigned long get_sequence_start_tag_len(yaml_event_t *e)
+{
+	return strlen((char *) get_sequence_start_tag(e));
+}
+
 unsigned char * get_mapping_start_anchor(yaml_event_t *e)
 {
         return e->data.mapping_start.anchor;

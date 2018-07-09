@@ -195,7 +195,7 @@ parseO = do
     me <- CL.head
     case me of
         Just (EventScalar v tag style a) -> textToValue style tag <$> parseScalar v a style tag
-        Just (EventSequenceStart a) -> parseS a id
+        Just (EventSequenceStart _ a) -> parseS a id
         Just (EventMappingStart _ a) -> parseM a M.empty
         Just (EventAlias an) -> do
             m <- lift get
