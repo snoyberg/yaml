@@ -296,15 +296,4 @@ specialStrings = HashSet.fromList $ T.words
     "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~ *"
 
 isNumeric :: Text -> Bool
-isNumeric t =
-    T.all isNumeric' t && T.any isNumber t
-  where
-    isNumber c = '0' <= c && c <= '9'
-    isNumeric' c = isNumber c
-                || c == 'e'
-                || c == 'E'
-                || c == 'o'
-                || c == 'x'
-                || c == '.'
-                || c == '-'
-                || c == '+'
+isNumeric = either (const False) (const True) . textToScientific
