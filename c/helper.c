@@ -128,9 +128,16 @@ unsigned char * get_sequence_start_anchor(yaml_event_t *e)
         return e->data.sequence_start.anchor;
 }
 
+int get_sequence_start_style(yaml_event_t *e)
+{
+	return e->data.sequence_start.style;
+}
+
 unsigned char * get_sequence_start_tag(yaml_event_t *e)
 {
-        return e->data.sequence_start.tag;
+	unsigned char *s = e->data.sequence_start.tag;
+	if (!s) s = (unsigned char *) "";
+	return s;
 }
 
 unsigned long get_sequence_start_tag_len(yaml_event_t *e)
@@ -143,9 +150,16 @@ unsigned char * get_mapping_start_anchor(yaml_event_t *e)
         return e->data.mapping_start.anchor;
 }
 
+int get_mapping_start_style(yaml_event_t *e)
+{
+	return e->data.mapping_start.style;
+}
+
 unsigned char * get_mapping_start_tag(yaml_event_t *e)
 {
-        return e->data.mapping_start.tag;
+	unsigned char *s = e->data.mapping_start.tag;
+	if (!s) s = (unsigned char *) "";
+	return s;
 }
 
 unsigned long get_mapping_start_tag_len(yaml_event_t *e)

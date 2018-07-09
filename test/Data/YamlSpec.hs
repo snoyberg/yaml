@@ -232,7 +232,7 @@ caseCountSequencesWithAnchor =
     caseHelper yamlString isSequenceStartA 1
   where
     yamlString = "foo: &anchor\n  - bin1\n  - bin2\n  - bin3"
-    isSequenceStartA (Y.EventSequenceStart Y.NoTag (Just _)) = True
+    isSequenceStartA (Y.EventSequenceStart Y.NoTag _ (Just _)) = True
     isSequenceStartA _ = False
 
 caseCountMappingsWithAnchor :: Assertion
@@ -240,7 +240,7 @@ caseCountMappingsWithAnchor =
     caseHelper yamlString isMappingA 1
   where
     yamlString = "foo: &anchor\n  key1: bin1\n  key2: bin2\n  key3: bin3"
-    isMappingA (Y.EventMappingStart _ (Just _)) = True
+    isMappingA (Y.EventMappingStart _ _ (Just _)) = True
     isMappingA _ = False
 
 caseCountAliases :: Assertion
@@ -256,7 +256,7 @@ caseCountMappingTags =
     caseHelper yamlString isCustomTaggedMapping 1
   where
     yamlString = "foo: !bar\n  k: v\n  k2: v2"
-    isCustomTaggedMapping (Y.EventMappingStart (Y.UriTag "!bar") _) = True
+    isCustomTaggedMapping (Y.EventMappingStart (Y.UriTag "!bar") _ _) = True
     isCustomTaggedMapping _ = False
 
 caseCountSequenceTags :: Assertion
@@ -264,7 +264,7 @@ caseCountSequenceTags =
     caseHelper yamlString isCustomTaggedSequence 1
   where
     yamlString = "foo: !bar [x, y, z]"
-    isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!bar") _) = True
+    isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!bar") _ _) = True
     isCustomTaggedSequence _ = False
 
 caseCountScalars :: Assertion

@@ -62,9 +62,9 @@ data Event =
     | EventDocumentEnd
     | EventAlias !AnchorName
     | EventScalar !ByteString !Tag !Style !Anchor
-    | EventSequenceStart !Tag !Anchor
+    | EventSequenceStart !Tag !Style !Anchor
     | EventSequenceEnd
-    | EventMappingStart !Tag !Anchor
+    | EventMappingStart !Tag !Style !Anchor
     | EventMappingEnd
     deriving (Show, Eq)
 
@@ -229,8 +229,11 @@ foreign import ccall unsafe "get_scalar_anchor"
 foreign import ccall unsafe "get_sequence_start_anchor"
     c_get_sequence_start_anchor :: EventRaw -> IO CString
 
+foreign import ccall unsafe "get_sequence_start_style"
+    c_get_sequence_start_style :: EventRaw -> IO CInt
+
 foreign import ccall unsafe "get_sequence_start_tag"
-    c_get_sequence_start_tag :: EventRaw -> IO CString
+    c_get_sequence_start_tag :: EventRaw -> IO (Ptr CUChar)
 
 foreign import ccall unsafe "get_sequence_start_tag_len"
     c_get_sequence_start_tag_len :: EventRaw -> IO CULong
@@ -238,14 +241,41 @@ foreign import ccall unsafe "get_sequence_start_tag_len"
 foreign import ccall unsafe "get_mapping_start_anchor"
     c_get_mapping_start_anchor :: EventRaw -> IO CString
 
+foreign import ccall unsafe "get_mapping_start_style"
+    c_get_mapping_start_style :: EventRaw -> IO CInt
+
 foreign import ccall unsafe "get_mapping_start_tag"
-    c_get_mapping_start_tag :: EventRaw -> IO CString
+    c_get_mapping_start_tag :: EventRaw -> IO (Ptr CUChar)
 
 foreign import ccall unsafe "get_mapping_start_tag_len"
     c_get_mapping_start_tag_len :: EventRaw -> IO CULong
 
 foreign import ccall unsafe "get_alias_anchor"
     c_get_alias_anchor :: EventRaw -> IO CString
+
+readAnchor :: (EventRaw -> IO CString) -> (EventRaw -> IO Anchor)
+readAnchor getAnchor er = do
+  yanchor <- getAnchor er
+  if yanchor == nullPtr
+    then return Nothing
+    else Just <$> peekCString yanchor
+
+readStyle :: (EventRaw -> IO CInt) -> (EventRaw -> IO Style)
+readStyle getStyle er = do
+  ystyle <- getStyle er
+  return $ toEnum $ fromEnum ystyle
+
+readTag ::
+     (EventRaw -> IO (Ptr CUChar)) -> (EventRaw -> IO CULong) -> (EventRaw -> IO Tag)
+readTag getTag getTagLen er = do
+  ytag <- getTag er
+  ytag_len <- getTagLen er
+  let ytag' = castPtr ytag
+  let ytag_len' = fromEnum ytag_len
+  bsToTag <$>
+    if ytag_len' == 0
+      then return Data.ByteString.empty
+      else packCStringLen (ytag', ytag_len')
 
 getEvent :: EventRaw -> IO (Maybe Event)
 getEvent er = do
@@ -265,59 +295,24 @@ getEvent er = do
         YamlScalarEvent -> do
             yvalue <- c_get_scalar_value er
             ylen <- c_get_scalar_length er
-            ytag <- c_get_scalar_tag er
-            ytag_len <- c_get_scalar_tag_len er
-            ystyle <- c_get_scalar_style er
-            let ytag_len' = fromEnum ytag_len
             let yvalue' = castPtr yvalue
-            let ytag' = castPtr ytag
             let ylen' = fromEnum ylen
             bs <- packCStringLen (yvalue', ylen')
-            tagbs <-
-                if ytag_len' == 0
-                    then return Data.ByteString.empty
-                    else packCStringLen (ytag', ytag_len')
-            let style = toEnum $ fromEnum ystyle
-            yanchor <- c_get_scalar_anchor er
-            anchor <- if yanchor == nullPtr
-                          then return Nothing
-                          else Just <$> peekCString yanchor
-            return $ Just $ EventScalar bs (bsToTag tagbs) style anchor
+            tag <- readTag c_get_scalar_tag c_get_scalar_tag_len er
+            style <- readStyle c_get_scalar_style er
+            anchor <- readAnchor c_get_scalar_anchor er
+            return $ Just $ EventScalar bs tag style anchor
         YamlSequenceStartEvent -> do
-            yanchor <- c_get_sequence_start_anchor er
-            anchor <- if yanchor == nullPtr
-                          then return Nothing
-                          else Just <$> peekCString yanchor
-            ytag <- c_get_sequence_start_tag er
-            tag <- if ytag == nullPtr
-                   then return NoTag
-                   else do
-              ytag_len <- c_get_sequence_start_tag_len er
-              let ytag' = castPtr ytag
-              let ytag_len' = fromEnum ytag_len
-              bsToTag <$>
-                if ytag_len' == 0
-                then return Data.ByteString.empty
-                else packCStringLen (ytag', ytag_len')
-            return $ Just $ EventSequenceStart tag anchor
+            tag <- readTag c_get_sequence_start_tag c_get_sequence_start_tag_len er
+            style <- readStyle c_get_sequence_start_style er
+            anchor <- readAnchor c_get_sequence_start_anchor er
+            return $ Just $ EventSequenceStart tag style anchor
         YamlSequenceEndEvent -> return $ Just EventSequenceEnd
         YamlMappingStartEvent -> do
-            yanchor <- c_get_mapping_start_anchor er
-            anchor <- if yanchor == nullPtr
-                          then return Nothing
-                          else Just <$> peekCString yanchor
-            ytag <- c_get_mapping_start_tag er
-            tag <- if ytag == nullPtr
-                   then return NoTag
-                   else do
-              ytag_len <- c_get_mapping_start_tag_len er
-              let ytag' = castPtr ytag
-              let ytag_len' = fromEnum ytag_len
-              bsToTag <$>
-                if ytag_len' == 0
-                then return Data.ByteString.empty
-                else packCStringLen (ytag', ytag_len')
-            return $ Just $ EventMappingStart tag anchor
+            tag <- readTag c_get_mapping_start_tag c_get_mapping_start_tag_len er
+            style <- readStyle c_get_mapping_start_style er
+            anchor <- readAnchor c_get_mapping_start_anchor er
+            return $ Just $ EventMappingStart tag style anchor
         YamlMappingEndEvent -> return $ Just EventMappingEnd
 
 -- Emitter
@@ -464,7 +459,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                     0       -- plain_implicit
                                     qi      -- quoted_implicit
                                     style'  -- style
-        EventSequenceStart tag Nothing ->
+        EventSequenceStart tag style Nothing ->
             withCString (tagToString tag) $ \tag' -> do
                 let tagP = castPtr tag'
                 c_yaml_sequence_start_event_initialize
@@ -472,8 +467,8 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                   nullPtr
                   tagP
                   1
-                  0 -- YAML_ANY_SEQUENCE_STYLE
-        EventSequenceStart tag (Just anchor) ->
+                  (toEnum $ fromEnum style)
+        EventSequenceStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
                 let tagP = castPtr tag'
                 withCString anchor $ \anchor' -> do
@@ -483,10 +478,10 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                         anchorP
                         tagP
                         1
-                        0 -- YAML_ANY_SEQUENCE_STYLE
+                        (toEnum $ fromEnum style)
         EventSequenceEnd ->
             c_yaml_sequence_end_event_initialize er
-        EventMappingStart tag Nothing ->
+        EventMappingStart tag style Nothing ->
             withCString (tagToString tag) $ \tag' -> do
                 let tagP = castPtr tag'
                 c_yaml_mapping_start_event_initialize
@@ -494,8 +489,8 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                     nullPtr
                     tagP
                     1
-                    0 -- YAML_ANY_SEQUENCE_STYLE
-        EventMappingStart tag (Just anchor) ->
+                    (toEnum $ fromEnum style)
+        EventMappingStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
                 withCString anchor $ \anchor' -> do
                     let tagP = castPtr tag'
@@ -505,7 +500,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                         anchorP
                         tagP
                         1
-                        0 -- YAML_ANY_SEQUENCE_STYLE
+                        (toEnum $ fromEnum style)
         EventMappingEnd ->
             c_yaml_mapping_end_event_initialize er
         EventAlias anchor ->
