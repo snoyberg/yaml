@@ -11,11 +11,13 @@ module Data.Yaml.Internal
     , decodeHelper_
     , specialStrings
     , isNumeric
+    , textToScientific
     ) where
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>), Applicative(..))
 #endif
+import Control.Applicative ((<|>))
 import Control.Exception
 import Control.Monad (liftM, ap, unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -25,8 +27,9 @@ import Control.Monad.Trans.State
 import Data.Aeson
 import Data.Aeson.Types hiding (parse)
 import qualified Data.Attoparsec.Text as Atto
+import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
-import Data.Char (toUpper)
+import Data.Char (toUpper, ord)
 import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
@@ -176,7 +179,16 @@ textToValue _ _ t
           where titleCased = toUpper (T.head ref) `T.cons` T.tail ref
 
 textToScientific :: Text -> Either String Scientific
-textToScientific = Atto.parseOnly (Atto.scientific <* Atto.endOfInput)
+textToScientific = Atto.parseOnly (num <* Atto.endOfInput)
+  where
+    num = (fromInteger <$> ("0x" *> Atto.hexadecimal))
+      <|> (fromInteger <$> ("0o" *> octal))
+      <|> Atto.scientific
+
+    octal = T.foldl' step 0 <$> Atto.takeWhile1 isOctalDigit
+      where
+        isOctalDigit c = (c >= '0' && c <= '7')
+        step a c = (a `shiftL` 3) .|. fromIntegral (ord c - 48)
 
 parseO :: ConduitM Event o Parse Value
 parseO = do
@@ -284,13 +296,4 @@ specialStrings = HashSet.fromList $ T.words
     "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~ *"
 
 isNumeric :: Text -> Bool
-isNumeric t =
-    T.all isNumeric' t && T.any isNumber t
-  where
-    isNumber c = '0' <= c && c <= '9'
-    isNumeric' c = isNumber c
-                || c == 'e'
-                || c == 'E'
-                || c == '.'
-                || c == '-'
-                || c == '+'
+isNumeric = either (const False) (const True) . textToScientific
