@@ -11,7 +11,7 @@ The package is broken down into two primary modules. `Data.Yaml` provides a high
 
 ### Examples
 
-Usage examples can be found in the `Data.Yaml` documentation or in the [examples](./examples) directory.
+Usage examples can be found in the `Data.Yaml` documentation or in the [examples](https://github.com/snoyberg/yaml/tree/master/examples) directory.
 
 ### Additional modules
 
