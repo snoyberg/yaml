@@ -29,8 +29,9 @@ import Data.Maybe
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 import Data.Aeson.TH
+import Data.Scientific (Scientific)
 import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.HashMap.Strict (HashMap)
@@ -181,6 +182,19 @@ spec = do
           , T.unpack text
           ] :: IO ()
 
+    describe "non-decimal numbers #135" $ do
+      let go str val = it str $ encodeUtf8 (T.pack str) `shouldDecode` val
+      go "12345" (12345 :: Int)
+      go "+12345" (12345 :: Int)
+      go "0o14" (12 :: Int)
+      go "0o123" (83 :: Int)
+      go "0xC" (12 :: Int)
+      go "0xc" (12 :: Int)
+      go "0xdeadBEEF" (3735928559 :: Int)
+      go "0xDEADBEEF" (3735928559 :: Int)
+      go "1.23015e+3" (1230.15 :: Scientific)
+      go "12.3015e+02" (1230.15 :: Scientific)
+      go "1230.15" (1230.15 :: Scientific)
 
 specialStrings :: [T.Text]
 specialStrings =
