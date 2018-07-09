@@ -63,6 +63,8 @@ spec = do
         it "count scalars with anchor" caseCountScalarsWithAnchor
         it "count sequences with anchor" caseCountSequencesWithAnchor
         it "count mappings with anchor" caseCountMappingsWithAnchor
+        it "count sequences with custom tag" caseCountSequenceTags
+        it "count mappings with custom tag" caseCountMappingTags
         it "count aliases" caseCountAliases
         it "count scalars" caseCountScalars
         it "largest string" caseLargestString
@@ -248,6 +250,22 @@ caseCountAliases =
     yamlString = "foo: &anchor\n  key1: bin1\n  key2: bin2\n  key3: bin3\nboo: *anchor"
     isAlias Y.EventAlias{} = True
     isAlias _ = False
+
+caseCountMappingTags :: Assertion
+caseCountMappingTags =
+    caseHelper yamlString isCustomTaggedMapping 1
+  where
+    yamlString = "foo: !bar\n  k: v\n  k2: v2"
+    isCustomTaggedMapping (Y.EventMappingStart (Y.UriTag "!bar") _) = True
+    isCustomTaggedMapping _ = False
+
+caseCountSequenceTags :: Assertion
+caseCountSequenceTags =
+    caseHelper yamlString isCustomTaggedSequence 1
+  where
+    yamlString = "foo: !bar [x, y, z]"
+    isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!bar") _) = True
+    isCustomTaggedSequence _ = False
 
 caseCountScalars :: Assertion
 caseCountScalars = do
