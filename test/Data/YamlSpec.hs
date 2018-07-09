@@ -238,7 +238,7 @@ caseCountMappingsWithAnchor =
     caseHelper yamlString isMappingA 1
   where
     yamlString = "foo: &anchor\n  key1: bin1\n  key2: bin2\n  key3: bin3"
-    isMappingA (Y.EventMappingStart (Just _)) = True
+    isMappingA (Y.EventMappingStart _ (Just _)) = True
     isMappingA _ = False
 
 caseCountAliases :: Assertion

@@ -62,7 +62,7 @@ instance ToYaml Int where
 
 mapping :: [(Text, YamlBuilder)] -> YamlBuilder
 mapping pairs = YamlBuilder $ \rest ->
-    EventMappingStart Nothing : foldr addPair (EventMappingEnd : rest) pairs
+    EventMappingStart MapTag Nothing : foldr addPair (EventMappingEnd : rest) pairs
   where
     addPair (key, YamlBuilder value) after
         = EventScalar (encodeUtf8 key) StrTag PlainNoTag Nothing

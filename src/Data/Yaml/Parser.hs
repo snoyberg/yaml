@@ -166,7 +166,7 @@ sinkValue =
         vals <- goS id
         let val = Sequence vals mname
         tell' mname val
-    go (EventMappingStart mname) = do
+    go (EventMappingStart _tag mname) = do
         pairs <- goM id
         let val = Mapping pairs mname
         tell' mname val

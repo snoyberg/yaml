@@ -196,7 +196,7 @@ parseO = do
     case me of
         Just (EventScalar v tag style a) -> textToValue style tag <$> parseScalar v a style tag
         Just (EventSequenceStart a) -> parseS a id
-        Just (EventMappingStart a) -> parseM a M.empty
+        Just (EventMappingStart _ a) -> parseM a M.empty
         Just (EventAlias an) -> do
             m <- lift get
             case Map.lookup an m of

@@ -135,7 +135,7 @@ objToEvents' (Array list) rest =
     EventSequenceStart Nothing
   : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
 objToEvents' (Object pairs) rest =
-    EventMappingStart Nothing
+    EventMappingStart MapTag Nothing
   : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
 
 -- Empty strings need special handling to ensure they get quoted. This avoids:
