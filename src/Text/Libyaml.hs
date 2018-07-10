@@ -259,23 +259,18 @@ foreign import ccall unsafe "get_mapping_start_tag"
 foreign import ccall unsafe "get_alias_anchor"
     c_get_alias_anchor :: EventRaw -> IO CString
 
-readAnchor :: (EventRaw -> IO CString) -> (EventRaw -> IO Anchor)
+readAnchor :: (EventRaw -> IO CString) -> EventRaw -> IO Anchor
 readAnchor getAnchor er = do
   yanchor <- getAnchor er
   if yanchor == nullPtr
     then return Nothing
     else Just <$> peekCString yanchor
 
-readStyle :: (Enum a) => (EventRaw -> IO CInt) -> (EventRaw -> IO a)
-readStyle getStyle er = do
-  ystyle <- getStyle er
-  return $ toEnum $ fromEnum ystyle
+readStyle :: (Enum a) => (EventRaw -> IO CInt) -> EventRaw -> IO a
+readStyle getStyle er = toEnum . fromEnum <$> getStyle er 
 
 readTag :: (EventRaw -> IO (Ptr CUChar)) -> EventRaw -> IO Tag
-readTag getTag er = do
-  ytag <- getTag er
-  let ytag' = castPtr ytag
-  bsToTag <$> packCString ytag'
+readTag getTag er = bsToTag <$> (getTag er >>= packCString . castPtr) 
 
 getEvent :: EventRaw -> IO (Maybe Event)
 getEvent er = do

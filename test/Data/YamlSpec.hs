@@ -285,7 +285,7 @@ caseCountEmptySequenceTags :: Assertion
 caseCountEmptySequenceTags =
     caseHelper yamlString isCustomTaggedSequence 1
   where
-    yamlString = "foo: !\n  k: v\n  k2: v2"
+    yamlString = "foo: ! [x, y, z]"
     isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!") _ _) = True
     isCustomTaggedSequence _ = False
 
