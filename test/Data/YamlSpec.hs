@@ -65,6 +65,8 @@ spec = do
         it "count mappings with anchor" caseCountMappingsWithAnchor
         it "count sequences with custom tag" caseCountSequenceTags
         it "count mappings with custom tag" caseCountMappingTags
+        it "count count sequences with ! tag" caseCountEmptySequenceTags
+        it "count count mappings with ! tag" caseCountEmptyMappingTags
         it "count block style sequences" caseCountBlockStyleSequences
         it "count flow style sequences" caseCountFlowStyleSequences
         it "count block style mappings" caseCountBlockStyleMappings
@@ -263,12 +265,28 @@ caseCountMappingTags =
     isCustomTaggedMapping (Y.EventMappingStart (Y.UriTag "!bar") _ _) = True
     isCustomTaggedMapping _ = False
 
+caseCountEmptyMappingTags :: Assertion
+caseCountEmptyMappingTags =
+    caseHelper yamlString isCustomTaggedMapping 1
+  where
+    yamlString = "foo: !\n  k: v\n  k2: v2"
+    isCustomTaggedMapping (Y.EventMappingStart (Y.UriTag "!") _ _) = True
+    isCustomTaggedMapping _ = False
+
 caseCountSequenceTags :: Assertion
 caseCountSequenceTags =
     caseHelper yamlString isCustomTaggedSequence 1
   where
     yamlString = "foo: !bar [x, y, z]"
     isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!bar") _ _) = True
+    isCustomTaggedSequence _ = False
+
+caseCountEmptySequenceTags :: Assertion
+caseCountEmptySequenceTags =
+    caseHelper yamlString isCustomTaggedSequence 1
+  where
+    yamlString = "foo: !\n  k: v\n  k2: v2"
+    isCustomTaggedSequence (Y.EventSequenceStart (Y.UriTag "!") _ _) = True
     isCustomTaggedSequence _ = False
 
 caseCountFlowStyleSequences :: Assertion

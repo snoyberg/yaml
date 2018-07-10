@@ -51,8 +51,7 @@ import Control.Monad.Trans.Resource
 import Data.Conduit hiding (Source, Sink, Conduit)
 import Data.Data
 
-import Data.ByteString (ByteString, packCStringLen)
-import qualified Data.ByteString
+import Data.ByteString (ByteString, packCString, packCStringLen)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as BU
@@ -70,6 +69,8 @@ data Event =
     | EventMappingEnd
     deriving (Show, Eq)
 
+-- | Style for scalars - e.g. quoted / folded
+-- 
 data Style = Any
            | Plain
            | SingleQuoted
@@ -79,10 +80,14 @@ data Style = Any
            | PlainNoTag
     deriving (Show, Read, Eq, Enum, Bounded, Ord, Data, Typeable)
 
+-- | Style for sequences - e.g. block or flow
+-- 
 -- @since 0.9.0
 data SequenceStyle = AnySequence | BlockSequence | FlowSequence
     deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
 
+-- | Style for mappings - e.g. block or flow
+-- 
 -- @since 0.9.0
 data MappingStyle = AnyMapping | BlockMapping | FlowMapping
     deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
@@ -227,9 +232,6 @@ foreign import ccall unsafe "get_scalar_length"
 foreign import ccall unsafe "get_scalar_tag"
     c_get_scalar_tag :: EventRaw -> IO (Ptr CUChar)
 
-foreign import ccall unsafe "get_scalar_tag_len"
-    c_get_scalar_tag_len :: EventRaw -> IO CULong
-
 foreign import ccall unsafe "get_scalar_style"
     c_get_scalar_style :: EventRaw -> IO CInt
 
@@ -245,9 +247,6 @@ foreign import ccall unsafe "get_sequence_start_style"
 foreign import ccall unsafe "get_sequence_start_tag"
     c_get_sequence_start_tag :: EventRaw -> IO (Ptr CUChar)
 
-foreign import ccall unsafe "get_sequence_start_tag_len"
-    c_get_sequence_start_tag_len :: EventRaw -> IO CULong
-
 foreign import ccall unsafe "get_mapping_start_anchor"
     c_get_mapping_start_anchor :: EventRaw -> IO CString
 
@@ -256,9 +255,6 @@ foreign import ccall unsafe "get_mapping_start_style"
 
 foreign import ccall unsafe "get_mapping_start_tag"
     c_get_mapping_start_tag :: EventRaw -> IO (Ptr CUChar)
-
-foreign import ccall unsafe "get_mapping_start_tag_len"
-    c_get_mapping_start_tag_len :: EventRaw -> IO CULong
 
 foreign import ccall unsafe "get_alias_anchor"
     c_get_alias_anchor :: EventRaw -> IO CString
@@ -275,17 +271,11 @@ readStyle getStyle er = do
   ystyle <- getStyle er
   return $ toEnum $ fromEnum ystyle
 
-readTag ::
-     (EventRaw -> IO (Ptr CUChar)) -> (EventRaw -> IO CULong) -> (EventRaw -> IO Tag)
-readTag getTag getTagLen er = do
+readTag :: (EventRaw -> IO (Ptr CUChar)) -> EventRaw -> IO Tag
+readTag getTag er = do
   ytag <- getTag er
-  ytag_len <- getTagLen er
   let ytag' = castPtr ytag
-  let ytag_len' = fromEnum ytag_len
-  bsToTag <$>
-    if ytag_len' == 0
-      then return Data.ByteString.empty
-      else packCStringLen (ytag', ytag_len')
+  bsToTag <$> packCString ytag'
 
 getEvent :: EventRaw -> IO (Maybe Event)
 getEvent er = do
@@ -308,18 +298,18 @@ getEvent er = do
             let yvalue' = castPtr yvalue
             let ylen' = fromEnum ylen
             bs <- packCStringLen (yvalue', ylen')
-            tag <- readTag c_get_scalar_tag c_get_scalar_tag_len er
+            tag <- readTag c_get_scalar_tag er
             style <- readStyle c_get_scalar_style er
             anchor <- readAnchor c_get_scalar_anchor er
             return $ Just $ EventScalar bs tag style anchor
         YamlSequenceStartEvent -> do
-            tag <- readTag c_get_sequence_start_tag c_get_sequence_start_tag_len er
+            tag <- readTag c_get_sequence_start_tag er
             style <- readStyle c_get_sequence_start_style er
             anchor <- readAnchor c_get_sequence_start_anchor er
             return $ Just $ EventSequenceStart tag style anchor
         YamlSequenceEndEvent -> return $ Just EventSequenceEnd
         YamlMappingStartEvent -> do
-            tag <- readTag c_get_mapping_start_tag c_get_mapping_start_tag_len er
+            tag <- readTag c_get_mapping_start_tag er
             style <- readStyle c_get_mapping_start_style er
             anchor <- readAnchor c_get_mapping_start_anchor er
             return $ Just $ EventMappingStart tag style anchor
