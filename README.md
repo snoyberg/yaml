@@ -18,3 +18,9 @@ Usage examples can be found in the `Data.Yaml` documentation or in the [examples
 * `Data.Yaml.Include` supports adding `!include` directives to your YAML files.
 * `Data.Yaml.Builder` and `Data.Yaml.Parser` allow more fine-grained control of parsing an rendering, as opposed to just using the aeson typeclass and datatype system for parsing and rendering.
 * `Data.Yaml.Aeson` is currently a re-export of `Data.Yaml` to explicitly choose to use the aeson-compatible API.
+
+### Alternative YAML implementations
+
+* [HsYAML](https://hackage.haskell.org/package/HsYAML) - A portable pure Haskell implementation of YAML 1.2
+* [HsSyck](https://hackage.haskell.org/package/HsSyck) - Fast, lightweight YAML loader and dumper
+* [YamlReference](https://hackage.haskell.org/package/YamlReference) - YAML 1.2 reference implementation
