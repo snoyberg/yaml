@@ -132,10 +132,10 @@ scalarToEvent (YamlScalar v t s) = EventScalar v t s Nothing
 objToEvents' :: Value -> [Y.Event] -> [Y.Event]
 --objToEvents' (Scalar s) rest = scalarToEvent s : rest
 objToEvents' (Array list) rest =
-    EventSequenceStart Nothing
+    EventSequenceStart NoTag AnySequence Nothing
   : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
 objToEvents' (Object pairs) rest =
-    EventMappingStart Nothing
+    EventMappingStart NoTag AnyMapping Nothing
   : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
 
 -- Empty strings need special handling to ensure they get quoted. This avoids:

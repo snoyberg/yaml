@@ -28,9 +28,12 @@ unsigned char * get_scalar_value(yaml_event_t *e);
 unsigned long get_scalar_length(yaml_event_t *e);
 
 unsigned char * get_scalar_tag(yaml_event_t *e);
-unsigned long get_scalar_tag_len(yaml_event_t *e);
+unsigned char * get_sequence_start_tag(yaml_event_t *e);
+unsigned char * get_mapping_start_tag(yaml_event_t *e);
 
 int get_scalar_style(yaml_event_t *e);
+int get_sequence_start_style(yaml_event_t *e);
+int get_mapping_start_style(yaml_event_t *e);
 
 unsigned char * get_scalar_anchor(yaml_event_t *e);
 unsigned char * get_sequence_start_anchor(yaml_event_t *e);
