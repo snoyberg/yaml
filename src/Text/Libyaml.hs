@@ -79,9 +79,11 @@ data Style = Any
            | PlainNoTag
     deriving (Show, Read, Eq, Enum, Bounded, Ord, Data, Typeable)
 
+-- @since 0.9.0
 data SequenceStyle = AnySequence | BlockSequence | FlowSequence
     deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
 
+-- @since 0.9.0
 data MappingStyle = AnyMapping | BlockMapping | FlowMapping
     deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
 

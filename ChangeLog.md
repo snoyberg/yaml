@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.9.0
+
+* Expose style and tags on mappings and sequences in Text.Libyaml [#141](https://github.com/snoyberg/yaml/pull/141)
+
 ## 0.8.32
 
 * Escape keys as necessary [#137](https://github.com/snoyberg/yaml/issues/137)
