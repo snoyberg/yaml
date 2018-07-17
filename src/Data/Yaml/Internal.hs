@@ -226,10 +226,9 @@ parseM :: Y.Anchor
        -> M.HashMap Text Value
        -> ConduitM Event o Parse Value
 parseM a front = do
-    me <- CL.peek
+    me <- CL.head
     case me of
         Just EventMappingEnd -> do
-            CL.drop 1
             let res = Object front
             case a of
                 Nothing -> return res
@@ -237,7 +236,6 @@ parseM a front = do
                     lift $ modify $ Map.insert an res
                     return res
         _ -> do
-            CL.drop 1
             s <- case me of
                     Just (EventScalar v tag style a') -> parseScalar v a' style tag
                     Just (EventAlias an) -> do
