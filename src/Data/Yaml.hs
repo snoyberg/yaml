@@ -32,6 +32,7 @@ module Data.Yaml
       -- * Decoding
     , decodeEither'
     , decodeFileEither
+    , decodeFileWithWarnings
     , decodeThrow
     , decodeFileThrow
       -- ** More control over decoding
@@ -163,14 +164,14 @@ decode :: FromJSON a
        => ByteString
        -> Maybe a
 decode bs = unsafePerformIO
-          $ either (const Nothing) id
+          $ either (const Nothing) snd
           <$> decodeHelper_ (Y.decode bs)
 {-# DEPRECATED decode "Please use decodeEither or decodeThrow, which provide information on how the decode failed" #-}
 
 decodeFile :: FromJSON a
            => FilePath
            -> IO (Maybe a)
-decodeFile fp = decodeHelper (Y.decodeFile fp) >>= either throwIO (return . either (const Nothing) id)
+decodeFile fp = (fmap snd <$> decodeHelper (Y.decodeFile fp)) >>= either throwIO (return . either (const Nothing) id)
 {-# DEPRECATED decodeFile "Please use decodeFileEither, which does not confused type-directed and runtime exceptions." #-}
 
 -- | A version of 'decodeFile' which should not throw runtime exceptions.
@@ -180,12 +181,20 @@ decodeFileEither
     :: FromJSON a
     => FilePath
     -> IO (Either ParseException a)
-decodeFileEither = decodeHelper_ . Y.decodeFile
+decodeFileEither = fmap (fmap snd) . decodeFileWithWarnings
+
+-- |
+-- @since 0.10.0
+decodeFileWithWarnings
+    :: FromJSON a
+    => FilePath
+    -> IO (Either ParseException ([Warning], a))
+decodeFileWithWarnings = decodeHelper_ . Y.decodeFile
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
                 $ either (Left . prettyPrintParseException) id
-                <$> decodeHelper (Y.decode bs)
+                <$> (fmap snd <$> decodeHelper (Y.decode bs))
 {-# DEPRECATED decodeEither "Please use decodeEither' or decodeThrow, which provide more useful failures" #-}
 
 -- | More helpful version of 'decodeEither' which returns the 'YamlException'.
@@ -194,7 +203,7 @@ decodeEither bs = unsafePerformIO
 decodeEither' :: FromJSON a => ByteString -> Either ParseException a
 decodeEither' = either Left (either (Left . AesonException) Right)
               . unsafePerformIO
-              . decodeHelper
+              . fmap (fmap snd) . decodeHelper
               . Y.decode
 
 -- | A version of 'decodeEither'' lifted to MonadThrow
