@@ -34,6 +34,7 @@ import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
@@ -126,7 +127,13 @@ instance MonadTrans PErrorT where
 instance MonadIO m => MonadIO (PErrorT m) where
     liftIO = lift . liftIO
 
-type Parse = StateT (Map.Map String Value) (ResourceT IO)
+defineAnchor :: Value -> String -> ConduitM e o Parse ()
+defineAnchor value name = lift $ modify $ Map.insert name value
+
+lookupAnchor :: String -> ConduitM e o Parse (Maybe Value)
+lookupAnchor name = lift $ gets (Map.lookup name)
+
+type Parse = StateT (Map String Value) (ResourceT IO)
 
 requireEvent :: Event -> ConduitM Event o Parse ()
 requireEvent e = do
@@ -158,11 +165,8 @@ parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> ConduitM Event o Parse Text
 parseScalar v a style tag = do
     let res = decodeUtf8With lenientDecode v
-    case a of
-        Nothing -> return res
-        Just an -> do
-            lift $ modify (Map.insert an $ textToValue style tag res)
-            return res
+    mapM_ (defineAnchor (textToValue style tag res)) a
+    return res
 
 textToValue :: Style -> Tag -> Text -> Value
 textToValue SingleQuoted _ t = String t
@@ -198,8 +202,8 @@ parseO = do
         Just (EventSequenceStart _ _ a) -> parseS a id
         Just (EventMappingStart _ _ a) -> parseM a M.empty
         Just (EventAlias an) -> do
-            m <- lift get
-            case Map.lookup an m of
+            m <- lookupAnchor an
+            case m of
                 Nothing -> liftIO $ throwIO $ UnknownAlias an
                 Just v -> return v
         _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
@@ -213,11 +217,8 @@ parseS a front = do
         Just EventSequenceEnd -> do
             CL.drop 1
             let res = Array $ V.fromList $ front []
-            case a of
-                Nothing -> return res
-                Just an -> do
-                    lift $ modify $ Map.insert an res
-                    return res
+            mapM_ (defineAnchor res) a
+            return res
         _ -> do
             o <- parseO
             parseS a $ front . (:) o
@@ -226,23 +227,18 @@ parseM :: Y.Anchor
        -> M.HashMap Text Value
        -> ConduitM Event o Parse Value
 parseM a front = do
-    me <- CL.peek
+    me <- CL.head
     case me of
         Just EventMappingEnd -> do
-            CL.drop 1
             let res = Object front
-            case a of
-                Nothing -> return res
-                Just an -> do
-                    lift $ modify $ Map.insert an res
-                    return res
+            mapM_ (defineAnchor res) a
+            return res
         _ -> do
-            CL.drop 1
             s <- case me of
                     Just (EventScalar v tag style a') -> parseScalar v a' style tag
                     Just (EventAlias an) -> do
-                        m <- lift get
-                        case Map.lookup an m of
+                        m <- lookupAnchor an
+                        case m of
                             Nothing -> liftIO $ throwIO $ UnknownAlias an
                             Just (String t) -> return t
                             Just v -> liftIO $ throwIO $ NonStringKeyAlias an v
@@ -253,12 +249,12 @@ parseM a front = do
                 al' = if s == pack "<<"
                          then case o of
                                   Object l  -> M.union front l
-                                  Array l -> M.union front $ foldl merge' M.empty $ V.toList l
+                                  Array l -> M.union front $ foldl mergeObjects M.empty $ V.toList l
                                   _          -> al
                          else al
             parseM a al'
-    where merge' al (Object om) = M.union al om
-          merge' al _           = al
+    where mergeObjects al (Object om) = M.union al om
+          mergeObjects al _           = al
 
 decodeHelper :: FromJSON a
              => ConduitM () Y.Event Parse ()
