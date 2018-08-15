@@ -1,6 +1,6 @@
 # ChangeLog for yaml
 
-## next
+## 0.10.0
 
 * Add `decodeFileWithWarnings` which returns warnings for duplicate fields
 
