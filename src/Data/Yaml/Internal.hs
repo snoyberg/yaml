@@ -20,9 +20,7 @@ import Control.Applicative ((<$>), Applicative(..))
 #endif
 import Control.Applicative ((<|>))
 import Control.Exception
-import Control.Monad (liftM, ap, when, unless)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Control.Monad.RWS
 import Data.Aeson
@@ -113,24 +111,6 @@ prettyPrintParseException pe = case pe of
     , "  Value: " ++ show value
     ]
   CyclicIncludes -> "Cyclic includes"
-
-newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
-instance Monad m => Functor (PErrorT m) where
-    fmap = liftM
-instance Monad m => Applicative (PErrorT m) where
-    pure  = PErrorT . return . Right
-    (<*>) = ap
-instance Monad m => Monad (PErrorT m) where
-    return = pure
-    (PErrorT m) >>= f = PErrorT $ do
-        e <- m
-        case e of
-            Left e' -> return $ Left e'
-            Right a -> runPErrorT $ f a
-instance MonadTrans PErrorT where
-    lift = PErrorT . liftM Right
-instance MonadIO m => MonadIO (PErrorT m) where
-    liftIO = liftIO
 
 defineAnchor :: Value -> String -> ConduitM e o Parse ()
 defineAnchor value name = modify $ Map.insert name value
