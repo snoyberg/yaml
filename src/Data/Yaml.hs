@@ -183,7 +183,9 @@ decodeFileEither
     -> IO (Either ParseException a)
 decodeFileEither = fmap (fmap snd) . decodeFileWithWarnings
 
--- |
+-- | A version of `decodeFileEither` that returns warnings along with the parse
+-- result.
+--
 -- @since 0.10.0
 decodeFileWithWarnings
     :: FromJSON a
