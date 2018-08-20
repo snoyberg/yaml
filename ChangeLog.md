@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.10.0
+
+* Add `decodeFileWithWarnings` which returns warnings for duplicate fields
+
 ## 0.9.0
 
 * Expose style and tags on mappings and sequences in Text.Libyaml [#141](https://github.com/snoyberg/yaml/pull/141)

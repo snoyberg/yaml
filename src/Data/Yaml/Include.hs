@@ -1,6 +1,10 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
-module Data.Yaml.Include (decodeFile, decodeFileEither) where
+module Data.Yaml.Include (
+  decodeFile
+, decodeFileEither
+, decodeFileWithWarnings
+) where
 
 #if !MIN_VERSION_directory(1, 2, 3)
 import Control.Exception (handleJust)
@@ -20,7 +24,7 @@ import Data.Text.Encoding (decodeUtf8)
 import System.Directory
 import System.FilePath
 
-import Data.Yaml.Internal (ParseException(..), decodeHelper_, decodeHelper)
+import Data.Yaml.Internal (ParseException(..), Warning(..), decodeHelper_, decodeHelper)
 import Text.Libyaml hiding (decodeFile)
 import qualified Text.Libyaml as Y
 
@@ -65,7 +69,7 @@ decodeFile
     :: FromJSON a
     => FilePath
     -> IO (Maybe a)
-decodeFile fp = decodeHelper (eventsFromFile fp) >>= either throwIO (return . either (const Nothing) id)
+decodeFile fp = (fmap snd <$> decodeHelper (eventsFromFile fp)) >>= either throwIO (return . either (const Nothing) id)
 
 -- | Like `Data.Yaml.decodeFileEither` but with support for relative and
 -- absolute includes.
@@ -77,4 +81,14 @@ decodeFileEither
     :: FromJSON a
     => FilePath
     -> IO (Either ParseException a)
-decodeFileEither = decodeHelper_ . eventsFromFile
+decodeFileEither = fmap (fmap snd) . decodeFileWithWarnings
+
+-- | A version of `decodeFileEither` that returns warnings along with the parse
+-- result.
+--
+-- @since 0.10.0
+decodeFileWithWarnings
+    :: FromJSON a
+    => FilePath
+    -> IO (Either ParseException ([Warning], a))
+decodeFileWithWarnings = decodeHelper_ . eventsFromFile

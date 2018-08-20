@@ -6,6 +6,7 @@ module Data.Yaml.Internal
     (
       ParseException(..)
     , prettyPrintParseException
+    , Warning(..)
     , parse
     , decodeHelper
     , decodeHelper_
@@ -19,23 +20,25 @@ import Control.Applicative ((<$>), Applicative(..))
 #endif
 import Control.Applicative ((<|>))
 import Control.Exception
-import Control.Monad (liftM, ap, unless)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import Control.Monad.Trans.State
+import Control.Monad.RWS
 import Data.Aeson
+import Data.Aeson.Internal (JSONPath, JSONPathElement(..))
 import Data.Aeson.Types hiding (parse)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
 import Data.Char (toUpper, ord)
+import Data.List
 import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Scientific (Scientific)
 import Data.Text (Text, pack)
 import qualified Data.Text as T
@@ -109,31 +112,19 @@ prettyPrintParseException pe = case pe of
     ]
   CyclicIncludes -> "Cyclic includes"
 
-newtype PErrorT m a = PErrorT { runPErrorT :: m (Either ParseException a) }
-instance Monad m => Functor (PErrorT m) where
-    fmap = liftM
-instance Monad m => Applicative (PErrorT m) where
-    pure  = PErrorT . return . Right
-    (<*>) = ap
-instance Monad m => Monad (PErrorT m) where
-    return = pure
-    (PErrorT m) >>= f = PErrorT $ do
-        e <- m
-        case e of
-            Left e' -> return $ Left e'
-            Right a -> runPErrorT $ f a
-instance MonadTrans PErrorT where
-    lift = PErrorT . liftM Right
-instance MonadIO m => MonadIO (PErrorT m) where
-    liftIO = lift . liftIO
-
 defineAnchor :: Value -> String -> ConduitM e o Parse ()
-defineAnchor value name = lift $ modify $ Map.insert name value
+defineAnchor value name = modify $ Map.insert name value
 
 lookupAnchor :: String -> ConduitM e o Parse (Maybe Value)
-lookupAnchor name = lift $ gets (Map.lookup name)
+lookupAnchor name = gets (Map.lookup name)
 
-type Parse = StateT (Map String Value) (ResourceT IO)
+data Warning = DuplicateKey JSONPath
+    deriving (Eq, Show)
+
+addWarning :: Warning -> ConduitM e o Parse ()
+addWarning = tell . return
+
+type Parse = RWST JSONPath [Warning] (Map String Value) (ResourceT IO)
 
 requireEvent :: Event -> ConduitM Event o Parse ()
 requireEvent e = do
@@ -199,8 +190,8 @@ parseO = do
     me <- CL.head
     case me of
         Just (EventScalar v tag style a) -> textToValue style tag <$> parseScalar v a style tag
-        Just (EventSequenceStart _ _ a) -> parseS a id
-        Just (EventMappingStart _ _ a) -> parseM a M.empty
+        Just (EventSequenceStart _ _ a) -> parseS 0 a id
+        Just (EventMappingStart _ _ a) -> parseM mempty a M.empty
         Just (EventAlias an) -> do
             m <- lookupAnchor an
             case m of
@@ -208,10 +199,11 @@ parseO = do
                 Just v -> return v
         _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
 
-parseS :: Y.Anchor
+parseS :: Int
+       -> Y.Anchor
        -> ([Value] -> [Value])
        -> ConduitM Event o Parse Value
-parseS a front = do
+parseS n a front = do
     me <- CL.peek
     case me of
         Just EventSequenceEnd -> do
@@ -220,13 +212,14 @@ parseS a front = do
             mapM_ (defineAnchor res) a
             return res
         _ -> do
-            o <- parseO
-            parseS a $ front . (:) o
+            o <- local (Index n :) parseO
+            parseS (succ n) a $ front . (:) o
 
-parseM :: Y.Anchor
+parseM :: Set Text
+       -> Y.Anchor
        -> M.HashMap Text Value
        -> ConduitM Event o Parse Value
-parseM a front = do
+parseM mergedKeys a front = do
     me <- CL.head
     case me of
         Just EventMappingEnd -> do
@@ -243,48 +236,55 @@ parseM a front = do
                             Just (String t) -> return t
                             Just v -> liftIO $ throwIO $ NonStringKeyAlias an v
                     _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
-            o <- parseO
 
-            let al  = M.insert s o front
-                al' = if s == pack "<<"
+            (mergedKeys', al') <- local (Key s :) $ do
+              o <- parseO
+              let al = do
+                      when (M.member s front && Set.notMember s mergedKeys) $ do
+                          path <- reverse <$> ask
+                          addWarning (DuplicateKey path)
+                      return (Set.delete s mergedKeys, M.insert s o front)
+              if s == pack "<<"
                          then case o of
-                                  Object l  -> M.union front l
-                                  Array l -> M.union front $ foldl mergeObjects M.empty $ V.toList l
+                                  Object l  -> return (merge l)
+                                  Array l -> return $ merge $ foldl mergeObjects M.empty $ V.toList l
                                   _          -> al
                          else al
-            parseM a al'
+            parseM mergedKeys' a al'
     where mergeObjects al (Object om) = M.union al om
           mergeObjects al _           = al
 
+          merge xs = (Set.fromList (M.keys xs \\ M.keys front), M.union front xs)
+
 decodeHelper :: FromJSON a
              => ConduitM () Y.Event Parse ()
-             -> IO (Either ParseException (Either String a))
+             -> IO (Either ParseException ([Warning], Either String a))
 decodeHelper src = do
     -- This used to be tryAny, but the fact is that catching async
     -- exceptions is fine here. We'll rethrow them immediately in the
     -- otherwise clause.
-    x <- try $ runResourceT $ flip evalStateT Map.empty $ runConduit $ src .| parse
+    x <- try $ runResourceT $ evalRWST (runConduit $ src .| parse) [] Map.empty
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
-        Right y -> return $ Right $ parseEither parseJSON y
+        Right (y, warnings) -> return $ Right (warnings, parseEither parseJSON y)
 
 decodeHelper_ :: FromJSON a
               => ConduitM () Event Parse ()
-              -> IO (Either ParseException a)
+              -> IO (Either ParseException ([Warning], a))
 decodeHelper_ src = do
-    x <- try $ runResourceT $ flip evalStateT Map.empty $ runConduit $ src .| parse
+    x <- try $ runResourceT $ evalRWST (runConduit $ src .| parse) [] Map.empty
     return $ case x of
         Left e
             | Just pe <- fromException e -> Left pe
             | Just ye <- fromException e -> Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> Left $ OtherParseException e
-        Right y -> either
+        Right (y, warnings) -> either
             (Left . AesonException)
             Right
-            (parseEither parseJSON y)
+            ((,) warnings <$> parseEither parseJSON y)
 
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
 specialStrings :: HashSet.HashSet Text
