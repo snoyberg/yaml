@@ -247,7 +247,7 @@ parseM mergedKeys a front = do
               if s == pack "<<"
                          then case o of
                                   Object l  -> return (merge l)
-                                  Array l -> return $ merge $ foldl mergeObjects M.empty $ V.toList l
+                                  Array l -> return $ merge $ foldl' mergeObjects M.empty $ V.toList l
                                   _          -> al
                          else al
             parseM mergedKeys' a al'
