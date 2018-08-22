@@ -22,7 +22,8 @@ import Control.Applicative ((<|>))
 import Control.Exception
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import Control.Monad.RWS
+import Control.Monad.State
+import Control.Monad.Reader
 import Data.Aeson
 import Data.Aeson.Internal (JSONPath, JSONPathElement(..))
 import Data.Aeson.Types hiding (parse)
@@ -113,18 +114,29 @@ prettyPrintParseException pe = case pe of
   CyclicIncludes -> "Cyclic includes"
 
 defineAnchor :: Value -> String -> ConduitM e o Parse ()
-defineAnchor value name = modify $ Map.insert name value
+defineAnchor value name = modify (modifyAnchors $ Map.insert name value)
+  where
+    modifyAnchors :: (Map String Value -> Map String Value) -> ParseState -> ParseState
+    modifyAnchors f st =  st {parseStateAnchors = f (parseStateAnchors st)}
 
 lookupAnchor :: String -> ConduitM e o Parse (Maybe Value)
-lookupAnchor name = gets (Map.lookup name)
+lookupAnchor name = gets (Map.lookup name . parseStateAnchors)
 
 data Warning = DuplicateKey JSONPath
     deriving (Eq, Show)
 
 addWarning :: Warning -> ConduitM e o Parse ()
-addWarning = tell . return
+addWarning w = modify (modifyWarnings (w :))
+  where
+    modifyWarnings :: ([Warning] -> [Warning]) -> ParseState -> ParseState
+    modifyWarnings f st =  st {parseStateWarnings = f (parseStateWarnings st)}
 
-type Parse = RWST JSONPath [Warning] (Map String Value) (ResourceT IO)
+data ParseState = ParseState {
+  parseStateAnchors :: Map String Value
+, parseStateWarnings :: [Warning]
+}
+
+type Parse = ReaderT JSONPath (StateT ParseState (ResourceT IO))
 
 requireEvent :: Event -> ConduitM Event o Parse ()
 requireEvent e = do
@@ -263,28 +275,28 @@ decodeHelper src = do
     -- This used to be tryAny, but the fact is that catching async
     -- exceptions is fine here. We'll rethrow them immediately in the
     -- otherwise clause.
-    x <- try $ runResourceT $ evalRWST (runConduit $ src .| parse) [] Map.empty
+    x <- try $ runResourceT $ runStateT (runReaderT (runConduit $ src .| parse) []) (ParseState Map.empty [])
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
-        Right (y, warnings) -> return $ Right (warnings, parseEither parseJSON y)
+        Right (y, st) -> return $ Right (parseStateWarnings st, parseEither parseJSON y)
 
 decodeHelper_ :: FromJSON a
               => ConduitM () Event Parse ()
               -> IO (Either ParseException ([Warning], a))
 decodeHelper_ src = do
-    x <- try $ runResourceT $ evalRWST (runConduit $ src .| parse) [] Map.empty
+    x <- try $ runResourceT $ runStateT (runReaderT (runConduit $ src .| parse) []) (ParseState Map.empty [])
     return $ case x of
         Left e
             | Just pe <- fromException e -> Left pe
             | Just ye <- fromException e -> Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> Left $ OtherParseException e
-        Right (y, warnings) -> either
+        Right (y, st) -> either
             (Left . AesonException)
             Right
-            ((,) warnings <$> parseEither parseJSON y)
+            ((,) (parseStateWarnings st) <$> parseEither parseJSON y)
 
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
 specialStrings :: HashSet.HashSet Text
