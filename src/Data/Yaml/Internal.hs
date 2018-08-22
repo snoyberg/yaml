@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 module Data.Yaml.Internal
     (
       ParseException(..)
@@ -215,7 +216,7 @@ parseS :: Int
        -> Y.Anchor
        -> ([Value] -> [Value])
        -> ConduitM Event o Parse Value
-parseS n a front = do
+parseS !n a front = do
     me <- CL.peek
     case me of
         Just EventSequenceEnd -> do
