@@ -23,7 +23,7 @@ import Control.Applicative ((<|>))
 import Control.Exception
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Reader
 import Data.Aeson
 import Data.Aeson.Internal (JSONPath, JSONPathElement(..))
