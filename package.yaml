@@ -61,8 +61,11 @@ dependencies:
 - scientific
 - filepath
 - directory
-- semigroups
 - template-haskell
+when:
+  condition: "!impl(ghc >= 8.0)"
+  dependencies:
+  - semigroups
 
 library:
   c-sources: c/helper.c
