@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## Next
+
+* Avoid incurring a `semigroups` dependency on recent GHCs.
+
 ## 0.10.0
 
 * Add `decodeFileWithWarnings` which returns warnings for duplicate fields
