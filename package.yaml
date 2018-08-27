@@ -127,7 +127,7 @@ tests:
   spec:
     main: Spec.hs
     source-dirs: test
-    ghc-options: -Wall
+    ghc-options: -Wall "-with-rtsopts=-K1K"
     cpp-options: -DTEST
     dependencies:
     - hspec >=1.3
