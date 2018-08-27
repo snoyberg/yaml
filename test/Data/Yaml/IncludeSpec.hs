@@ -4,6 +4,7 @@ module Data.Yaml.IncludeSpec (main, spec) where
 
 import           Test.Hspec
 import           Data.List (isPrefixOf)
+import qualified Data.ByteString.Lazy as LB
 import           Data.Aeson
 import           Data.Aeson.Internal (JSONPathElement(..))
 import           Data.Yaml (ParseException(InvalidYaml))
@@ -51,6 +52,15 @@ spec = do
     context "when file does not exist" $ do
       it "throws Left (InvalidYaml (Just (YamlException \"Yaml file not found: ...\")))" $ do
         (decodeFile "./does_not_exist.yaml" :: IO (Maybe Value)) `shouldThrow` isYamlFileNotFoundException
+
+    context "with a 1K stack size limit" $ around_ inTempDirectory $ do
+      context "with a large list" $ do
+        it "succeeds" $ do
+          let
+            xs :: [Value]
+            xs = replicate 5000 (Number 23)
+          LB.writeFile "foo.yaml" (encode xs)
+          decodeFile "foo.yaml" `shouldReturn` Just xs
 
   describe "decodeFileEither" $ do
     context "when file does not exist" $ do
