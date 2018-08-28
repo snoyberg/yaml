@@ -3,6 +3,7 @@
 ## Next
 
 * Avoid incurring a `semigroups` dependency on recent GHCs.
+* Fix a space leak that was introduced with `0.10.0` [#147](https://github.com/snoyberg/yaml/issues/147)
 
 ## 0.10.0
 
