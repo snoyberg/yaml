@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 module Data.Yaml.Internal
     (
       ParseException(..)
@@ -22,7 +23,8 @@ import Control.Applicative ((<|>))
 import Control.Exception
 import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import Control.Monad.RWS
+import Control.Monad.State.Strict
+import Control.Monad.Reader
 import Data.Aeson
 import Data.Aeson.Internal (JSONPath, JSONPathElement(..))
 import Data.Aeson.Types hiding (parse)
@@ -112,34 +114,45 @@ prettyPrintParseException pe = case pe of
     ]
   CyclicIncludes -> "Cyclic includes"
 
-defineAnchor :: Value -> String -> ConduitM e o Parse ()
-defineAnchor value name = modify $ Map.insert name value
+defineAnchor :: Value -> String -> ReaderT JSONPath (ConduitM e o Parse) ()
+defineAnchor value name = modify (modifyAnchors $ Map.insert name value)
+  where
+    modifyAnchors :: (Map String Value -> Map String Value) -> ParseState -> ParseState
+    modifyAnchors f st =  st {parseStateAnchors = f (parseStateAnchors st)}
 
-lookupAnchor :: String -> ConduitM e o Parse (Maybe Value)
-lookupAnchor name = gets (Map.lookup name)
+lookupAnchor :: String -> ReaderT JSONPath (ConduitM e o Parse) (Maybe Value)
+lookupAnchor name = gets (Map.lookup name . parseStateAnchors)
 
 data Warning = DuplicateKey JSONPath
     deriving (Eq, Show)
 
-addWarning :: Warning -> ConduitM e o Parse ()
-addWarning = tell . return
+addWarning :: Warning -> ReaderT JSONPath (ConduitM e o Parse) ()
+addWarning w = modify (modifyWarnings (w :))
+  where
+    modifyWarnings :: ([Warning] -> [Warning]) -> ParseState -> ParseState
+    modifyWarnings f st =  st {parseStateWarnings = f (parseStateWarnings st)}
 
-type Parse = RWST JSONPath [Warning] (Map String Value) (ResourceT IO)
+data ParseState = ParseState {
+  parseStateAnchors :: Map String Value
+, parseStateWarnings :: [Warning]
+}
 
-requireEvent :: Event -> ConduitM Event o Parse ()
+type Parse = StateT ParseState (ResourceT IO)
+
+requireEvent :: Event -> ReaderT JSONPath (ConduitM Event o Parse) ()
 requireEvent e = do
-    f <- CL.head
+    f <- lift CL.head
     unless (f == Just e) $ liftIO $ throwIO $ UnexpectedEvent f $ Just e
 
-parse :: ConduitM Event o Parse Value
+parse :: ReaderT JSONPath (ConduitM Event o Parse) Value
 parse = do
-    streamStart <- CL.head
+    streamStart <- lift CL.head
     case streamStart of
         Nothing ->
             -- empty string input
             return Null
         Just EventStreamStart -> do
-            documentStart <- CL.head
+            documentStart <- lift CL.head
             case documentStart of
                 Just EventStreamEnd ->
                     -- empty file input, comment only string/file input
@@ -153,7 +166,7 @@ parse = do
         _ -> liftIO $ throwIO $ UnexpectedEvent streamStart Nothing
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
-            -> ConduitM Event o Parse Text
+            -> ReaderT JSONPath (ConduitM Event o Parse) Text
 parseScalar v a style tag = do
     let res = decodeUtf8With lenientDecode v
     mapM_ (defineAnchor (textToValue style tag res)) a
@@ -185,9 +198,9 @@ textToScientific = Atto.parseOnly (num <* Atto.endOfInput)
         isOctalDigit c = (c >= '0' && c <= '7')
         step a c = (a `shiftL` 3) .|. fromIntegral (ord c - 48)
 
-parseO :: ConduitM Event o Parse Value
+parseO :: ReaderT JSONPath (ConduitM Event o Parse) Value
 parseO = do
-    me <- CL.head
+    me <- lift CL.head
     case me of
         Just (EventScalar v tag style a) -> textToValue style tag <$> parseScalar v a style tag
         Just (EventSequenceStart _ _ a) -> parseS 0 a id
@@ -202,12 +215,12 @@ parseO = do
 parseS :: Int
        -> Y.Anchor
        -> ([Value] -> [Value])
-       -> ConduitM Event o Parse Value
-parseS n a front = do
-    me <- CL.peek
+       -> ReaderT JSONPath (ConduitM Event o Parse) Value
+parseS !n a front = do
+    me <- lift CL.peek
     case me of
         Just EventSequenceEnd -> do
-            CL.drop 1
+            lift $ CL.drop 1
             let res = Array $ V.fromList $ front []
             mapM_ (defineAnchor res) a
             return res
@@ -218,9 +231,9 @@ parseS n a front = do
 parseM :: Set Text
        -> Y.Anchor
        -> M.HashMap Text Value
-       -> ConduitM Event o Parse Value
+       -> ReaderT JSONPath (ConduitM Event o Parse) Value
 parseM mergedKeys a front = do
-    me <- CL.head
+    me <- lift CL.head
     case me of
         Just EventMappingEnd -> do
             let res = Object front
@@ -247,7 +260,7 @@ parseM mergedKeys a front = do
               if s == pack "<<"
                          then case o of
                                   Object l  -> return (merge l)
-                                  Array l -> return $ merge $ foldl mergeObjects M.empty $ V.toList l
+                                  Array l -> return $ merge $ foldl' mergeObjects M.empty $ V.toList l
                                   _          -> al
                          else al
             parseM mergedKeys' a al'
@@ -263,28 +276,28 @@ decodeHelper src = do
     -- This used to be tryAny, but the fact is that catching async
     -- exceptions is fine here. We'll rethrow them immediately in the
     -- otherwise clause.
-    x <- try $ runResourceT $ evalRWST (runConduit $ src .| parse) [] Map.empty
+    x <- try $ runResourceT $ runStateT (runConduit $ src .| runReaderT parse []) (ParseState Map.empty [])
     case x of
         Left e
             | Just pe <- fromException e -> return $ Left pe
             | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> throwIO e
-        Right (y, warnings) -> return $ Right (warnings, parseEither parseJSON y)
+        Right (y, st) -> return $ Right (parseStateWarnings st, parseEither parseJSON y)
 
 decodeHelper_ :: FromJSON a
               => ConduitM () Event Parse ()
               -> IO (Either ParseException ([Warning], a))
 decodeHelper_ src = do
-    x <- try $ runResourceT $ evalRWST (runConduit $ src .| parse) [] Map.empty
+    x <- try $ runResourceT $ runStateT (runConduit $ src .| runReaderT parse []) (ParseState Map.empty [])
     return $ case x of
         Left e
             | Just pe <- fromException e -> Left pe
             | Just ye <- fromException e -> Left $ InvalidYaml $ Just (ye :: YamlException)
             | otherwise -> Left $ OtherParseException e
-        Right (y, warnings) -> either
+        Right (y, st) -> either
             (Left . AesonException)
             Right
-            ((,) warnings <$> parseEither parseJSON y)
+            ((,) (parseStateWarnings st) <$> parseEither parseJSON y)
 
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
 specialStrings :: HashSet.HashSet Text
