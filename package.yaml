@@ -79,17 +79,20 @@ library:
   - condition: flag(no-unicode)
     cpp-options: -D__NO_UNICODE__
   - condition: ! '!(flag(system-libyaml))'
-    c-sources:
-    - libyaml/api.c
-    - libyaml/dumper.c
-    - libyaml/emitter.c
-    - libyaml/loader.c
-    - libyaml/parser.c
-    - libyaml/reader.c
-    - libyaml/scanner.c
-    - libyaml/writer.c
-    include-dirs:
-    - libyaml
+    then:
+      c-sources:
+      - libyaml/api.c
+      - libyaml/dumper.c
+      - libyaml/emitter.c
+      - libyaml/loader.c
+      - libyaml/parser.c
+      - libyaml/reader.c
+      - libyaml/scanner.c
+      - libyaml/writer.c
+      include-dirs:
+      - libyaml
+    else:
+      extra-libraries: yaml
   - condition: os(windows)
     cpp-options: -DWINDOWS
 
