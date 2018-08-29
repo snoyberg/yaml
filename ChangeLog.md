@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.10.1.1
+
+* Correctly declare libyaml dependency on system-libyaml flag [#151](https://github.com/snoyberg/yaml/pull/151)
+
 ## 0.10.1
 
 * Avoid incurring a `semigroups` dependency on recent GHCs.
