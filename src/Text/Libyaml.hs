@@ -348,6 +348,9 @@ foreign import ccall unsafe "yaml_emitter_set_unicode"
 foreign import ccall unsafe "yaml_emitter_set_output_file"
     c_yaml_emitter_set_output_file :: Emitter -> File -> IO ()
 
+foreign import ccall unsafe "yaml_emitter_set_width"
+    c_yaml_emitter_set_width :: Emitter -> CInt -> IO ()
+
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
 
@@ -648,6 +651,7 @@ runEmitter allocI closeI =
 #ifndef __NO_UNICODE__
         c_yaml_emitter_set_unicode emitter 1
 #endif
+        c_yaml_emitter_set_width emitter (-1) -- prevent libyaml from wrapping strings at 80 chars
         a <- allocI emitter
         return (emitter, a)
     cleanup (emitter, _) = do
