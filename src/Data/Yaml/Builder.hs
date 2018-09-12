@@ -7,11 +7,18 @@ module Data.Yaml.Builder
     ( YamlBuilder (..)
     , ToYaml (..)
     , mapping
+    , namedMapping
     , array
+    , namedArray
     , string
+    , namedString
     , bool
+    , namedBool
     , null
+    , namedNull
     , scientific
+    , namedScientific
+    , alias
     , number
     , toByteString
     , toByteStringWith
@@ -64,47 +71,68 @@ instance ToYaml Text where
 instance ToYaml Int where
     toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) IntTag PlainNoTag Nothing:)
 
-mapping :: [(Text, YamlBuilder)] -> YamlBuilder
-mapping pairs = YamlBuilder $ \rest ->
-    EventMappingStart NoTag AnyMapping Nothing : foldr addPair (EventMappingEnd : rest) pairs
+namedMapping :: Maybe String -> [(Text, YamlBuilder)] -> YamlBuilder
+namedMapping anchor pairs = YamlBuilder $ \rest ->
+    EventMappingStart NoTag AnyMapping anchor : foldr addPair (EventMappingEnd : rest) pairs
   where
     addPair (key, YamlBuilder value) after
         = EventScalar (encodeUtf8 key) StrTag PlainNoTag Nothing
         : value after
 
-array :: [YamlBuilder] -> YamlBuilder
-array bs =
-    YamlBuilder $ (EventSequenceStart NoTag AnySequence Nothing:) . flip (foldr go) bs . (EventSequenceEnd:)
+mapping :: [(Text, YamlBuilder)] -> YamlBuilder
+mapping = namedMapping Nothing
+
+namedArray :: Maybe String -> [YamlBuilder] -> YamlBuilder
+namedArray anchor bs =
+    YamlBuilder $ (EventSequenceStart NoTag AnySequence anchor:) . flip (foldr go) bs . (EventSequenceEnd:)
   where
     go (YamlBuilder b) = b
 
-string :: Text -> YamlBuilder
+array :: [YamlBuilder] -> YamlBuilder
+array = namedArray Nothing
+
+namedString :: Maybe String -> Text -> YamlBuilder
 -- Empty strings need special handling to ensure they get quoted. This avoids:
 -- https://github.com/snoyberg/yaml/issues/24
-string ""  = YamlBuilder (EventScalar "" NoTag SingleQuoted Nothing :)
-string s   =
+namedString anchor ""  = YamlBuilder (EventScalar "" NoTag SingleQuoted anchor :)
+namedString anchor s   =
     YamlBuilder (event :)
   where
     event
         -- Make sure that special strings are encoded as strings properly.
         -- See: https://github.com/snoyberg/yaml/issues/31
-        | s `HashSet.member` specialStrings || isNumeric s = EventScalar (encodeUtf8 s) NoTag SingleQuoted Nothing
-        | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
+        | s `HashSet.member` specialStrings || isNumeric s = EventScalar (encodeUtf8 s) NoTag SingleQuoted anchor
+        | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag anchor
+
+string :: Text -> YamlBuilder
+string = namedString Nothing
  
 -- Use aeson's implementation which gets rid of annoying decimal points
+namedScientific :: Maybe String -> Scientific -> YamlBuilder
+namedScientific anchor n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag anchor :)
+
 scientific :: Scientific -> YamlBuilder
-scientific n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag Nothing :)
+scientific = namedScientific Nothing
 
 {-# DEPRECATED number "Use scientific" #-}
 number :: Scientific -> YamlBuilder
 number = scientific
 
+namedBool :: Maybe String -> Bool -> YamlBuilder
+namedBool anchor True   = YamlBuilder (EventScalar "true" BoolTag PlainNoTag anchor :)
+namedBool anchor False  = YamlBuilder (EventScalar "false" BoolTag PlainNoTag anchor :)
+
 bool :: Bool -> YamlBuilder
-bool True   = YamlBuilder (EventScalar "true" BoolTag PlainNoTag Nothing :)
-bool False  = YamlBuilder (EventScalar "false" BoolTag PlainNoTag Nothing :)
+bool = namedBool Nothing
+
+namedNull :: Maybe String -> YamlBuilder
+namedNull anchor = YamlBuilder (EventScalar "null" NullTag PlainNoTag anchor :)
 
 null :: YamlBuilder
-null = YamlBuilder (EventScalar "null" NullTag PlainNoTag Nothing :)
+null = namedNull Nothing
+
+alias :: String -> YamlBuilder
+alias anchor = YamlBuilder (EventAlias anchor :)
 
 toEvents :: YamlBuilder -> [Event]
 toEvents (YamlBuilder front) =
