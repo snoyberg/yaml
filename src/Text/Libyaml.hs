@@ -21,9 +21,14 @@ module Text.Libyaml
     , Anchor
       -- * Encoding and decoding
     , encode
+    , encodeWith
     , decode
     , encodeFile
     , decodeFile
+    , encodeFileWith
+    , FormatOptions
+    , defaultFormatOptions
+    , setWidth
       -- * Error handling
     , YamlException (..)
     , YamlMark (..)
@@ -348,6 +353,9 @@ foreign import ccall unsafe "yaml_emitter_set_unicode"
 foreign import ccall unsafe "yaml_emitter_set_output_file"
     c_yaml_emitter_set_output_file :: Emitter -> File -> IO ()
 
+foreign import ccall unsafe "yaml_emitter_set_width"
+    c_yaml_emitter_set_width :: Emitter -> CInt -> IO ()
+
 foreign import ccall unsafe "yaml_emitter_emit"
     c_yaml_emitter_emit :: Emitter -> EventRaw -> IO CInt
 
@@ -605,9 +613,34 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
+-- | Contains options relating to the formatting (indendation, width) of the YAML output.
+--
+-- @since 0.10.2.0
+data FormatOptions = FormatOptions
+    { formatOptionsWidth :: Maybe Int
+    }
+
+-- |
+-- @since 0.10.2.0
+defaultFormatOptions :: FormatOptions
+defaultFormatOptions = FormatOptions
+    { formatOptionsWidth = Just 80 -- by default the width is set to 0 in the C code, which gets turned into 80 in yaml_emitter_emit_stream_start
+    }
+
+-- | Set the maximum number of columns in the YAML output, or 'Nothing' for infinite. By default, the limit is 80 characters.
+--
+-- @since 0.10.2.0
+setWidth :: Maybe Int -> FormatOptions -> FormatOptions
+setWidth w opts = opts { formatOptionsWidth = w }
+
 encode :: MonadResource m => ConduitM Event o m ByteString
-encode =
-    runEmitter alloc close
+encode = encodeWith defaultFormatOptions
+
+-- |
+-- @since 0.10.2.0
+encodeWith :: MonadResource m => FormatOptions -> ConduitM Event o m ByteString
+encodeWith opts =
+    runEmitter opts alloc close
   where
     alloc emitter = do
         fbuf <- mallocForeignPtrBytes bufferSize
@@ -620,11 +653,20 @@ encode =
         fptr <- newForeignPtr_ $ castPtr ptr'
         return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
+
 encodeFile :: MonadResource m
            => FilePath
            -> ConduitM Event o m ()
-encodeFile filePath =
-    bracketP getFile c_fclose $ \file -> runEmitter (alloc file) (\u _ -> return u)
+encodeFile = encodeFileWith defaultFormatOptions
+
+-- |
+-- @since 0.10.2.0
+encodeFileWith :: MonadResource m
+           => FormatOptions
+           -> FilePath
+           -> ConduitM Event o m ()
+encodeFileWith opts filePath =
+    bracketP getFile c_fclose $ \file -> runEmitter opts (alloc file) (\u _ -> return u)
   where
     getFile = do
         file <- openFile filePath write_flags "w"
@@ -635,10 +677,11 @@ encodeFile filePath =
     alloc file emitter = c_yaml_emitter_set_output_file emitter file
 
 runEmitter :: MonadResource m
-           => (Emitter -> IO a) -- ^ alloc
+           => FormatOptions
+           -> (Emitter -> IO a) -- ^ alloc
            -> (() -> a -> IO b) -- ^ close
            -> ConduitM Event o m b
-runEmitter allocI closeI =
+runEmitter opts allocI closeI =
     bracketP alloc cleanup go
   where
     alloc = mask_ $ do
@@ -648,6 +691,9 @@ runEmitter allocI closeI =
 #ifndef __NO_UNICODE__
         c_yaml_emitter_set_unicode emitter 1
 #endif
+        c_yaml_emitter_set_width emitter $ case formatOptionsWidth opts of
+            Nothing -> -1 --infinite
+            Just width -> fromIntegral width
         a <- allocI emitter
         return (emitter, a)
     cleanup (emitter, _) = do

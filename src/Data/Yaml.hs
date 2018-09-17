@@ -28,7 +28,9 @@ module Data.Yaml
 #endif
     ( -- * Encoding
       encode
+    , encodeWith
     , encodeFile
+    , encodeFileWith
       -- * Decoding
     , decodeEither'
     , decodeFileEither
@@ -66,6 +68,15 @@ module Data.Yaml
       -- * Classes
     , ToJSON (..)
     , FromJSON (..)
+      -- * Custom encoding
+    , isSpecialString
+    , EncodeOptions
+    , defaultEncodeOptions
+    , setStringStyle
+    , setFormat
+    , FormatOptions
+    , defaultFormatOptions
+    , setWidth
       -- * Deprecated
     , decode
     , decodeFile
@@ -100,65 +111,117 @@ import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
 import qualified Data.Vector as V
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Text (Text)
 
 import Data.Yaml.Internal
-import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
+import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile, encodeWith, encodeFileWith)
 import qualified Text.Libyaml as Y
+
+-- |
+-- @since 0.10.2.0
+data EncodeOptions = EncodeOptions
+  { encodeOptionsStringStyle :: Text -> ( Tag, Style )
+  , encodeOptionsFormat :: FormatOptions
+  }
+
+-- | Set the string style in the encoded YAML. This is a function that decides
+-- for each string the type of YAML string to output.
+--
+-- __WARNING__: You must ensure that special strings (like @"yes"@\/@"no"@\/@"null"@\/@"1234"@) are not encoded with the 'Plain' style, because
+-- then they will be decoded as boolean, null or numeric values. You can use 'isSpecialString' to detect them.
+--
+-- By default, strings are encoded with the `Plain` style, except special strings, which are encoded with `SingleQuoted`.
+--
+-- @since 0.10.2.0
+setStringStyle :: (Text -> ( Tag, Style )) -> EncodeOptions -> EncodeOptions
+setStringStyle s opts = opts { encodeOptionsStringStyle = s }
+
+-- | Set the encoding formatting for the encoded YAML. By default, this is `defaultFormatOptions`.
+--
+-- @since 0.10.2.0
+setFormat :: FormatOptions -> EncodeOptions -> EncodeOptions
+setFormat f opts = opts { encodeOptionsFormat = f }
+
+-- | Determine whether a string must be quoted in YAML and can't appear as plain text.
+-- Useful if you want to use 'setStringStyle'.
+--
+-- @since 0.10.2.0
+isSpecialString :: Text -> Bool
+isSpecialString s = s `HashSet.member` specialStrings || isNumeric s
+
+-- |
+-- @since 0.10.2.0
+defaultEncodeOptions :: EncodeOptions
+defaultEncodeOptions = EncodeOptions
+  { encodeOptionsStringStyle = \s ->
+    -- Empty strings need special handling to ensure they get quoted. This avoids:
+    -- https://github.com/snoyberg/yaml/issues/24
+    if isSpecialString s
+      then ( NoTag, SingleQuoted )
+      else ( StrTag, PlainNoTag )
+  , encodeOptionsFormat = defaultFormatOptions
+  }
 
 -- | Encode a value into its YAML representation.
 encode :: ToJSON a => a -> ByteString
-encode obj = unsafePerformIO $ runConduitRes
-    $ CL.sourceList (objToEvents $ toJSON obj)
-   .| Y.encode
+encode = encodeWith defaultEncodeOptions
+
+-- | Encode a value into its YAML representation with custom styling.
+--
+-- @since 0.10.2.0
+encodeWith :: ToJSON a => EncodeOptions -> a -> ByteString
+encodeWith opts obj = unsafePerformIO $ runConduitRes
+    $ CL.sourceList (objToEvents opts $ toJSON obj)
+   .| Y.encodeWith (encodeOptionsFormat opts)
 
 -- | Encode a value into its YAML representation and save to the given file.
 encodeFile :: ToJSON a => FilePath -> a -> IO ()
-encodeFile fp obj = runConduitRes
-    $ CL.sourceList (objToEvents $ toJSON obj)
-   .| Y.encodeFile fp
+encodeFile = encodeFileWith defaultEncodeOptions
 
-objToEvents :: Value -> [Y.Event]
-objToEvents o = (:) EventStreamStart
+-- | Encode a value into its YAML representation with custom styling and save to the given file.
+--
+-- @since 0.10.2.0
+encodeFileWith :: ToJSON a => EncodeOptions -> FilePath -> a -> IO ()
+encodeFileWith opts fp obj = runConduitRes
+    $ CL.sourceList (objToEvents opts $ toJSON obj)
+   .| Y.encodeFileWith (encodeOptionsFormat opts) fp
+
+objToEvents :: EncodeOptions -> Value -> [Y.Event]
+objToEvents opts o = (:) EventStreamStart
               . (:) EventDocumentStart
               $ objToEvents' o
               [ EventDocumentEnd
               , EventStreamEnd
               ]
+  where
+    objToEvents' :: Value -> [Y.Event] -> [Y.Event]
+    --objToEvents' (Scalar s) rest = scalarToEvent s : rest
+    objToEvents' (Array list) rest =
+        EventSequenceStart NoTag AnySequence Nothing
+      : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
+    objToEvents' (Object pairs) rest =
+        EventMappingStart NoTag AnyMapping Nothing
+      : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
+
+    objToEvents' (String "") rest = EventScalar "" NoTag SingleQuoted Nothing : rest
+
+    objToEvents' (String s) rest = EventScalar (encodeUtf8 s) tag style Nothing : rest
+      where
+        ( tag, style ) = encodeOptionsStringStyle opts s
+    objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
+    objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
+    objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
+    -- Use aeson's implementation which gets rid of annoying decimal points
+    objToEvents' n@Number{} rest = EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder n) IntTag PlainNoTag Nothing : rest
+
+    pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
+    pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v
 
 {- FIXME
 scalarToEvent :: YamlScalar -> Event
 scalarToEvent (YamlScalar v t s) = EventScalar v t s Nothing
 -}
 
-objToEvents' :: Value -> [Y.Event] -> [Y.Event]
---objToEvents' (Scalar s) rest = scalarToEvent s : rest
-objToEvents' (Array list) rest =
-    EventSequenceStart NoTag AnySequence Nothing
-  : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
-objToEvents' (Object pairs) rest =
-    EventMappingStart NoTag AnyMapping Nothing
-  : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
-
--- Empty strings need special handling to ensure they get quoted. This avoids:
--- https://github.com/snoyberg/yaml/issues/24
-objToEvents' (String "") rest = EventScalar "" NoTag SingleQuoted Nothing : rest
-
-objToEvents' (String s) rest =
-    event : rest
-  where
-    event
-        -- Make sure that special strings are encoded as strings properly.
-        -- See: https://github.com/snoyberg/yaml/issues/31
-        | s `HashSet.member` specialStrings || isNumeric s = EventScalar (encodeUtf8 s) NoTag SingleQuoted Nothing
-        | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag Nothing
-objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
-objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
-objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
--- Use aeson's implementation which gets rid of annoying decimal points
-objToEvents' n@Number{} rest = EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder n) IntTag PlainNoTag Nothing : rest
-
-pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
-pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v
 
 decode :: FromJSON a
        => ByteString

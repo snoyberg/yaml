@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.10.2.0
+
+* Add `EncodeOptions` and `FormatOptions` to control the style of the encoded YAML. [#153](https://github.com/snoyberg/yaml/pull/153)
+
 ## 0.10.1.1
 
 * Correctly declare libyaml dependency on system-libyaml flag [#151](https://github.com/snoyberg/yaml/pull/151)

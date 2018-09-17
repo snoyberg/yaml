@@ -14,8 +14,12 @@ module Data.Yaml.Builder
     , scientific
     , number
     , toByteString
+    , toByteStringWith
     , writeYamlFile
+    , writeYamlFileWith
     , (.=)
+    , FormatOptions
+    , setWidth
     ) where
 
 import Prelude hiding (null)
@@ -110,7 +114,17 @@ toSource :: (Monad m, ToYaml a) => a -> ConduitM i Event m ()
 toSource = mapM_ yield . toEvents . toYaml
 
 toByteString :: ToYaml a => a -> ByteString
-toByteString yb = unsafePerformIO $ runConduitRes $ toSource yb .| encode
+toByteString = toByteStringWith defaultFormatOptions
+
+-- |
+-- @since 0.10.2.0
+toByteStringWith :: ToYaml a => FormatOptions -> a -> ByteString
+toByteStringWith opts yb = unsafePerformIO $ runConduitRes $ toSource yb .| encodeWith opts
 
 writeYamlFile :: ToYaml a => FilePath -> a -> IO ()
-writeYamlFile fp yb = runConduitRes $ toSource yb .| encodeFile fp
+writeYamlFile = writeYamlFileWith defaultFormatOptions
+
+-- |
+-- @since 0.10.2.0
+writeYamlFileWith :: ToYaml a => FormatOptions -> FilePath -> a -> IO ()
+writeYamlFileWith opts fp yb = runConduitRes $ toSource yb .| encodeFileWith opts fp
