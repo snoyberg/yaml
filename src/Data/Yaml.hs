@@ -106,6 +106,7 @@ import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
@@ -130,7 +131,13 @@ data EncodeOptions = EncodeOptions
 -- __WARNING__: You must ensure that special strings (like @"yes"@\/@"no"@\/@"null"@\/@"1234"@) are not encoded with the 'Plain' style, because
 -- then they will be decoded as boolean, null or numeric values. You can use 'isSpecialString' to detect them.
 --
--- By default, strings are encoded with the `Plain` style, except special strings, which are encoded with `SingleQuoted`.
+-- By default, strings are encoded as follows:
+--
+-- * Any string containing a newline character uses the 'Literal' style
+--
+-- * Otherwise, any special string (see 'isSpecialString') uses 'SingleQuoted'
+--
+-- * Otherwise, use 'Plain'
 --
 -- @since 0.10.2.0
 setStringStyle :: (Text -> ( Tag, Style )) -> EncodeOptions -> EncodeOptions
@@ -156,9 +163,11 @@ defaultEncodeOptions = EncodeOptions
   { encodeOptionsStringStyle = \s ->
     -- Empty strings need special handling to ensure they get quoted. This avoids:
     -- https://github.com/snoyberg/yaml/issues/24
-    if isSpecialString s
-      then ( NoTag, SingleQuoted )
-      else ( StrTag, PlainNoTag )
+    case () of
+      ()
+        | "\n" `T.isInfixOf` s -> ( NoTag, Literal )
+        | isSpecialString s -> ( NoTag, SingleQuoted )
+        | otherwise -> ( StrTag, PlainNoTag )
   , encodeOptionsFormat = defaultFormatOptions
   }
 
