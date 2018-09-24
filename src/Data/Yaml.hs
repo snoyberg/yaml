@@ -69,6 +69,7 @@ module Data.Yaml
     , ToJSON (..)
     , FromJSON (..)
       -- * Custom encoding
+    , objToEvents
     , isSpecialString
     , EncodeOptions
     , defaultEncodeOptions
