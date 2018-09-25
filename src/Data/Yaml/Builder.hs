@@ -7,17 +7,17 @@ module Data.Yaml.Builder
     ( YamlBuilder (..)
     , ToYaml (..)
     , mapping
-    , namedMapping
+    , maybeNamedMapping
     , array
-    , namedArray
+    , maybeNamedArray
     , string
-    , namedString
+    , maybeNamedString
     , bool
-    , namedBool
+    , maybeNamedBool
     , null
-    , namedNull
+    , maybeNamedNull
     , scientific
-    , namedScientific
+    , maybeNamedScientific
     , alias
     , number
     , toByteString
@@ -71,8 +71,8 @@ instance ToYaml Text where
 instance ToYaml Int where
     toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) IntTag PlainNoTag Nothing:)
 
-namedMapping :: Maybe Text -> [(Text, YamlBuilder)] -> YamlBuilder
-namedMapping anchor pairs = YamlBuilder $ \rest ->
+maybeNamedMapping :: Maybe Text -> [(Text, YamlBuilder)] -> YamlBuilder
+maybeNamedMapping anchor pairs = YamlBuilder $ \rest ->
     EventMappingStart NoTag AnyMapping (unpack <$> anchor) : foldr addPair (EventMappingEnd : rest) pairs
   where
     addPair (key, YamlBuilder value) after
@@ -80,22 +80,22 @@ namedMapping anchor pairs = YamlBuilder $ \rest ->
         : value after
 
 mapping :: [(Text, YamlBuilder)] -> YamlBuilder
-mapping = namedMapping Nothing
+mapping = maybeNamedMapping Nothing
 
-namedArray :: Maybe Text -> [YamlBuilder] -> YamlBuilder
-namedArray anchor bs =
+maybeNamedArray :: Maybe Text -> [YamlBuilder] -> YamlBuilder
+maybeNamedArray anchor bs =
     YamlBuilder $ (EventSequenceStart NoTag AnySequence (unpack <$> anchor):) . flip (foldr go) bs . (EventSequenceEnd:)
   where
     go (YamlBuilder b) = b
 
 array :: [YamlBuilder] -> YamlBuilder
-array = namedArray Nothing
+array = maybeNamedArray Nothing
 
-namedString :: Maybe Text -> Text -> YamlBuilder
+maybeNamedString :: Maybe Text -> Text -> YamlBuilder
 -- Empty strings need special handling to ensure they get quoted. This avoids:
 -- https://github.com/snoyberg/yaml/issues/24
-namedString anchor ""  = YamlBuilder (EventScalar "" NoTag SingleQuoted (unpack <$> anchor) :)
-namedString anchor s   =
+maybeNamedString anchor ""  = YamlBuilder (EventScalar "" NoTag SingleQuoted (unpack <$> anchor) :)
+maybeNamedString anchor s   =
     YamlBuilder (event :)
   where
     event
@@ -105,31 +105,31 @@ namedString anchor s   =
         | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag $ unpack <$> anchor
 
 string :: Text -> YamlBuilder
-string = namedString Nothing
+string = maybeNamedString Nothing
  
 -- Use aeson's implementation which gets rid of annoying decimal points
-namedScientific :: Maybe Text -> Scientific -> YamlBuilder
-namedScientific anchor n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedScientific :: Maybe Text -> Scientific -> YamlBuilder
+maybeNamedScientific anchor n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag (unpack <$> anchor) :)
 
 scientific :: Scientific -> YamlBuilder
-scientific = namedScientific Nothing
+scientific = maybeNamedScientific Nothing
 
 {-# DEPRECATED number "Use scientific" #-}
 number :: Scientific -> YamlBuilder
 number = scientific
 
-namedBool :: Maybe Text -> Bool -> YamlBuilder
-namedBool anchor True   = YamlBuilder (EventScalar "true" BoolTag PlainNoTag (unpack <$> anchor) :)
-namedBool anchor False  = YamlBuilder (EventScalar "false" BoolTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedBool :: Maybe Text -> Bool -> YamlBuilder
+maybeNamedBool anchor True   = YamlBuilder (EventScalar "true" BoolTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedBool anchor False  = YamlBuilder (EventScalar "false" BoolTag PlainNoTag (unpack <$> anchor) :)
 
 bool :: Bool -> YamlBuilder
-bool = namedBool Nothing
+bool = maybeNamedBool Nothing
 
-namedNull :: Maybe Text -> YamlBuilder
-namedNull anchor = YamlBuilder (EventScalar "null" NullTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedNull :: Maybe Text -> YamlBuilder
+maybeNamedNull anchor = YamlBuilder (EventScalar "null" NullTag PlainNoTag (unpack <$> anchor) :)
 
 null :: YamlBuilder
-null = namedNull Nothing
+null = maybeNamedNull Nothing
 
 alias :: Text -> YamlBuilder
 alias anchor = YamlBuilder (EventAlias (unpack anchor) :)
