@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.10.3.0
+
+* Add support for anchors and aliases to Data.Yaml.Builder [#155](https://github.com/snoyberg/yaml/pull/155)
+
 ## 0.10.2.0
 
 * Add `EncodeOptions` and `FormatOptions` to control the style of the encoded YAML. [#153](https://github.com/snoyberg/yaml/pull/153)
