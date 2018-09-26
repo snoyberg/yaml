@@ -7,16 +7,22 @@ module Data.Yaml.Builder
     ( YamlBuilder (..)
     , ToYaml (..)
     , mapping
+    , namedMapping
     , maybeNamedMapping
     , array
+    , namedArray
     , maybeNamedArray
     , string
+    , namedString
     , maybeNamedString
     , bool
+    , namedBool
     , maybeNamedBool
     , null
+    , namedNull
     , maybeNamedNull
     , scientific
+    , namedScientific
     , maybeNamedScientific
     , alias
     , number
@@ -82,6 +88,9 @@ maybeNamedMapping anchor pairs = YamlBuilder $ \rest ->
 mapping :: [(Text, YamlBuilder)] -> YamlBuilder
 mapping = maybeNamedMapping Nothing
 
+namedMapping :: Text -> [(Text, YamlBuilder)] -> YamlBuilder
+namedMapping name = maybeNamedMapping $ Just name
+
 maybeNamedArray :: Maybe Text -> [YamlBuilder] -> YamlBuilder
 maybeNamedArray anchor bs =
     YamlBuilder $ (EventSequenceStart NoTag AnySequence (unpack <$> anchor):) . flip (foldr go) bs . (EventSequenceEnd:)
@@ -90,6 +99,9 @@ maybeNamedArray anchor bs =
 
 array :: [YamlBuilder] -> YamlBuilder
 array = maybeNamedArray Nothing
+
+namedArray :: Text -> [YamlBuilder] -> YamlBuilder
+namedArray name = maybeNamedArray $ Just name
 
 maybeNamedString :: Maybe Text -> Text -> YamlBuilder
 -- Empty strings need special handling to ensure they get quoted. This avoids:
@@ -106,6 +118,9 @@ maybeNamedString anchor s   =
 
 string :: Text -> YamlBuilder
 string = maybeNamedString Nothing
+
+namedString :: Text -> Text -> YamlBuilder
+namedString name = maybeNamedString $ Just name
  
 -- Use aeson's implementation which gets rid of annoying decimal points
 maybeNamedScientific :: Maybe Text -> Scientific -> YamlBuilder
@@ -113,6 +128,9 @@ maybeNamedScientific anchor n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toS
 
 scientific :: Scientific -> YamlBuilder
 scientific = maybeNamedScientific Nothing
+
+namedScientific :: Text -> Scientific -> YamlBuilder
+namedScientific name = maybeNamedScientific $ Just name
 
 {-# DEPRECATED number "Use scientific" #-}
 number :: Scientific -> YamlBuilder
@@ -125,11 +143,17 @@ maybeNamedBool anchor False  = YamlBuilder (EventScalar "false" BoolTag PlainNoT
 bool :: Bool -> YamlBuilder
 bool = maybeNamedBool Nothing
 
+namedBool :: Text -> Bool -> YamlBuilder
+namedBool name = maybeNamedBool $ Just name
+
 maybeNamedNull :: Maybe Text -> YamlBuilder
 maybeNamedNull anchor = YamlBuilder (EventScalar "null" NullTag PlainNoTag (unpack <$> anchor) :)
 
 null :: YamlBuilder
 null = maybeNamedNull Nothing
+
+namedNull :: Text -> YamlBuilder
+namedNull name = maybeNamedNull $ Just name
 
 alias :: Text -> YamlBuilder
 alias anchor = YamlBuilder (EventAlias (unpack anchor) :)
