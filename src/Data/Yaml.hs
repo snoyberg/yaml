@@ -196,6 +196,9 @@ encodeFileWith opts fp obj = runConduitRes
     $ CL.sourceList (objToEvents opts $ toJSON obj)
    .| Y.encodeFileWith (encodeOptionsFormat opts) fp
 
+-- | Encode a JSON value into a list of YAML events
+--
+-- @since 0.10.3.0
 objToEvents :: EncodeOptions -> Value -> [Y.Event]
 objToEvents opts o = (:) EventStreamStart
               . (:) EventDocumentStart

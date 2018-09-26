@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.10.3.0
+
+* Expose `objToEvents` to allow more control on the generation of Yaml events. [#156](https://github.com/snoyberg/yaml/pull/156)
+
 ## 0.10.2.0
 
 * Add `EncodeOptions` and `FormatOptions` to control the style of the encoded YAML. [#153](https://github.com/snoyberg/yaml/pull/153)
