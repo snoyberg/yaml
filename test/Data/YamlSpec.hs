@@ -9,6 +9,7 @@ module Data.YamlSpec (main, spec) where
 
 import qualified Text.Libyaml as Y
 import qualified Data.ByteString.Char8 as B8
+import Data.Int (Int64)
 
 import Test.HUnit hiding (Test, path)
 
@@ -198,8 +199,8 @@ spec = do
       go "0o123" (83 :: Int)
       go "0xC" (12 :: Int)
       go "0xc" (12 :: Int)
-      go "0xdeadBEEF" (3735928559 :: Int)
-      go "0xDEADBEEF" (3735928559 :: Int)
+      go "0xdeadBEEF" (3735928559 :: Int64)
+      go "0xDEADBEEF" (3735928559 :: Int64)
       go "1.23015e+3" (1230.15 :: Scientific)
       go "12.3015e+02" (1230.15 :: Scientific)
       go "1230.15" (1230.15 :: Scientific)

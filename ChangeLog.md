@@ -3,6 +3,7 @@
 ## 0.10.3.0
 
 * Add support for anchors and aliases to Data.Yaml.Builder [#155](https://github.com/snoyberg/yaml/pull/155)
+* Fix test suite for 32 bit machines [#158](https://github.com/snoyberg/yaml/issues/158)
 
 ## 0.10.2.0
 
