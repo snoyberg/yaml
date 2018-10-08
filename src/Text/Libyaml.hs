@@ -12,7 +12,8 @@
 -- "Data.Yaml".
 module Text.Libyaml
     ( -- * The event stream
-      Event (..)
+      MarkedEvent(..)
+    , Event (..)
     , Style (..)
     , SequenceStyle (..)
     , MappingStyle (..)
@@ -23,8 +24,10 @@ module Text.Libyaml
     , encode
     , encodeWith
     , decode
+    , decodeMarked
     , encodeFile
     , decodeFile
+    , decodeFileMarked
     , encodeFileWith
     , FormatOptions
     , defaultFormatOptions
@@ -73,6 +76,15 @@ data Event =
     | EventMappingStart !Tag !MappingStyle !Anchor
     | EventMappingEnd
     deriving (Show, Eq)
+
+-- | Event with start and end marks.
+--
+-- @since [INSERTVERSION]
+data MarkedEvent = MarkedEvent
+    { yamlEvent     :: Event
+    , yamlStartMark :: YamlMark
+    , yamlEndMark   :: YamlMark
+    }
 
 -- | Style for scalars - e.g. quoted / folded
 -- 
@@ -166,6 +178,24 @@ foreign import ccall unsafe "yaml_parser_set_input_file"
                                  -> File
                                  -> IO ()
 
+data MarkRawStruct
+type MarkRaw = Ptr MarkRawStruct
+
+foreign import ccall unsafe "get_mark_index"
+    c_get_mark_index :: MarkRaw -> IO CULong
+
+foreign import ccall unsafe "get_mark_line"
+    c_get_mark_line :: MarkRaw -> IO CULong
+
+foreign import ccall unsafe "get_mark_column"
+    c_get_mark_column :: MarkRaw -> IO CULong
+
+getMark :: MarkRaw -> IO YamlMark
+getMark m = YamlMark
+  <$> (fromIntegral <$> c_get_mark_index m)
+  <*> (fromIntegral <$> c_get_mark_line m)
+  <*> (fromIntegral <$> c_get_mark_column m)
+
 data FileStruct
 type File = Ptr FileStruct
 
@@ -196,14 +226,8 @@ foreign import ccall "get_parser_error_problem"
 foreign import ccall "get_parser_error_context"
     c_get_parser_error_context :: Parser -> IO (Ptr CUChar)
 
-foreign import ccall unsafe "get_parser_error_index"
-    c_get_parser_error_index :: Parser -> IO CULong
-
-foreign import ccall unsafe "get_parser_error_line"
-    c_get_parser_error_line :: Parser -> IO CULong
-
-foreign import ccall unsafe "get_parser_error_column"
-    c_get_parser_error_column :: Parser -> IO CULong
+foreign import ccall unsafe "get_parser_error_mark"
+    c_get_parser_error_mark :: Parser -> IO MarkRaw
 
 makeString :: MonadIO m => (a -> m (Ptr CUChar)) -> a -> m String
 makeString f a = do
@@ -227,6 +251,12 @@ data EventType = YamlNoEvent
 
 foreign import ccall unsafe "get_event_type"
     c_get_event_type :: EventRaw -> IO CInt
+
+foreign import ccall unsafe "get_start_mark"
+    c_get_start_mark :: EventRaw -> IO MarkRaw
+
+foreign import ccall unsafe "get_end_mark"
+    c_get_end_mark :: EventRaw -> IO MarkRaw
 
 foreign import ccall unsafe "get_scalar_value"
     c_get_scalar_value :: EventRaw -> IO (Ptr CUChar)
@@ -277,10 +307,12 @@ readStyle getStyle er = toEnum . fromEnum <$> getStyle er
 readTag :: (EventRaw -> IO (Ptr CUChar)) -> EventRaw -> IO Tag
 readTag getTag er = bsToTag <$> (getTag er >>= packCString . castPtr) 
 
-getEvent :: EventRaw -> IO (Maybe Event)
+getEvent :: EventRaw -> IO (Maybe MarkedEvent)
 getEvent er = do
     et <- c_get_event_type er
-    case toEnum $ fromEnum et of
+    startMark <- c_get_start_mark er >>= getMark
+    endMark <- c_get_end_mark er >>= getMark
+    event <- case toEnum $ fromEnum et of
         YamlNoEvent -> return Nothing
         YamlStreamStartEvent -> return $ Just EventStreamStart
         YamlStreamEndEvent -> return $ Just EventStreamEnd
@@ -314,6 +346,7 @@ getEvent er = do
             anchor <- readAnchor c_get_mapping_start_anchor er
             return $ Just $ EventMappingStart tag style anchor
         YamlMappingEndEvent -> return $ Just EventMappingEnd
+    return $ (\e -> MarkedEvent e startMark endMark) <$> event
 
 -- Emitter
 
@@ -520,8 +553,13 @@ newtype ToEventRawException = ToEventRawException CInt
 instance Exception ToEventRawException
 
 decode :: MonadResource m => B.ByteString -> ConduitM i Event m ()
-decode bs | B8.null bs = return ()
-decode bs =
+decode = mapOutput yamlEvent . decodeMarked
+
+-- |
+-- @since [INSERTVERSION]
+decodeMarked :: MonadResource m => B.ByteString -> ConduitM i MarkedEvent m ()
+decodeMarked bs | B8.null bs = return ()
+decodeMarked bs =
     bracketP alloc cleanup (runParser . fst)
   where
     alloc = mask_ $ do
@@ -562,7 +600,12 @@ openFile file rawOpenFlags openMode = do
     else return nullPtr
 
 decodeFile :: MonadResource m => FilePath -> ConduitM i Event m ()
-decodeFile file =
+decodeFile = mapOutput yamlEvent . decodeFileMarked
+
+-- |
+-- @since [INSERTVERSION]
+decodeFileMarked :: MonadResource m => FilePath -> ConduitM i MarkedEvent m ()
+decodeFileMarked file =
     bracketP alloc cleanup (runParser . fst)
   where
     alloc = mask_ $ do
@@ -589,7 +632,7 @@ decodeFile file =
         c_yaml_parser_delete ptr
         free ptr
 
-runParser :: MonadResource m => Parser -> ConduitM i Event m ()
+runParser :: MonadResource m => Parser -> ConduitM i MarkedEvent m ()
 runParser parser = do
     e <- liftIO $ parserParseOne' parser
     case e of
@@ -598,7 +641,7 @@ runParser parser = do
         Right (Just ev) -> yield ev >> runParser parser
 
 parserParseOne' :: Parser
-                -> IO (Either YamlException (Maybe Event))
+                -> IO (Either YamlException (Maybe MarkedEvent))
 parserParseOne' parser = allocaBytes eventSize $ \er -> do
     res <- liftIO $ c_yaml_parser_parse parser er
     flip finally (c_yaml_event_delete er) $
@@ -606,10 +649,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
         then do
           problem <- makeString c_get_parser_error_problem parser
           context <- makeString c_get_parser_error_context parser
-          index <- c_get_parser_error_index parser
-          line <- c_get_parser_error_line parser
-          column <- c_get_parser_error_column parser
-          let problemMark = YamlMark (fromIntegral index) (fromIntegral line) (fromIntegral column)
+          problemMark <- c_get_parser_error_mark parser >>= getMark
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
