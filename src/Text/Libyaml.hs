@@ -79,7 +79,7 @@ data Event =
 
 -- | Event with start and end marks.
 --
--- @since [INSERTVERSION]
+-- @since 0.10.4.0
 data MarkedEvent = MarkedEvent
     { yamlEvent     :: Event
     , yamlStartMark :: YamlMark
@@ -552,11 +552,16 @@ newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
 instance Exception ToEventRawException
 
+-- | Create a conduit that yields events from a bytestring.
 decode :: MonadResource m => B.ByteString -> ConduitM i Event m ()
 decode = mapOutput yamlEvent . decodeMarked
 
--- |
--- @since [INSERTVERSION]
+-- | Create a conduit that yields marked events from a bytestring.
+--
+-- This conduit will yield identical events to that of "decode", but also
+-- includes start and end marks for each event.
+--
+-- @since 0.10.4.0
 decodeMarked :: MonadResource m => B.ByteString -> ConduitM i MarkedEvent m ()
 decodeMarked bs | B8.null bs = return ()
 decodeMarked bs =
@@ -599,11 +604,16 @@ openFile file rawOpenFlags openMode = do
     then withCString openMode $ \openMode' -> c_fdopen fd openMode'
     else return nullPtr
 
+-- | Creata a conduit that yields events from a file.
 decodeFile :: MonadResource m => FilePath -> ConduitM i Event m ()
 decodeFile = mapOutput yamlEvent . decodeFileMarked
 
--- |
--- @since [INSERTVERSION]
+-- | Create a conduit that yields marked events from a file.
+--
+-- This conduit will yield identical events to that of "decodeFile", but also
+-- includes start and end marks for each event.
+--
+-- @since 0.10.4.0
 decodeFileMarked :: MonadResource m => FilePath -> ConduitM i MarkedEvent m ()
 decodeFileMarked file =
     bracketP alloc cleanup (runParser . fst)
