@@ -1,5 +1,10 @@
 # ChangeLog for yaml
 
+## 0.10.4.0
+
+* Add `decodeMarked` and `decodeFileMarked` functions to `Text.Libyaml`, and
+  extend native bindings to extract mark information. [#157](https://github.com/snoyberg/yaml/issues/157)
+
 ## 0.10.3.0
 
 * Add support for anchors and aliases to Data.Yaml.Builder [#155](https://github.com/snoyberg/yaml/pull/155)

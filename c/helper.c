@@ -56,19 +56,9 @@ char const * get_parser_error_context(yaml_parser_t *p)
 	return p->context;
 }
 
-unsigned int get_parser_error_index(yaml_parser_t *p)
+const yaml_mark_t * get_parser_error_mark(yaml_parser_t *p)
 {
-	return p->problem_mark.index;
-}
-
-unsigned int get_parser_error_line(yaml_parser_t *p)
-{
-	return p->problem_mark.line;
-}
-
-unsigned int get_parser_error_column(yaml_parser_t *p)
-{
-	return p->problem_mark.column;
+	return &p->problem_mark;
 }
 
 char const * get_emitter_error(yaml_emitter_t *e)
@@ -155,6 +145,31 @@ unsigned char * get_mapping_start_tag(yaml_event_t *e)
 unsigned char * get_alias_anchor(yaml_event_t *e)
 {
         return e->data.alias.anchor;
+}
+
+const yaml_mark_t * get_start_mark(yaml_event_t *e)
+{
+	return &e->start_mark;
+}
+
+const yaml_mark_t * get_end_mark(yaml_event_t *e)
+{
+	return &e->end_mark;
+}
+
+unsigned int get_mark_index(yaml_mark_t *m)
+{
+	return m->index;
+}
+
+unsigned int get_mark_line(yaml_mark_t *m)
+{
+	return m->line;
+}
+
+unsigned int get_mark_column(yaml_mark_t *m)
+{
+	return m->column;
 }
 
 int yaml_parser_set_input_filename(yaml_parser_t *parser, const char *filename)
