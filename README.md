@@ -5,15 +5,15 @@
 
 Provides support for parsing and emitting Yaml documents.
 
-This package includes the [full libyaml C library version 0.2.1 by Kirill Simonov](https://github.com/yaml/libyaml) in the package so you don't need to worry about any non-Haskell dependencies.
+This project includes a `libyaml` package, which has the [full libyaml C library version 0.2.1 by Kirill Simonov](https://github.com/yaml/libyaml) in the package so you don't need to worry about any non-Haskell dependencies.
 
-The package is broken down into two primary modules. `Data.Yaml` provides a high-level interface based around the JSON datatypes provided by the `aeson` package. `Text.Libyaml` provides a lower-level, streaming interface. For most users, `Data.Yaml` is recommended.
+The project is broken down into two primary packages/modules. `yaml` contains `Data.Yaml`, which provides a high-level interface based around the JSON datatypes provided by the `aeson` package. `libyaml` contains `Text.Libyaml`, which provides a lower-level, streaming interface. For most users, `yaml` and `Data.Yaml` is recommended.
 
 ### Examples
 
 Usage examples can be found in the `Data.Yaml` documentation or in the [examples](https://github.com/snoyberg/yaml/tree/master/examples) directory.
 
-### Additional modules
+### Additional `yaml` modules
 
 * `Data.Yaml.Include` supports adding `!include` directives to your YAML files.
 * `Data.Yaml.Builder` and `Data.Yaml.Parser` allow more fine-grained control of parsing an rendering, as opposed to just using the aeson typeclass and datatype system for parsing and rendering.

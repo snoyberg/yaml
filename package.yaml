@@ -1,5 +1,5 @@
 name:        yaml
-version:     0.10.4.0
+version:     0.10.4.1
 synopsis:    Support for parsing and rendering YAML documents.
 description: README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:    Data
@@ -10,10 +10,6 @@ github:      snoyberg/yaml
 stability:   stable
 
 extra-source-files:
-- c/helper.h
-- libyaml/yaml_private.h
-- libyaml/yaml.h
-- libyaml/LICENSE
 - test/largest-string.yaml
 - test/json.yaml
 - test/resources/foo.yaml
@@ -36,14 +32,6 @@ flags:
     description: don't build the examples
     manual: false
     default: true
-  system-libyaml:
-    description: Use the system-wide libyaml instead of the bundled copy
-    manual: false
-    default: false
-  no-unicode:
-    description: Don't enable unicode output. Instead, unicode characters will be escaped.
-    manual: false
-    default: false
 
 dependencies:
 - base >=4.9.1 && <5 # GHC 8.0.2 and later
@@ -62,39 +50,17 @@ dependencies:
 - filepath
 - directory
 - template-haskell
+- libyaml >=0.1 && <0.2
 when:
   condition: "!impl(ghc >= 8.0)"
   dependencies:
   - semigroups
 
 library:
-  c-sources: c/helper.c
   other-extensions:
   - LambdaCase
   ghc-options: -Wall
-  include-dirs:
-  - c
   source-dirs: src
-  when:
-  - condition: flag(no-unicode)
-    cpp-options: -D__NO_UNICODE__
-  - condition: ! '!(flag(system-libyaml))'
-    then:
-      c-sources:
-      - libyaml/api.c
-      - libyaml/dumper.c
-      - libyaml/emitter.c
-      - libyaml/loader.c
-      - libyaml/parser.c
-      - libyaml/reader.c
-      - libyaml/scanner.c
-      - libyaml/writer.c
-      include-dirs:
-      - libyaml
-    else:
-      extra-libraries: yaml
-  - condition: os(windows)
-    cpp-options: -DWINDOWS
 
 executables:
   json2yaml:

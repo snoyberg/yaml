@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.10.4.1
+
+* Split out the `libyaml` and `Text.Libyaml` code into its own package. [#145](https://github.com/snoyberg/yaml/issues/145)
+
 ## 0.10.4.0
 
 * Add `decodeMarked` and `decodeFileMarked` functions to `Text.Libyaml`, and

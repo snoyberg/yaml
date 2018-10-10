@@ -1,0 +1,62 @@
+name:        libyaml
+version:     0.1.0.0
+synopsis:    Low-level, streaming YAML interface.
+description: README and API documentation are available at <https://www.stackage.org/package/libyaml>
+category:    Text
+author:      Michael Snoyman <michael@snoyman.com>, Anton Ageev <antage@gmail.com>,Kirill Simonov
+maintainer:  Michael Snoyman <michael@snoyman.com>
+license:     BSD3
+github:      snoyberg/yaml
+stability:   stable
+
+extra-source-files:
+- c/helper.h
+- libyaml_src/yaml_private.h
+- libyaml_src/yaml.h
+- libyaml_src/LICENSE
+- README.md
+- ChangeLog.md
+
+flags:
+  system-libyaml:
+    description: Use the system-wide libyaml instead of the bundled copy
+    manual: false
+    default: false
+  no-unicode:
+    description: Don't enable unicode output. Instead, unicode characters will be escaped.
+    manual: false
+    default: false
+
+dependencies:
+- base >=4.9.1 && <5 # GHC 8.0.2 and later
+- bytestring >=0.9.1.4
+- conduit >=1.2.8 && <1.4
+- resourcet >=0.3 && <1.3
+
+library:
+  c-sources: c/helper.c
+  ghc-options: -Wall
+  include-dirs:
+    - c
+  source-dirs: src
+  when:
+  - condition: flag(no-unicode)
+    cpp-options: -D__NO_UNICODE__
+  - condition: ! '!(flag(system-libyaml))'
+    then:
+      c-sources:
+      - libyaml_src/api.c
+      - libyaml_src/dumper.c
+      - libyaml_src/emitter.c
+      - libyaml_src/loader.c
+      - libyaml_src/parser.c
+      - libyaml_src/reader.c
+      - libyaml_src/scanner.c
+      - libyaml_src/writer.c
+      include-dirs:
+      - libyaml_src
+    else:
+      extra-libraries: yaml
+  - condition: os(windows)
+    cpp-options: -DWINDOWS
+
