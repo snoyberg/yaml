@@ -1,6 +1,6 @@
 # ChangeLog for yaml
 
-## 0.10.4.1
+## 0.11.0.0
 
 * Split out the `libyaml` and `Text.Libyaml` code into its own package. [#145](https://github.com/snoyberg/yaml/issues/145)
 

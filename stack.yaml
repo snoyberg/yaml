@@ -5,5 +5,5 @@ flags:
     no-examples: false
 
 packages:
-  - .
+  - yaml
   - libyaml
