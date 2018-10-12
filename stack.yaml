@@ -3,3 +3,7 @@ resolver: lts-11.10
 flags:
   yaml:
     no-examples: false
+
+packages:
+  - yaml
+  - libyaml
