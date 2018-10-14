@@ -7,7 +7,7 @@ for lower-level event-based streaming.
 
 `yaml` provides a high-level interface based around the JSON datatypes provided by the `aeson` package. This allows
 using JSON and YAML interchangeably in your code with the `aeson` typeclasses. See the
-[yaml README](https://github.com/snoyberg/yaml/tree/master/libyaml/README.md) for more details.
+[yaml README](https://github.com/snoyberg/yaml/tree/master/yaml/README.md) for more details.
 
 ## `libyaml` Package
 
