@@ -8,6 +8,7 @@
 module Data.YamlSpec (main, spec) where
 
 import qualified Text.Libyaml as Y
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.Int (Int64)
 
@@ -54,6 +55,15 @@ shouldDecode :: (Show a, D.FromJSON a, Eq a) => B8.ByteString -> a -> IO ()
 shouldDecode bs expected = do
   actual <- D.decodeThrow bs
   actual `shouldBe` expected
+
+shouldEmit :: [Y.Event] -> BS.ByteString -> IO ()
+shouldEmit es expected = do
+  actual <- runConduitRes (CL.sourceList events .| Y.encode)
+  actual `shouldBe` expected
+  where
+    events =
+      [Y.EventStreamStart, Y.EventDocumentStart] ++ es ++
+      [Y.EventDocumentEnd, Y.EventStreamEnd]
 
 main :: IO ()
 main = hspec spec
@@ -204,6 +214,24 @@ spec = do
       go "1.23015e+3" (1230.15 :: Scientific)
       go "12.3015e+02" (1230.15 :: Scientific)
       go "1230.15" (1230.15 :: Scientific)
+
+    describe "Text.Libyaml" $ do
+      it "can output sequence tags" $
+        [ Y.EventSequenceStart (Y.UriTag "!foo") Y.TagMandatory Y.FlowSequence Nothing
+        , Y.EventSequenceEnd
+        ] `shouldEmit` "!foo []\n"
+      it "can elide sequence tags" $
+        [ Y.EventSequenceStart (Y.UriTag "!foo") Y.TagOptional Y.FlowSequence Nothing
+        , Y.EventSequenceEnd
+        ] `shouldEmit` "[]\n"
+      it "can output mapping tags" $
+        [ Y.EventMappingStart (Y.UriTag "!foo") Y.TagMandatory Y.FlowMapping Nothing
+        , Y.EventMappingEnd
+        ] `shouldEmit` "!foo {}\n"
+      it "can elide mapping tags" $
+        [ Y.EventMappingStart (Y.UriTag "!foo") Y.TagOptional Y.FlowMapping Nothing
+        , Y.EventMappingEnd
+        ] `shouldEmit` "{}\n"
 
 specialStrings :: [T.Text]
 specialStrings =
