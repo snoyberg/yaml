@@ -81,7 +81,7 @@ instance ToYaml Int where
 -- @since 0.11.0
 maybeNamedMapping :: Maybe Text -> [(Text, YamlBuilder)] -> YamlBuilder
 maybeNamedMapping anchor pairs = YamlBuilder $ \rest ->
-    EventMappingStart NoTag AnyMapping (unpack <$> anchor) : foldr addPair (EventMappingEnd : rest) pairs
+    EventMappingStart NoTag TagOptional AnyMapping (unpack <$> anchor) : foldr addPair (EventMappingEnd : rest) pairs
   where
     addPair (key, YamlBuilder value) after
         = EventScalar (encodeUtf8 key) StrTag PlainNoTag Nothing
@@ -99,7 +99,7 @@ namedMapping name = maybeNamedMapping $ Just name
 -- @since 0.11.0
 maybeNamedArray :: Maybe Text -> [YamlBuilder] -> YamlBuilder
 maybeNamedArray anchor bs =
-    YamlBuilder $ (EventSequenceStart NoTag AnySequence (unpack <$> anchor):) . flip (foldr go) bs . (EventSequenceEnd:)
+    YamlBuilder $ (EventSequenceStart NoTag TagOptional AnySequence (unpack <$> anchor):) . flip (foldr go) bs . (EventSequenceEnd:)
   where
     go (YamlBuilder b) = b
 

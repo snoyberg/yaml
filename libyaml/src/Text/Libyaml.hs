@@ -18,6 +18,7 @@ module Text.Libyaml
     , SequenceStyle (..)
     , MappingStyle (..)
     , Tag (..)
+    , TagDisposition (..)
     , AnchorName
     , Anchor
       -- * Encoding and decoding
@@ -71,9 +72,9 @@ data Event =
     | EventDocumentEnd
     | EventAlias !AnchorName
     | EventScalar !ByteString !Tag !Style !Anchor
-    | EventSequenceStart !Tag !SequenceStyle !Anchor
+    | EventSequenceStart !Tag !TagDisposition !SequenceStyle !Anchor
     | EventSequenceEnd
-    | EventMappingStart !Tag !MappingStyle !Anchor
+    | EventMappingStart !Tag !TagDisposition !MappingStyle !Anchor
     | EventMappingEnd
     deriving (Show, Eq)
 
@@ -108,6 +109,17 @@ data SequenceStyle = AnySequence | BlockSequence | FlowSequence
 -- @since 0.9.0
 data MappingStyle = AnyMapping | BlockMapping | FlowMapping
     deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
+
+-- | Whather tags may be omitted from the rendering
+--
+-- @since 0.11.0
+data TagDisposition = TagOptional | TagMandatory
+    deriving (Show, Eq, Enum, Bounded, Ord, Data, Typeable)
+
+-- | Convert 'TagDisposition' into CInt for "implicit" parameter
+tagImplicitCInt :: TagDisposition -> CInt
+tagImplicitCInt TagOptional = 1
+tagImplicitCInt _ = 0
 
 data Tag = StrTag
          | FloatTag
@@ -338,13 +350,13 @@ getEvent er = do
             tag <- readTag c_get_sequence_start_tag er
             style <- readStyle c_get_sequence_start_style er
             anchor <- readAnchor c_get_sequence_start_anchor er
-            return $ Just $ EventSequenceStart tag style anchor
+            return $ Just $ EventSequenceStart tag TagOptional style anchor
         YamlSequenceEndEvent -> return $ Just EventSequenceEnd
         YamlMappingStartEvent -> do
             tag <- readTag c_get_mapping_start_tag er
             style <- readStyle c_get_mapping_start_style er
             anchor <- readAnchor c_get_mapping_start_anchor er
-            return $ Just $ EventMappingStart tag style anchor
+            return $ Just $ EventMappingStart tag TagOptional style anchor
         YamlMappingEndEvent -> return $ Just EventMappingEnd
     return $ (\e -> MarkedEvent e startMark endMark) <$> event
 
@@ -495,16 +507,16 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                     0       -- plain_implicit
                                     qi      -- quoted_implicit
                                     style'  -- style
-        EventSequenceStart tag style Nothing ->
+        EventSequenceStart tag disposition style Nothing ->
             withCString (tagToString tag) $ \tag' -> do
                 let tagP = castPtr tag'
                 c_yaml_sequence_start_event_initialize
                   er
                   nullPtr
                   tagP
-                  1
+                  (tagImplicitCInt disposition)
                   (toEnum $ fromEnum style)
-        EventSequenceStart tag style (Just anchor) ->
+        EventSequenceStart tag disposition style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
                 let tagP = castPtr tag'
                 withCString anchor $ \anchor' -> do
@@ -513,20 +525,20 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        1
+                        (tagImplicitCInt disposition)
                         (toEnum $ fromEnum style)
         EventSequenceEnd ->
             c_yaml_sequence_end_event_initialize er
-        EventMappingStart tag style Nothing ->
+        EventMappingStart tag disposition style Nothing ->
             withCString (tagToString tag) $ \tag' -> do
                 let tagP = castPtr tag'
                 c_yaml_mapping_start_event_initialize
                     er
                     nullPtr
                     tagP
-                    1
+                    (tagImplicitCInt disposition)
                     (toEnum $ fromEnum style)
-        EventMappingStart tag style (Just anchor) ->
+        EventMappingStart tag disposition style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
                 withCString anchor $ \anchor' -> do
                     let tagP = castPtr tag'
@@ -535,7 +547,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        1
+                        (tagImplicitCInt disposition)
                         (toEnum $ fromEnum style)
         EventMappingEnd ->
             c_yaml_mapping_end_event_initialize er

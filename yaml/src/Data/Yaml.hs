@@ -206,10 +206,10 @@ objToEvents opts o = (:) EventStreamStart
     objToEvents' :: Value -> [Y.Event] -> [Y.Event]
     --objToEvents' (Scalar s) rest = scalarToEvent s : rest
     objToEvents' (Array list) rest =
-        EventSequenceStart NoTag AnySequence Nothing
+        EventSequenceStart NoTag TagOptional AnySequence Nothing
       : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
     objToEvents' (Object pairs) rest =
-        EventMappingStart NoTag AnyMapping Nothing
+        EventMappingStart NoTag TagOptional AnyMapping Nothing
       : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
 
     objToEvents' (String "") rest = EventScalar "" NoTag SingleQuoted Nothing : rest
