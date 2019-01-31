@@ -32,6 +32,8 @@ module Text.Libyaml
     , FormatOptions
     , defaultFormatOptions
     , setWidth
+    , setMappingTagsExplicit
+    , setSequenceTagsExplicit
       -- * Error handling
     , YamlException (..)
     , YamlMark (..)
@@ -447,105 +449,111 @@ foreign import ccall unsafe "yaml_alias_event_initialize"
         -> IO CInt
 
 toEventRaw :: FormatOptions -> Event -> (EventRaw -> IO a) -> IO a
-toEventRaw opts e f =
-  allocaBytes eventSize $ \er -> do
-    ret <-
-      case e of
+toEventRaw opts e f = allocaBytes eventSize $ \er -> do
+    ret <- case e of
         EventStreamStart ->
-          c_yaml_stream_start_event_initialize er 0 -- YAML_ANY_ENCODING
-        EventStreamEnd -> c_yaml_stream_end_event_initialize er
-        EventDocumentStart -> c_simple_document_start er
-        EventDocumentEnd -> c_yaml_document_end_event_initialize er 1
+            c_yaml_stream_start_event_initialize
+                er
+                0 -- YAML_ANY_ENCODING
+        EventStreamEnd ->
+            c_yaml_stream_end_event_initialize er
+        EventDocumentStart ->
+            c_simple_document_start er
+        EventDocumentEnd ->
+            c_yaml_document_end_event_initialize er 1
         EventScalar bs thetag style0 anchor -> do
-          BU.unsafeUseAsCStringLen bs $ \(value, len) -> do
-            let value' = castPtr value :: Ptr CUChar
-                len' = fromIntegral len :: CInt
-            let thetag' = tagToString thetag
-            withCString thetag' $ \tag' -> do
-              let (pi, style) =
-                    case style0 of
-                      PlainNoTag -> (1, Plain)
-                      x -> (0, x)
-                  style' = toEnum $ fromEnum style
-                  tagP = castPtr tag'
-                  qi =
-                    if null thetag'
-                      then 1
-                      else 0
-              case anchor of
-                Nothing ->
-                  c_yaml_scalar_event_initialize
-                    er
-                    nullPtr -- anchor
-                    tagP -- tag
-                    value' -- value
-                    len' -- length
-                    pi -- plain_implicit
-                    qi -- quoted_implicit
-                    style' -- style
-                Just anchor' ->
-                  withCString anchor' $ \anchorP' -> do
-                    let anchorP = castPtr anchorP'
-                    c_yaml_scalar_event_initialize
-                      er
-                      anchorP -- anchor
-                      tagP -- tag
-                      value' -- value
-                      len' -- length
-                      0 -- plain_implicit
-                      qi -- quoted_implicit
-                      style' -- style
+            BU.unsafeUseAsCStringLen bs $ \(value, len) -> do
+                let value' = castPtr value :: Ptr CUChar
+                    len' = fromIntegral len :: CInt
+                let thetag' = tagToString thetag
+                withCString thetag' $ \tag' -> do
+                    let (pi, style) =
+                            case style0 of
+                                PlainNoTag -> (1, Plain)
+                                x -> (0, x)
+                        style' = toEnum $ fromEnum style
+                        tagP = castPtr tag'
+                        qi = if null thetag' then 1 else 0
+                    case anchor of
+                        Nothing ->
+                            c_yaml_scalar_event_initialize
+                                er
+                                nullPtr -- anchor
+                                tagP    -- tag
+                                value'  -- value
+                                len'    -- length
+                                pi      -- plain_implicit
+                                qi      -- quoted_implicit
+                                style'  -- style
+                        Just anchor' ->
+                            withCString anchor' $ \anchorP' -> do
+                                let anchorP = castPtr anchorP'
+                                c_yaml_scalar_event_initialize
+                                    er
+                                    anchorP -- anchor
+                                    tagP    -- tag
+                                    value'  -- value
+                                    len'    -- length
+                                    0       -- plain_implicit
+                                    qi      -- quoted_implicit
+                                    style'  -- style
         EventSequenceStart tag style Nothing ->
-          withCString (tagToString tag) $ \tag' -> do
-            let tagP = castPtr tag'
-            c_yaml_sequence_start_event_initialize
-              er
-              nullPtr
-              tagP
-              seqTagsImplicit
-              (toEnum $ fromEnum style)
+            withCString (tagToString tag) $ \tag' -> do
+                let tagP = castPtr tag'
+                c_yaml_sequence_start_event_initialize
+                  er
+                  nullPtr
+                  tagP
+                  (seqTagImplicit tag)
+                  (toEnum $ fromEnum style)
         EventSequenceStart tag style (Just anchor) ->
-          withCString (tagToString tag) $ \tag' -> do
-            let tagP = castPtr tag'
-            withCString anchor $ \anchor' -> do
-              let anchorP = castPtr anchor'
-              c_yaml_sequence_start_event_initialize
-                er
-                anchorP
-                tagP
-                seqTagsImplicit
-                (toEnum $ fromEnum style)
-        EventSequenceEnd -> c_yaml_sequence_end_event_initialize er
+            withCString (tagToString tag) $ \tag' -> do
+                let tagP = castPtr tag'
+                withCString anchor $ \anchor' -> do
+                    let anchorP = castPtr anchor'
+                    c_yaml_sequence_start_event_initialize
+                        er
+                        anchorP
+                        tagP
+                        (seqTagImplicit tag)
+                        (toEnum $ fromEnum style)
+        EventSequenceEnd ->
+            c_yaml_sequence_end_event_initialize er
         EventMappingStart tag style Nothing ->
-          withCString (tagToString tag) $ \tag' -> do
-            let tagP = castPtr tag'
-            c_yaml_mapping_start_event_initialize
-              er
-              nullPtr
-              tagP
-              mapTagsImplicit
-              (toEnum $ fromEnum style)
+            withCString (tagToString tag) $ \tag' -> do
+                let tagP = castPtr tag'
+                c_yaml_mapping_start_event_initialize
+                    er
+                    nullPtr
+                    tagP
+                    (mapTagImplicit tag)
+                    (toEnum $ fromEnum style)
         EventMappingStart tag style (Just anchor) ->
-          withCString (tagToString tag) $ \tag' -> do
-            withCString anchor $ \anchor' -> do
-              let tagP = castPtr tag'
-              let anchorP = castPtr anchor'
-              c_yaml_mapping_start_event_initialize
-                er
-                anchorP
-                tagP
-                mapTagsImplicit
-                (toEnum $ fromEnum style)
-        EventMappingEnd -> c_yaml_mapping_end_event_initialize er
+            withCString (tagToString tag) $ \tag' -> do
+                withCString anchor $ \anchor' -> do
+                    let tagP = castPtr tag'
+                    let anchorP = castPtr anchor'
+                    c_yaml_mapping_start_event_initialize
+                        er
+                        anchorP
+                        tagP
+                        (mapTagImplicit tag)
+                        (toEnum $ fromEnum style)
+        EventMappingEnd ->
+            c_yaml_mapping_end_event_initialize er
         EventAlias anchor ->
-          withCString anchor $ \anchorP' -> do
-            let anchorP = castPtr anchorP'
-            c_yaml_alias_event_initialize er anchorP
+            withCString anchor $ \anchorP' -> do
+                let anchorP = castPtr anchorP'
+                c_yaml_alias_event_initialize
+                    er
+                    anchorP
     unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
   where
-    mapTagsImplicit = if formatOptionsExplicitMappingTags opts then 0 else 1
-    seqTagsImplicit = if formatOptionsExplicitSequenceTags opts then 0 else 1
+    mapTagImplicit NoTag = 1
+    mapTagImplicit _ = if formatOptionsExplicitMappingTags opts then 0 else 1
+    seqTagImplicit NoTag = 1
+    seqTagImplicit _ = if formatOptionsExplicitSequenceTags opts then 0 else 1
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
@@ -685,6 +693,24 @@ defaultFormatOptions = FormatOptions
 -- @since 0.10.2.0
 setWidth :: Maybe Int -> FormatOptions -> FormatOptions
 setWidth w opts = opts { formatOptionsWidth = w }
+
+-- | Set the control of mapping tags to "explicit"
+--
+-- This means that tags on mappings (even the default 'mapTag') will
+-- be rendered out. To inhibit, set the tag to `NoTag` instead.
+--
+-- @since 0.11.0.0
+setMappingTagsExplicit :: Bool -> FormatOptions -> FormatOptions
+setMappingTagsExplicit f opts = opts { formatOptionsExplicitMappingTags = f }
+
+-- | Set the control of mapping@ tags to "explicit"
+--
+-- This means that tags on mappings (even the default 'seqTag') will
+-- be rendered out. To inhibit, set the tag to `NoTag` instead.
+--
+-- @since 0.11.0.0
+setSequenceTagsExplicit :: Bool -> FormatOptions -> FormatOptions
+setSequenceTagsExplicit f opts = opts { formatOptionsExplicitSequenceTags = f }
 
 encode :: MonadResource m => ConduitM Event o m ByteString
 encode = encodeWith defaultFormatOptions
