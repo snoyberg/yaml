@@ -56,35 +56,12 @@ shouldDecode bs expected = do
   actual <- D.decodeThrow bs
   actual `shouldBe` expected
 
-shouldEmit :: [Y.Event] -> BS.ByteString -> IO ()
-shouldEmit es expected = do
-  actual <- runConduitRes (CL.sourceList events .| Y.encode)
-  actual `shouldBe` expected
+testEncodeWith :: Y.FormatOptions -> [Y.Event] -> IO BS.ByteString
+testEncodeWith opts es = runConduitRes (CL.sourceList events .| Y.encodeWith opts)
   where
     events =
       [Y.EventStreamStart, Y.EventDocumentStart] ++ es ++
       [Y.EventDocumentEnd, Y.EventStreamEnd]
-
-shouldEmitWithTagsOn :: [Y.Event] -> BS.ByteString -> IO ()
-shouldEmitWithTagsOn es expected = do
-  actual <- runConduitRes (CL.sourceList events .| Y.encodeWith opts)
-  actual `shouldBe` expected
-  where
-    events =
-      [Y.EventStreamStart, Y.EventDocumentStart] ++
-      es ++ [Y.EventDocumentEnd, Y.EventStreamEnd]
-    opts = Y.setCollectionTagRendering Y.renderAll $ Y.defaultFormatOptions
-
-shouldEmitWithUriTagsOn :: [Y.Event] -> BS.ByteString -> IO ()
-shouldEmitWithUriTagsOn es expected = do
-  actual <- runConduitRes (CL.sourceList events .| Y.encodeWith opts)
-  actual `shouldBe` expected
-  where
-    events =
-      [Y.EventStreamStart, Y.EventDocumentStart] ++
-      es ++ [Y.EventDocumentEnd, Y.EventStreamEnd]
-    opts = Y.setCollectionTagRendering Y.renderUriTags $ Y.defaultFormatOptions
-
 
 main :: IO ()
 main = hspec spec
@@ -237,56 +214,109 @@ spec = do
       go "1230.15" (1230.15 :: Scientific)
 
     describe "Text.Libyaml with collection tags off" $ do
+      let enc = testEncodeWith Y.defaultFormatOptions
       it "elides custom sequence tags" $
-        taggedSequence `shouldEmit` "[]\n"
+        enc taggedSequence `shouldReturn` "[]\n"
       it "elides custom mapping tags" $
-        taggedMapping `shouldEmit` "{}\n"
+        enc taggedMapping `shouldReturn` "{}\n"
       it "elides default sequence tags" $
-        defaultTaggedSequence `shouldEmit` "[]\n"
+        enc defaultTaggedSequence `shouldReturn` "[]\n"
       it "elides default mapping tags" $
-        defaultTaggedMapping `shouldEmit` "{}\n"
+        enc defaultTaggedMapping `shouldReturn` "{}\n"
       it "handles NoTag on sequences" $
-        untaggedSequence `shouldEmit` "[]\n"
+        enc untaggedSequence `shouldReturn` "[]\n"
       it "handles NoTag on mappings" $
-        untaggedMapping `shouldEmit` "{}\n"
+        enc untaggedMapping `shouldReturn` "{}\n"
       it "handles mixed tag usages but elides all mapping and sequence tags" $
-        mixedTagSampleA `shouldEmit` "- {}\n"
+        enc mixedTagSampleA `shouldReturn` "- {}\n"
       it "in combination of tags, anchors and styles, outputs only the scalar tags" $
-        mixedTagSampleB `shouldEmit` "&a\n&b !<bar> foo: &c [&d !!null '']\n"
+        enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c [&d !!null '']\n"
     describe "Text.Libyaml with collection tags on" $ do
+      let enc = testEncodeWith $ Y.setCollectionTagRendering Y.renderAll Y.defaultFormatOptions
       it "will output custom sequence tags" $
-        taggedSequence `shouldEmitWithTagsOn` "!foo []\n"
+        enc taggedSequence `shouldReturn` "!foo []\n"
       it "will output custom mapping tags" $
-        taggedMapping `shouldEmitWithTagsOn` "!foo {}\n"
+        enc taggedMapping `shouldReturn` "!foo {}\n"
       it "will output default sequence tags" $
-        defaultTaggedSequence `shouldEmitWithTagsOn` "!!seq []\n"
+        enc defaultTaggedSequence `shouldReturn` "!!seq []\n"
       it "will output default mapping tags" $
-        defaultTaggedMapping `shouldEmitWithTagsOn` "!!map {}\n"
+        enc defaultTaggedMapping `shouldReturn` "!!map {}\n"
       it "handles NoTag on sequences" $
-        untaggedSequence `shouldEmitWithTagsOn` "[]\n"
+        enc untaggedSequence `shouldReturn` "[]\n"
       it "handles NoTag on mappings" $
-        untaggedMapping `shouldEmitWithTagsOn` "{}\n"
+        enc untaggedMapping `shouldReturn` "{}\n"
       it "handles mixed tag usages outputting all mapping and sequence tags" $
-        mixedTagSampleA `shouldEmitWithTagsOn` "- !foo {}\n"
+        enc mixedTagSampleA `shouldReturn` "- !foo {}\n"
       it "in combination of tags, anchors and styles, outputs all the tags" $
-        mixedTagSampleB `shouldEmitWithTagsOn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
+        enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
     describe "Text.Libyaml with collection uri tags on" $ do
+      let enc = testEncodeWith $ Y.setCollectionTagRendering Y.renderUriTags Y.defaultFormatOptions
       it "will output custom sequence tags" $
-        taggedSequence `shouldEmitWithUriTagsOn` "!foo []\n"
+        enc taggedSequence `shouldReturn` "!foo []\n"
       it "will output custom mapping tags" $
-        taggedMapping `shouldEmitWithUriTagsOn` "!foo {}\n"
+        enc taggedMapping `shouldReturn` "!foo {}\n"
       it "will output default sequence tags" $
-        defaultTaggedSequence `shouldEmitWithUriTagsOn` "[]\n"
+        enc defaultTaggedSequence `shouldReturn` "[]\n"
       it "will output default mapping tags" $
-        defaultTaggedMapping `shouldEmitWithUriTagsOn` "{}\n"
+        enc defaultTaggedMapping `shouldReturn` "{}\n"
       it "handles NoTag on sequences" $
-        untaggedSequence `shouldEmitWithUriTagsOn` "[]\n"
+        enc untaggedSequence `shouldReturn` "[]\n"
       it "handles NoTag on mappings" $
-        untaggedMapping `shouldEmitWithUriTagsOn` "{}\n"
+        enc untaggedMapping `shouldReturn` "{}\n"
       it "handles mixed tag usages outputting all mapping and sequence tags" $
-        mixedTagSampleA `shouldEmitWithUriTagsOn` "- !foo {}\n"
+        enc mixedTagSampleA `shouldReturn` "- !foo {}\n"
       it "in combination of tags, anchors and styles, outputs all the tags" $
-        mixedTagSampleB `shouldEmitWithUriTagsOn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
+        enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
+    describe "Text.Libyaml with plain scalar tags on" $ do
+      let enc = testEncodeWith $ Y.setPlainTagRendering Y.renderAll Y.defaultFormatOptions
+      it "outputs plain tags" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Plain Nothing] `shouldReturn` "!!str foo\n"
+      it "respects PlainNoTag tags" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.PlainNoTag Nothing] `shouldReturn` "foo\n"
+    describe "Text.Libyaml with plain scalar tags off" $ do
+      let enc = testEncodeWith $ Y.setPlainTagRendering Y.renderNone Y.defaultFormatOptions
+      it "outputs plain tags" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Plain Nothing] `shouldReturn` "foo\n"
+      it "respects PlainNoTag tags" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.PlainNoTag Nothing] `shouldReturn` "foo\n"
+    describe "Text.Libyaml with quoted scalar tags on" $ do
+      let enc = testEncodeWith $ Y.setQuotedTagRendering Y.renderAll Y.defaultFormatOptions
+      it "outputs tags when double quoted" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.DoubleQuoted Nothing] `shouldReturn` "!!str \"foo\"\n"
+      it "outputs tags when single quoted" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.SingleQuoted Nothing] `shouldReturn` "!!str 'foo'\n"
+      it "outputs tags on literal text" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Literal Nothing] `shouldReturn` "!!str |-\n  foo\n"
+      it "outputs tags on folded text" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Folded Nothing] `shouldReturn` "!!str >-\n  foo\n"
+    describe "Text.Libyaml with quoted scalar tags off" $ do
+      let enc = testEncodeWith $ Y.setQuotedTagRendering Y.renderNone Y.defaultFormatOptions
+      it "elides tags when double quoted" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.DoubleQuoted Nothing] `shouldReturn` "\"foo\"\n"
+      it "elides tags when single quoted" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.SingleQuoted Nothing] `shouldReturn` "'foo'\n"
+      it "elides tags on literal text" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Literal Nothing] `shouldReturn` "|-\n  foo\n"
+      it "elides tags on folded text" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Folded Nothing] `shouldReturn` ">-\n  foo\n"
+    describe "Text.Libyaml with only UriTags set to render " $ do
+      let enc =
+            testEncodeWith $
+            Y.setCollectionTagRendering Y.renderUriTags $
+            Y.setPlainTagRendering Y.renderUriTags $
+            Y.setQuotedTagRendering Y.renderUriTags Y.defaultFormatOptions
+      it "outputs only UriTags" $
+        enc
+          [ Y.EventSequenceStart Y.NoTag Y.FlowSequence Nothing
+          , Y.EventScalar "foo" Y.StrTag Y.DoubleQuoted Nothing
+          , Y.EventScalar "99" Y.IntTag Y.Plain Nothing
+          , Y.EventScalar "99.99" Y.FloatTag Y.Plain Nothing
+          , Y.EventScalar "bar" Y.NoTag Y.Plain Nothing
+          , Y.EventScalar "foo" (Y.UriTag "!foo") Y.DoubleQuoted Nothing
+          , Y.EventScalar "foo" (Y.UriTag "!foo") Y.Plain Nothing
+          , Y.EventSequenceEnd
+          ] `shouldReturn`
+        "[\"foo\", 99, 99.99, bar, !foo \"foo\", !foo foo]\n"
 
 specialStrings :: [T.Text]
 specialStrings =
