@@ -671,16 +671,31 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
-
+-- | Whether a tag should be rendered explicitly in the output or left
+-- implicit.
+--
+-- @since 0.11.1.0
 data TagRender = Explicit | Implicit
   deriving (Enum)
 
+-- | A value for 'formatOptionsRenderCollectionTags' that renders no
+-- tags.
+--
+-- @since 0.11.1.0
 renderNone :: Event -> TagRender
 renderNone _ = Implicit
 
+-- | A value for 'formatOptionsRenderCollectionTags' that renders all
+-- tags.
+--
+-- @since 0.11.1.0
 renderAll :: Event -> TagRender
 renderAll _ = Explicit
 
+-- | A value for 'formatOptionsRenderCollectionTags' that renders tags
+-- which are instances of 'UriTag'
+--
+-- @since 0.11.1.0
 renderUriTags :: Event -> TagRender
 renderUriTags (EventScalar _ UriTag{} _ _) = Explicit
 renderUriTags (EventSequenceStart UriTag{} _ _) = Explicit
