@@ -33,6 +33,8 @@ module Text.Libyaml
     , defaultFormatOptions
     , setWidth
     , setCollectionTagRendering
+    , setPlainTagRendering
+    , setQuotedTagRendering
     , renderNone
     , renderAll
     , renderUriTags
@@ -469,13 +471,14 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                     len' = fromIntegral len :: CInt
                 let thetag' = tagToString thetag
                 withCString thetag' $ \tag' -> do
-                    let (pi, style) =
-                            case style0 of
-                                PlainNoTag -> (1, Plain)
-                                x -> (0, x)
+                    let pi0 = implicitPlain e
+                        qi = implicitQuoted e
+                        (pi, style) =
+                          case style0 of
+                            PlainNoTag -> (1, Plain)
+                            x -> (pi0, x)
                         style' = toEnum $ fromEnum style
                         tagP = castPtr tag'
-                        qi = if null thetag' then 1 else 0
                     case anchor of
                         Nothing ->
                             c_yaml_scalar_event_initialize
@@ -506,7 +509,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                   er
                   nullPtr
                   tagP
-                  (implicit e)
+                  (implicitColl e)
                   (toEnum $ fromEnum style)
         EventSequenceStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -517,7 +520,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        (implicit e)
+                        (implicitColl e)
                         (toEnum $ fromEnum style)
         EventSequenceEnd ->
             c_yaml_sequence_end_event_initialize er
@@ -528,7 +531,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                     er
                     nullPtr
                     tagP
-                    (implicit e)
+                    (implicitColl e)
                     (toEnum $ fromEnum style)
         EventMappingStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -539,7 +542,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        (implicit e)
+                        (implicitColl e)
                         (toEnum $ fromEnum style)
         EventMappingEnd ->
             c_yaml_mapping_end_event_initialize er
@@ -552,9 +555,17 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
     unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
   where
-    implicit (EventSequenceStart NoTag _ _) = 1
-    implicit (EventMappingStart NoTag _ _) = 1
-    implicit e = toEnum $ fromEnum $ formatOptionsRenderCollectionTags opts e 
+    implicitColl (EventMappingStart NoTag _ _) = 1
+    implicitColl (EventSequenceStart NoTag _ _) = 1
+    implicitColl (EventMappingStart (UriTag "") _ _) = 1
+    implicitColl (EventSequenceStart (UriTag "") _ _) = 1
+    implicitColl evt = toEnum $ fromEnum $ formatOptionsRenderCollectionTags opts evt
+    implicitPlain (EventScalar _ NoTag _ _) = 1
+    implicitPlain (EventScalar _ (UriTag "") _ _) = 1
+    implicitPlain evt = toEnum $ fromEnum $ formatOptionsRenderPlainScalarTags opts evt
+    implicitQuoted (EventScalar _ NoTag _ _) = 1
+    implicitQuoted (EventScalar _ (UriTag "") _ _) = 1
+    implicitQuoted evt = toEnum $ fromEnum $ formatOptionsRenderQuotedScalarTags opts evt
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
@@ -686,7 +697,7 @@ renderNone :: Event -> TagRender
 renderNone _ = Implicit
 
 -- | A value for 'formatOptionsRenderCollectionTags' that renders all
--- tags.
+-- tags (except 'NoTag' and 'PlainNoTag' for flow scalars).
 --
 -- @since 0.11.1.0
 renderAll :: Event -> TagRender
@@ -708,6 +719,8 @@ renderUriTags _ = Implicit
 data FormatOptions = FormatOptions
     { formatOptionsWidth :: Maybe Int
     , formatOptionsRenderCollectionTags :: Event -> TagRender
+    , formatOptionsRenderPlainScalarTags :: Event -> TagRender
+    , formatOptionsRenderQuotedScalarTags :: Event -> TagRender
     }
 
 -- |
@@ -716,6 +729,8 @@ defaultFormatOptions :: FormatOptions
 defaultFormatOptions = FormatOptions
     { formatOptionsWidth = Just 80 -- by default the width is set to 0 in the C code, which gets turned into 80 in yaml_emitter_emit_stream_start
     , formatOptionsRenderCollectionTags = renderNone
+    , formatOptionsRenderPlainScalarTags = renderAll
+    , formatOptionsRenderQuotedScalarTags = renderAll
     }
 
 -- | Set the maximum number of columns in the YAML output, or 'Nothing' for infinite. By default, the limit is 80 characters.
@@ -724,11 +739,23 @@ defaultFormatOptions = FormatOptions
 setWidth :: Maybe Int -> FormatOptions -> FormatOptions
 setWidth w opts = opts { formatOptionsWidth = w }
 
--- | Control when and whether collection tags are rendered to output.
+-- | Control when and whether tags on collections are rendered to output.
 --
 -- @since 0.11.1.0
 setCollectionTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
 setCollectionTagRendering f opts = opts { formatOptionsRenderCollectionTags = f }
+
+-- | Control when and whether tags on plain scalars are rendered to output.
+--
+-- @since 0.11.1.0
+setPlainTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
+setPlainTagRendering f opts = opts { formatOptionsRenderPlainScalarTags = f }
+
+-- | Control when and whether tags on quoted scalars are rendered to output.
+--
+-- @since 0.11.1.0
+setQuotedTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
+setQuotedTagRendering f opts = opts { formatOptionsRenderQuotedScalarTags = f }
 
 encode :: MonadResource m => ConduitM Event o m ByteString
 encode = encodeWith defaultFormatOptions
