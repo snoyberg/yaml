@@ -73,9 +73,18 @@ shouldEmitWithTagsOn es expected = do
     events =
       [Y.EventStreamStart, Y.EventDocumentStart] ++
       es ++ [Y.EventDocumentEnd, Y.EventStreamEnd]
-    opts =
-      Y.setMappingTagsExplicit True $
-      Y.setSequenceTagsExplicit True $ Y.defaultFormatOptions
+    opts = Y.setCollectionTagRendering Y.renderAll $ Y.defaultFormatOptions
+
+shouldEmitWithUriTagsOn :: [Y.Event] -> BS.ByteString -> IO ()
+shouldEmitWithUriTagsOn es expected = do
+  actual <- runConduitRes (CL.sourceList events .| Y.encodeWith opts)
+  actual `shouldBe` expected
+  where
+    events =
+      [Y.EventStreamStart, Y.EventDocumentStart] ++
+      es ++ [Y.EventDocumentEnd, Y.EventStreamEnd]
+    opts = Y.setCollectionTagRendering Y.renderUriTags $ Y.defaultFormatOptions
+
 
 main :: IO ()
 main = hspec spec
@@ -227,85 +236,57 @@ spec = do
       go "12.3015e+02" (1230.15 :: Scientific)
       go "1230.15" (1230.15 :: Scientific)
 
-    describe "Text.Libyaml with mapping and sequence tags off" $ do
+    describe "Text.Libyaml with collection tags off" $ do
       it "elides custom sequence tags" $
-        [ Y.EventSequenceStart (Y.UriTag "!foo") Y.FlowSequence Nothing
-        , Y.EventSequenceEnd
-        ] `shouldEmit` "[]\n"
+        taggedSequence `shouldEmit` "[]\n"
       it "elides custom mapping tags" $
-        [ Y.EventMappingStart (Y.UriTag "!foo") Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        ] `shouldEmit` "{}\n"
+        taggedMapping `shouldEmit` "{}\n"
       it "elides default sequence tags" $
-        [ Y.EventSequenceStart Y.SeqTag Y.FlowSequence Nothing
-        , Y.EventSequenceEnd
-        ] `shouldEmit` "[]\n"
+        defaultTaggedSequence `shouldEmit` "[]\n"
       it "elides default mapping tags" $
-        [ Y.EventMappingStart Y.MapTag Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        ] `shouldEmit` "{}\n"
+        defaultTaggedMapping `shouldEmit` "{}\n"
       it "handles NoTag on sequences" $
-        [ Y.EventSequenceStart Y.NoTag Y.FlowSequence Nothing
-        , Y.EventSequenceEnd
-        ] `shouldEmit` "[]\n"
+        untaggedSequence `shouldEmit` "[]\n"
       it "handles NoTag on mappings" $
-        [ Y.EventMappingStart Y.NoTag Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        ] `shouldEmit` "{}\n"
+        untaggedMapping `shouldEmit` "{}\n"
       it "handles mixed tag usages but elides all mapping and sequence tags" $
-        [ Y.EventSequenceStart Y.NoTag Y.BlockSequence Nothing
-        , Y.EventMappingStart (Y.UriTag "!foo") Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        , Y.EventSequenceEnd
-        ] `shouldEmit` "- {}\n"
+        mixedTagSampleA `shouldEmit` "- {}\n"
       it "in combination of tags, anchors and styles, outputs only the scalar tags" $
-        [ Y.EventMappingStart Y.NoTag Y.BlockMapping (Just "a")
-        , Y.EventScalar "foo" (Y.UriTag "bar") Y.Plain (Just "b")
-        , Y.EventSequenceStart (Y.UriTag "!baz") Y.FlowSequence (Just "c")
-        , Y.EventScalar "" Y.NullTag Y.Plain (Just "d")
-        , Y.EventSequenceEnd
-        , Y.EventMappingEnd
-        ] `shouldEmit` "&a\n&b !<bar> foo: &c [&d !!null '']\n"
-    describe "Text.Libyaml with mapping and sequence tags on" $ do
+        mixedTagSampleB `shouldEmit` "&a\n&b !<bar> foo: &c [&d !!null '']\n"
+    describe "Text.Libyaml with collection tags on" $ do
       it "will output custom sequence tags" $
-        [ Y.EventSequenceStart (Y.UriTag "!foo") Y.FlowSequence Nothing
-        , Y.EventSequenceEnd
-        ] `shouldEmitWithTagsOn` "!foo []\n"
+        taggedSequence `shouldEmitWithTagsOn` "!foo []\n"
       it "will output custom mapping tags" $
-        [ Y.EventMappingStart (Y.UriTag "!foo") Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        ] `shouldEmitWithTagsOn` "!foo {}\n"
+        taggedMapping `shouldEmitWithTagsOn` "!foo {}\n"
       it "will output default sequence tags" $
-        [ Y.EventSequenceStart Y.SeqTag Y.FlowSequence Nothing
-        , Y.EventSequenceEnd
-        ] `shouldEmitWithTagsOn` "!!seq []\n"
+        defaultTaggedSequence `shouldEmitWithTagsOn` "!!seq []\n"
       it "will output default mapping tags" $
-        [ Y.EventMappingStart Y.MapTag Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        ] `shouldEmitWithTagsOn` "!!map {}\n"
+        defaultTaggedMapping `shouldEmitWithTagsOn` "!!map {}\n"
       it "handles NoTag on sequences" $
-        [ Y.EventSequenceStart Y.NoTag Y.FlowSequence Nothing
-        , Y.EventSequenceEnd
-        ] `shouldEmitWithTagsOn` "[]\n"
+        untaggedSequence `shouldEmitWithTagsOn` "[]\n"
       it "handles NoTag on mappings" $
-        [ Y.EventMappingStart Y.NoTag Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        ] `shouldEmitWithTagsOn` "{}\n"
+        untaggedMapping `shouldEmitWithTagsOn` "{}\n"
       it "handles mixed tag usages outputting all mapping and sequence tags" $
-        [ Y.EventSequenceStart Y.NoTag Y.BlockSequence Nothing
-        , Y.EventMappingStart (Y.UriTag "!foo") Y.FlowMapping Nothing
-        , Y.EventMappingEnd
-        , Y.EventSequenceEnd
-        ] `shouldEmitWithTagsOn` "- !foo {}\n"
+        mixedTagSampleA `shouldEmitWithTagsOn` "- !foo {}\n"
       it "in combination of tags, anchors and styles, outputs all the tags" $
-        [ Y.EventMappingStart Y.NoTag Y.BlockMapping (Just "a")
-        , Y.EventScalar "foo" (Y.UriTag "bar") Y.Plain (Just "b")
-        , Y.EventSequenceStart (Y.UriTag "!baz") Y.FlowSequence (Just "c")
-        , Y.EventScalar "" Y.NullTag Y.Plain (Just "d")
-        , Y.EventSequenceEnd
-        , Y.EventMappingEnd
-        ] `shouldEmitWithTagsOn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
-
+        mixedTagSampleB `shouldEmitWithTagsOn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
+    describe "Text.Libyaml with collection uri tags on" $ do
+      it "will output custom sequence tags" $
+        taggedSequence `shouldEmitWithUriTagsOn` "!foo []\n"
+      it "will output custom mapping tags" $
+        taggedMapping `shouldEmitWithUriTagsOn` "!foo {}\n"
+      it "will output default sequence tags" $
+        defaultTaggedSequence `shouldEmitWithUriTagsOn` "[]\n"
+      it "will output default mapping tags" $
+        defaultTaggedMapping `shouldEmitWithUriTagsOn` "{}\n"
+      it "handles NoTag on sequences" $
+        untaggedSequence `shouldEmitWithUriTagsOn` "[]\n"
+      it "handles NoTag on mappings" $
+        untaggedMapping `shouldEmitWithUriTagsOn` "{}\n"
+      it "handles mixed tag usages outputting all mapping and sequence tags" $
+        mixedTagSampleA `shouldEmitWithUriTagsOn` "- !foo {}\n"
+      it "in combination of tags, anchors and styles, outputs all the tags" $
+        mixedTagSampleB `shouldEmitWithUriTagsOn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
 
 specialStrings :: [T.Text]
 specialStrings =
@@ -724,3 +705,50 @@ caseTruncatesFiles = withSystemTempFile "truncate.yaml" $ \fp h -> do
     D.encodeFile fp val
     res <- D.decodeFileEither fp
     either (Left . show) Right res `shouldBe` Right val
+
+
+taggedSequence :: [Y.Event]
+taggedSequence =
+  [ Y.EventSequenceStart (Y.UriTag "!foo") Y.FlowSequence Nothing
+  , Y.EventSequenceEnd
+  ]
+
+taggedMapping :: [Y.Event]
+taggedMapping =
+  [ Y.EventMappingStart (Y.UriTag "!foo") Y.FlowMapping Nothing
+  , Y.EventMappingEnd
+  ]
+
+defaultTaggedSequence :: [Y.Event]
+defaultTaggedSequence =
+  [Y.EventSequenceStart Y.SeqTag Y.FlowSequence Nothing, Y.EventSequenceEnd]
+
+defaultTaggedMapping :: [Y.Event]
+defaultTaggedMapping =
+  [Y.EventMappingStart Y.MapTag Y.FlowMapping Nothing, Y.EventMappingEnd]
+
+untaggedSequence :: [Y.Event]
+untaggedSequence =
+  [Y.EventSequenceStart Y.NoTag Y.FlowSequence Nothing, Y.EventSequenceEnd]
+
+untaggedMapping :: [Y.Event]
+untaggedMapping =
+  [Y.EventMappingStart Y.NoTag Y.FlowMapping Nothing, Y.EventMappingEnd]
+
+mixedTagSampleA :: [Y.Event]
+mixedTagSampleA =
+  [ Y.EventSequenceStart Y.NoTag Y.BlockSequence Nothing
+  , Y.EventMappingStart (Y.UriTag "!foo") Y.FlowMapping Nothing
+  , Y.EventMappingEnd
+  , Y.EventSequenceEnd
+  ]
+
+mixedTagSampleB :: [Y.Event]
+mixedTagSampleB =
+  [ Y.EventMappingStart Y.NoTag Y.BlockMapping (Just "a")
+  , Y.EventScalar "foo" (Y.UriTag "bar") Y.Plain (Just "b")
+  , Y.EventSequenceStart (Y.UriTag "!baz") Y.FlowSequence (Just "c")
+  , Y.EventScalar "" Y.NullTag Y.Plain (Just "d")
+  , Y.EventSequenceEnd
+  , Y.EventMappingEnd
+  ]

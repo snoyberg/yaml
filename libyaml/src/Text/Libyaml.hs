@@ -32,8 +32,10 @@ module Text.Libyaml
     , FormatOptions
     , defaultFormatOptions
     , setWidth
-    , setMappingTagsExplicit
-    , setSequenceTagsExplicit
+    , setCollectionTagRendering
+    , renderNone
+    , renderAll
+    , renderUriTags
       -- * Error handling
     , YamlException (..)
     , YamlMark (..)
@@ -504,7 +506,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                   er
                   nullPtr
                   tagP
-                  (seqTagImplicit tag)
+                  (implicit e)
                   (toEnum $ fromEnum style)
         EventSequenceStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -515,7 +517,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        (seqTagImplicit tag)
+                        (implicit e)
                         (toEnum $ fromEnum style)
         EventSequenceEnd ->
             c_yaml_sequence_end_event_initialize er
@@ -526,7 +528,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                     er
                     nullPtr
                     tagP
-                    (mapTagImplicit tag)
+                    (implicit e)
                     (toEnum $ fromEnum style)
         EventMappingStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -537,7 +539,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        (mapTagImplicit tag)
+                        (implicit e)
                         (toEnum $ fromEnum style)
         EventMappingEnd ->
             c_yaml_mapping_end_event_initialize er
@@ -550,10 +552,9 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
     unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
   where
-    mapTagImplicit NoTag = 1
-    mapTagImplicit _ = if formatOptionsExplicitMappingTags opts then 0 else 1
-    seqTagImplicit NoTag = 1
-    seqTagImplicit _ = if formatOptionsExplicitSequenceTags opts then 0 else 1
+    implicit (EventSequenceStart NoTag _ _) = 1
+    implicit (EventMappingStart NoTag _ _) = 1
+    implicit e = toEnum $ fromEnum $ formatOptionsRenderCollectionTags opts e 
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
@@ -670,13 +671,28 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
+
+data TagRender = Explicit | Implicit
+  deriving (Enum)
+
+renderNone :: Event -> TagRender
+renderNone _ = Implicit
+
+renderAll :: Event -> TagRender
+renderAll _ = Explicit
+
+renderUriTags :: Event -> TagRender
+renderUriTags (EventScalar _ UriTag{} _ _) = Explicit
+renderUriTags (EventSequenceStart UriTag{} _ _) = Explicit
+renderUriTags (EventMappingStart UriTag{} _ _) = Explicit
+renderUriTags _ = Implicit
+
 -- | Contains options relating to the formatting (indendation, width) of the YAML output.
 --
 -- @since 0.10.2.0
 data FormatOptions = FormatOptions
     { formatOptionsWidth :: Maybe Int
-    , formatOptionsExplicitMappingTags :: Bool
-    , formatOptionsExplicitSequenceTags :: Bool
+    , formatOptionsRenderCollectionTags :: Event -> TagRender
     }
 
 -- |
@@ -684,8 +700,7 @@ data FormatOptions = FormatOptions
 defaultFormatOptions :: FormatOptions
 defaultFormatOptions = FormatOptions
     { formatOptionsWidth = Just 80 -- by default the width is set to 0 in the C code, which gets turned into 80 in yaml_emitter_emit_stream_start
-    , formatOptionsExplicitMappingTags = False
-    , formatOptionsExplicitSequenceTags = False
+    , formatOptionsRenderCollectionTags = renderNone
     }
 
 -- | Set the maximum number of columns in the YAML output, or 'Nothing' for infinite. By default, the limit is 80 characters.
@@ -694,23 +709,11 @@ defaultFormatOptions = FormatOptions
 setWidth :: Maybe Int -> FormatOptions -> FormatOptions
 setWidth w opts = opts { formatOptionsWidth = w }
 
--- | Set the control of mapping tags to "explicit"
+-- | Control when and whether collection tags are rendered to output.
 --
--- This means that tags on mappings (even the default 'mapTag') will
--- be rendered out. To inhibit, set the tag to `NoTag` instead.
---
--- @since 0.11.0.0
-setMappingTagsExplicit :: Bool -> FormatOptions -> FormatOptions
-setMappingTagsExplicit f opts = opts { formatOptionsExplicitMappingTags = f }
-
--- | Set the control of mapping@ tags to "explicit"
---
--- This means that tags on mappings (even the default 'seqTag') will
--- be rendered out. To inhibit, set the tag to `NoTag` instead.
---
--- @since 0.11.0.0
-setSequenceTagsExplicit :: Bool -> FormatOptions -> FormatOptions
-setSequenceTagsExplicit f opts = opts { formatOptionsExplicitSequenceTags = f }
+-- @since 0.11.1.0
+setCollectionTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
+setCollectionTagRendering f opts = opts { formatOptionsRenderCollectionTags = f }
 
 encode :: MonadResource m => ConduitM Event o m ByteString
 encode = encodeWith defaultFormatOptions
