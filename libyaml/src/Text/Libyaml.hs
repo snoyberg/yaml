@@ -559,13 +559,13 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
     implicitColl (EventSequenceStart NoTag _ _) = 1
     implicitColl (EventMappingStart (UriTag "") _ _) = 1
     implicitColl (EventSequenceStart (UriTag "") _ _) = 1
-    implicitColl evt = toEnum $ fromEnum $ formatOptionsRenderCollectionTags opts evt
+    implicitColl evt = toImplicitParam $ formatOptionsRenderCollectionTags opts evt
     implicitPlain (EventScalar _ NoTag _ _) = 1
     implicitPlain (EventScalar _ (UriTag "") _ _) = 1
-    implicitPlain evt = toEnum $ fromEnum $ formatOptionsRenderPlainScalarTags opts evt
+    implicitPlain evt = toImplicitParam $ formatOptionsRenderPlainScalarTags opts evt
     implicitQuoted (EventScalar _ NoTag _ _) = 1
     implicitQuoted (EventScalar _ (UriTag "") _ _) = 1
-    implicitQuoted evt = toEnum $ fromEnum $ formatOptionsRenderQuotedScalarTags opts evt
+    implicitQuoted evt = toImplicitParam $ formatOptionsRenderQuotedScalarTags opts evt
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
@@ -688,6 +688,10 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
 -- @since 0.11.1.0
 data TagRender = Explicit | Implicit
   deriving (Enum)
+
+toImplicitParam :: TagRender -> CInt
+toImplicitParam Explicit = 0
+toImplicitParam _ = 1
 
 -- | A value for 'formatOptionsRenderCollectionTags' that renders no
 -- tags.
