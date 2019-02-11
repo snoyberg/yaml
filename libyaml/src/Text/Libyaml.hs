@@ -32,11 +32,10 @@ module Text.Libyaml
     , FormatOptions
     , defaultFormatOptions
     , setWidth
-    , setCollectionTagRendering
-    , setPlainTagRendering
-    , setQuotedTagRendering
-    , renderNone
-    , renderAll
+    , setTagRendering
+    , renderScalarTags
+    , renderAllTags
+    , renderNoTags
     , renderUriTags
       -- * Error handling
     , YamlException (..)
@@ -126,6 +125,11 @@ data Tag = StrTag
          | UriTag String
          | NoTag
     deriving (Show, Eq, Read, Data, Typeable)
+
+tagSuppressed :: Tag -> Bool
+tagSuppressed (NoTag) = True
+tagSuppressed (UriTag "") = True
+tagSuppressed _ = False
 
 type AnchorName = String
 type Anchor = Maybe AnchorName
@@ -471,8 +475,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                     len' = fromIntegral len :: CInt
                 let thetag' = tagToString thetag
                 withCString thetag' $ \tag' -> do
-                    let pi0 = implicitPlain e
-                        qi = implicitQuoted e
+                    let pi0 = tagsImplicit e
                         (pi, style) =
                           case style0 of
                             PlainNoTag -> (1, Plain)
@@ -488,7 +491,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                                 value'  -- value
                                 len'    -- length
                                 pi      -- plain_implicit
-                                qi      -- quoted_implicit
+                                pi      -- quoted_implicit
                                 style'  -- style
                         Just anchor' ->
                             withCString anchor' $ \anchorP' -> do
@@ -500,7 +503,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                                     value'  -- value
                                     len'    -- length
                                     0       -- plain_implicit
-                                    qi      -- quoted_implicit
+                                    pi      -- quoted_implicit
                                     style'  -- style
         EventSequenceStart tag style Nothing ->
             withCString (tagToString tag) $ \tag' -> do
@@ -509,7 +512,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                   er
                   nullPtr
                   tagP
-                  (implicitColl e)
+                  (tagsImplicit e)
                   (toEnum $ fromEnum style)
         EventSequenceStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -520,7 +523,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        (implicitColl e)
+                        (tagsImplicit e)
                         (toEnum $ fromEnum style)
         EventSequenceEnd ->
             c_yaml_sequence_end_event_initialize er
@@ -531,7 +534,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                     er
                     nullPtr
                     tagP
-                    (implicitColl e)
+                    (tagsImplicit e)
                     (toEnum $ fromEnum style)
         EventMappingStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -542,7 +545,7 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        (implicitColl e)
+                        (tagsImplicit e)
                         (toEnum $ fromEnum style)
         EventMappingEnd ->
             c_yaml_mapping_end_event_initialize er
@@ -555,17 +558,10 @@ toEventRaw opts e f = allocaBytes eventSize $ \er -> do
     unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
   where
-    implicitColl (EventMappingStart NoTag _ _) = 1
-    implicitColl (EventSequenceStart NoTag _ _) = 1
-    implicitColl (EventMappingStart (UriTag "") _ _) = 1
-    implicitColl (EventSequenceStart (UriTag "") _ _) = 1
-    implicitColl evt = toImplicitParam $ formatOptionsRenderCollectionTags opts evt
-    implicitPlain (EventScalar _ NoTag _ _) = 1
-    implicitPlain (EventScalar _ (UriTag "") _ _) = 1
-    implicitPlain evt = toImplicitParam $ formatOptionsRenderPlainScalarTags opts evt
-    implicitQuoted (EventScalar _ NoTag _ _) = 1
-    implicitQuoted (EventScalar _ (UriTag "") _ _) = 1
-    implicitQuoted evt = toImplicitParam $ formatOptionsRenderQuotedScalarTags opts evt
+    tagsImplicit (EventScalar _ t _ _) | tagSuppressed t = 1
+    tagsImplicit (EventMappingStart t _ _) | tagSuppressed t = 1
+    tagsImplicit (EventSequenceStart t _ _) | tagSuppressed t = 1
+    tagsImplicit evt = toImplicitParam $ formatOptionsRenderTags opts evt
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
@@ -691,21 +687,32 @@ data TagRender = Explicit | Implicit
 
 toImplicitParam :: TagRender -> CInt
 toImplicitParam Explicit = 0
-toImplicitParam _ = 1
+toImplicitParam Implicit = 1
 
--- | A value for 'formatOptionsRenderCollectionTags' that renders no
+-- | A value for 'formatOptionsRenderTags' that renders no
+-- collection tags but all scalar tags (unless suppressed with styles
+-- 'NoTag or 'PlainNoTag').
+--
+-- @since 0.11.1.0
+renderScalarTags :: Event -> TagRender
+renderScalarTags (EventScalar _ _ _ _) = Explicit
+renderScalarTags (EventSequenceStart _ _ _) = Implicit
+renderScalarTags (EventMappingStart _ _ _) = Implicit
+renderScalarTags _ = Implicit
+
+-- | A value for 'formatOptionsRenderTags' that renders all
+-- tags (except 'NoTag' tag and 'PlainNoTag' style).
+--
+-- @since 0.11.1.0
+renderAllTags :: Event -> TagRender
+renderAllTags _ = Explicit
+
+-- | A value for 'formatOptionsRenderTags' that renders no
 -- tags.
 --
 -- @since 0.11.1.0
-renderNone :: Event -> TagRender
-renderNone _ = Implicit
-
--- | A value for 'formatOptionsRenderCollectionTags' that renders all
--- tags (except 'NoTag' and 'PlainNoTag' for flow scalars).
---
--- @since 0.11.1.0
-renderAll :: Event -> TagRender
-renderAll _ = Explicit
+renderNoTags :: Event -> TagRender
+renderNoTags _ = Implicit
 
 -- | A value for 'formatOptionsRenderCollectionTags' that renders tags
 -- which are instances of 'UriTag'
@@ -722,9 +729,7 @@ renderUriTags _ = Implicit
 -- @since 0.10.2.0
 data FormatOptions = FormatOptions
     { formatOptionsWidth :: Maybe Int
-    , formatOptionsRenderCollectionTags :: Event -> TagRender
-    , formatOptionsRenderPlainScalarTags :: Event -> TagRender
-    , formatOptionsRenderQuotedScalarTags :: Event -> TagRender
+    , formatOptionsRenderTags :: Event -> TagRender
     }
 
 -- |
@@ -732,9 +737,7 @@ data FormatOptions = FormatOptions
 defaultFormatOptions :: FormatOptions
 defaultFormatOptions = FormatOptions
     { formatOptionsWidth = Just 80 -- by default the width is set to 0 in the C code, which gets turned into 80 in yaml_emitter_emit_stream_start
-    , formatOptionsRenderCollectionTags = renderNone
-    , formatOptionsRenderPlainScalarTags = renderAll
-    , formatOptionsRenderQuotedScalarTags = renderAll
+    , formatOptionsRenderTags = renderScalarTags
     }
 
 -- | Set the maximum number of columns in the YAML output, or 'Nothing' for infinite. By default, the limit is 80 characters.
@@ -743,23 +746,11 @@ defaultFormatOptions = FormatOptions
 setWidth :: Maybe Int -> FormatOptions -> FormatOptions
 setWidth w opts = opts { formatOptionsWidth = w }
 
--- | Control when and whether tags on collections are rendered to output.
+-- | Control when and whether tags are rendered to output.
 --
 -- @since 0.11.1.0
-setCollectionTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
-setCollectionTagRendering f opts = opts { formatOptionsRenderCollectionTags = f }
-
--- | Control when and whether tags on plain scalars are rendered to output.
---
--- @since 0.11.1.0
-setPlainTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
-setPlainTagRendering f opts = opts { formatOptionsRenderPlainScalarTags = f }
-
--- | Control when and whether tags on quoted scalars are rendered to output.
---
--- @since 0.11.1.0
-setQuotedTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
-setQuotedTagRendering f opts = opts { formatOptionsRenderQuotedScalarTags = f }
+setTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
+setTagRendering f opts = opts { formatOptionsRenderTags = f }
 
 encode :: MonadResource m => ConduitM Event o m ByteString
 encode = encodeWith defaultFormatOptions

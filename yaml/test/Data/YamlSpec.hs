@@ -213,7 +213,7 @@ spec = do
       go "12.3015e+02" (1230.15 :: Scientific)
       go "1230.15" (1230.15 :: Scientific)
 
-    describe "Text.Libyaml with collection tags off" $ do
+    describe "Text.Libyaml with default tag rendering" $ do
       let enc = testEncodeWith Y.defaultFormatOptions
       it "elides custom sequence tags" $
         enc taggedSequence `shouldReturn` "[]\n"
@@ -231,8 +231,16 @@ spec = do
         enc mixedTagSampleA `shouldReturn` "- {}\n"
       it "in combination of tags, anchors and styles, outputs only the scalar tags" $
         enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c [&d !!null '']\n"
-    describe "Text.Libyaml with collection tags on" $ do
-      let enc = testEncodeWith $ Y.setCollectionTagRendering Y.renderAll Y.defaultFormatOptions
+      it "outputs tags when double quoted" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.DoubleQuoted Nothing] `shouldReturn` "!!str \"foo\"\n"
+      it "outputs tags when single quoted" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.SingleQuoted Nothing] `shouldReturn` "!!str 'foo'\n"
+      it "outputs tags on literal text" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Literal Nothing] `shouldReturn` "!!str |-\n  foo\n"
+      it "outputs tags on folded text" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Folded Nothing] `shouldReturn` "!!str >-\n  foo\n"
+    describe "Text.Libyaml with all tags on" $ do
+      let enc = testEncodeWith $ Y.setTagRendering Y.renderAllTags Y.defaultFormatOptions
       it "will output custom sequence tags" $
         enc taggedSequence `shouldReturn` "!foo []\n"
       it "will output custom mapping tags" $
@@ -249,8 +257,12 @@ spec = do
         enc mixedTagSampleA `shouldReturn` "- !foo {}\n"
       it "in combination of tags, anchors and styles, outputs all the tags" $
         enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
-    describe "Text.Libyaml with collection uri tags on" $ do
-      let enc = testEncodeWith $ Y.setCollectionTagRendering Y.renderUriTags Y.defaultFormatOptions
+      it "outputs plain tags" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.Plain Nothing] `shouldReturn` "!!str foo\n"
+      it "respects PlainNoTag tags" $
+        enc [Y.EventScalar "foo" Y.StrTag Y.PlainNoTag Nothing] `shouldReturn` "foo\n"
+    describe "Text.Libyaml with uri tags on" $ do
+      let enc = testEncodeWith $ Y.setTagRendering Y.renderUriTags Y.defaultFormatOptions
       it "will output custom sequence tags" $
         enc taggedSequence `shouldReturn` "!foo []\n"
       it "will output custom mapping tags" $
@@ -266,31 +278,13 @@ spec = do
       it "handles mixed tag usages outputting all mapping and sequence tags" $
         enc mixedTagSampleA `shouldReturn` "- !foo {}\n"
       it "in combination of tags, anchors and styles, outputs all the tags" $
-        enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c !baz [&d !!null '']\n"
-    describe "Text.Libyaml with plain scalar tags on" $ do
-      let enc = testEncodeWith $ Y.setPlainTagRendering Y.renderAll Y.defaultFormatOptions
-      it "outputs plain tags" $
-        enc [Y.EventScalar "foo" Y.StrTag Y.Plain Nothing] `shouldReturn` "!!str foo\n"
-      it "respects PlainNoTag tags" $
-        enc [Y.EventScalar "foo" Y.StrTag Y.PlainNoTag Nothing] `shouldReturn` "foo\n"
-    describe "Text.Libyaml with plain scalar tags off" $ do
-      let enc = testEncodeWith $ Y.setPlainTagRendering Y.renderNone Y.defaultFormatOptions
+        enc mixedTagSampleB `shouldReturn` "&a\n&b !<bar> foo: &c !baz [&d '']\n"
+    describe "Text.Libyaml with tags off" $ do
+      let enc = testEncodeWith $ Y.setTagRendering Y.renderNoTags Y.defaultFormatOptions
       it "outputs plain tags" $
         enc [Y.EventScalar "foo" Y.StrTag Y.Plain Nothing] `shouldReturn` "foo\n"
       it "respects PlainNoTag tags" $
         enc [Y.EventScalar "foo" Y.StrTag Y.PlainNoTag Nothing] `shouldReturn` "foo\n"
-    describe "Text.Libyaml with quoted scalar tags on" $ do
-      let enc = testEncodeWith $ Y.setQuotedTagRendering Y.renderAll Y.defaultFormatOptions
-      it "outputs tags when double quoted" $
-        enc [Y.EventScalar "foo" Y.StrTag Y.DoubleQuoted Nothing] `shouldReturn` "!!str \"foo\"\n"
-      it "outputs tags when single quoted" $
-        enc [Y.EventScalar "foo" Y.StrTag Y.SingleQuoted Nothing] `shouldReturn` "!!str 'foo'\n"
-      it "outputs tags on literal text" $
-        enc [Y.EventScalar "foo" Y.StrTag Y.Literal Nothing] `shouldReturn` "!!str |-\n  foo\n"
-      it "outputs tags on folded text" $
-        enc [Y.EventScalar "foo" Y.StrTag Y.Folded Nothing] `shouldReturn` "!!str >-\n  foo\n"
-    describe "Text.Libyaml with quoted scalar tags off" $ do
-      let enc = testEncodeWith $ Y.setQuotedTagRendering Y.renderNone Y.defaultFormatOptions
       it "elides tags when double quoted" $
         enc [Y.EventScalar "foo" Y.StrTag Y.DoubleQuoted Nothing] `shouldReturn` "\"foo\"\n"
       it "elides tags when single quoted" $
@@ -302,9 +296,7 @@ spec = do
     describe "Text.Libyaml with only UriTags set to render " $ do
       let enc =
             testEncodeWith $
-            Y.setCollectionTagRendering Y.renderUriTags $
-            Y.setPlainTagRendering Y.renderUriTags $
-            Y.setQuotedTagRendering Y.renderUriTags Y.defaultFormatOptions
+            Y.setTagRendering Y.renderUriTags $ Y.defaultFormatOptions
       it "outputs only UriTags" $
         enc
           [ Y.EventSequenceStart Y.NoTag Y.FlowSequence Nothing
