@@ -32,6 +32,11 @@ module Text.Libyaml
     , FormatOptions
     , defaultFormatOptions
     , setWidth
+    , setTagRendering
+    , renderScalarTags
+    , renderAllTags
+    , renderNoTags
+    , renderUriTags
       -- * Error handling
     , YamlException (..)
     , YamlMark (..)
@@ -120,6 +125,11 @@ data Tag = StrTag
          | UriTag String
          | NoTag
     deriving (Show, Eq, Read, Data, Typeable)
+
+tagSuppressed :: Tag -> Bool
+tagSuppressed (NoTag) = True
+tagSuppressed (UriTag "") = True
+tagSuppressed _ = False
 
 type AnchorName = String
 type Anchor = Maybe AnchorName
@@ -446,8 +456,8 @@ foreign import ccall unsafe "yaml_alias_event_initialize"
         -> Ptr CUChar
         -> IO CInt
 
-toEventRaw :: Event -> (EventRaw -> IO a) -> IO a
-toEventRaw e f = allocaBytes eventSize $ \er -> do
+toEventRaw :: FormatOptions -> Event -> (EventRaw -> IO a) -> IO a
+toEventRaw opts e f = allocaBytes eventSize $ \er -> do
     ret <- case e of
         EventStreamStart ->
             c_yaml_stream_start_event_initialize
@@ -465,13 +475,13 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                     len' = fromIntegral len :: CInt
                 let thetag' = tagToString thetag
                 withCString thetag' $ \tag' -> do
-                    let (pi, style) =
-                            case style0 of
-                                PlainNoTag -> (1, Plain)
-                                x -> (0, x)
+                    let pi0 = tagsImplicit e
+                        (pi, style) =
+                          case style0 of
+                            PlainNoTag -> (1, Plain)
+                            x -> (pi0, x)
                         style' = toEnum $ fromEnum style
                         tagP = castPtr tag'
-                        qi = if null thetag' then 1 else 0
                     case anchor of
                         Nothing ->
                             c_yaml_scalar_event_initialize
@@ -481,7 +491,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                 value'  -- value
                                 len'    -- length
                                 pi      -- plain_implicit
-                                qi      -- quoted_implicit
+                                pi      -- quoted_implicit
                                 style'  -- style
                         Just anchor' ->
                             withCString anchor' $ \anchorP' -> do
@@ -493,7 +503,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                                     value'  -- value
                                     len'    -- length
                                     0       -- plain_implicit
-                                    qi      -- quoted_implicit
+                                    pi      -- quoted_implicit
                                     style'  -- style
         EventSequenceStart tag style Nothing ->
             withCString (tagToString tag) $ \tag' -> do
@@ -502,7 +512,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                   er
                   nullPtr
                   tagP
-                  1
+                  (tagsImplicit e)
                   (toEnum $ fromEnum style)
         EventSequenceStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -513,7 +523,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        1
+                        (tagsImplicit e)
                         (toEnum $ fromEnum style)
         EventSequenceEnd ->
             c_yaml_sequence_end_event_initialize er
@@ -524,7 +534,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                     er
                     nullPtr
                     tagP
-                    1
+                    (tagsImplicit e)
                     (toEnum $ fromEnum style)
         EventMappingStart tag style (Just anchor) ->
             withCString (tagToString tag) $ \tag' -> do
@@ -535,7 +545,7 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                         er
                         anchorP
                         tagP
-                        1
+                        (tagsImplicit e)
                         (toEnum $ fromEnum style)
         EventMappingEnd ->
             c_yaml_mapping_end_event_initialize er
@@ -547,6 +557,11 @@ toEventRaw e f = allocaBytes eventSize $ \er -> do
                     anchorP
     unless (ret == 1) $ throwIO $ ToEventRawException ret
     f er
+  where
+    tagsImplicit (EventScalar _ t _ _) | tagSuppressed t = 1
+    tagsImplicit (EventMappingStart t _ _) | tagSuppressed t = 1
+    tagsImplicit (EventSequenceStart t _ _) | tagSuppressed t = 1
+    tagsImplicit evt = toImplicitParam $ formatOptionsRenderTags opts evt
 
 newtype ToEventRawException = ToEventRawException CInt
     deriving (Show, Typeable)
@@ -663,11 +678,58 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
           return $ Left $ YamlParseException problem context problemMark
         else Right <$> getEvent er
 
+-- | Whether a tag should be rendered explicitly in the output or left
+-- implicit.
+--
+-- @since 0.11.1.0
+data TagRender = Explicit | Implicit
+  deriving (Enum)
+
+toImplicitParam :: TagRender -> CInt
+toImplicitParam Explicit = 0
+toImplicitParam Implicit = 1
+
+-- | A value for 'formatOptionsRenderTags' that renders no
+-- collection tags but all scalar tags (unless suppressed with styles
+-- 'NoTag or 'PlainNoTag').
+--
+-- @since 0.11.1.0
+renderScalarTags :: Event -> TagRender
+renderScalarTags (EventScalar _ _ _ _) = Explicit
+renderScalarTags (EventSequenceStart _ _ _) = Implicit
+renderScalarTags (EventMappingStart _ _ _) = Implicit
+renderScalarTags _ = Implicit
+
+-- | A value for 'formatOptionsRenderTags' that renders all
+-- tags (except 'NoTag' tag and 'PlainNoTag' style).
+--
+-- @since 0.11.1.0
+renderAllTags :: Event -> TagRender
+renderAllTags _ = Explicit
+
+-- | A value for 'formatOptionsRenderTags' that renders no
+-- tags.
+--
+-- @since 0.11.1.0
+renderNoTags :: Event -> TagRender
+renderNoTags _ = Implicit
+
+-- | A value for 'formatOptionsRenderCollectionTags' that renders tags
+-- which are instances of 'UriTag'
+--
+-- @since 0.11.1.0
+renderUriTags :: Event -> TagRender
+renderUriTags (EventScalar _ UriTag{} _ _) = Explicit
+renderUriTags (EventSequenceStart UriTag{} _ _) = Explicit
+renderUriTags (EventMappingStart UriTag{} _ _) = Explicit
+renderUriTags _ = Implicit
+
 -- | Contains options relating to the formatting (indendation, width) of the YAML output.
 --
 -- @since 0.10.2.0
 data FormatOptions = FormatOptions
     { formatOptionsWidth :: Maybe Int
+    , formatOptionsRenderTags :: Event -> TagRender
     }
 
 -- |
@@ -675,6 +737,7 @@ data FormatOptions = FormatOptions
 defaultFormatOptions :: FormatOptions
 defaultFormatOptions = FormatOptions
     { formatOptionsWidth = Just 80 -- by default the width is set to 0 in the C code, which gets turned into 80 in yaml_emitter_emit_stream_start
+    , formatOptionsRenderTags = renderScalarTags
     }
 
 -- | Set the maximum number of columns in the YAML output, or 'Nothing' for infinite. By default, the limit is 80 characters.
@@ -682,6 +745,12 @@ defaultFormatOptions = FormatOptions
 -- @since 0.10.2.0
 setWidth :: Maybe Int -> FormatOptions -> FormatOptions
 setWidth w opts = opts { formatOptionsWidth = w }
+
+-- | Control when and whether tags are rendered to output.
+--
+-- @since 0.11.1.0
+setTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
+setTagRendering f opts = opts { formatOptionsRenderTags = f }
 
 encode :: MonadResource m => ConduitM Event o m ByteString
 encode = encodeWith defaultFormatOptions
@@ -756,7 +825,7 @@ runEmitter opts allocI closeI =
         loop = await >>= maybe (close ()) push
 
         push e = do
-            _ <- liftIO $ toEventRaw e $ c_yaml_emitter_emit emitter
+            _ <- liftIO $ toEventRaw opts e $ c_yaml_emitter_emit emitter
             loop
         close u = liftIO $ closeI u a
 

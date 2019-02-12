@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.1.0
+
+* Add options to `FormatOptions` to govern when tags rendered explicitly and when they are left implicit. [#165](https://github.com/snoyberg/yaml/issues/165)
+
 ## 0.11.0.0
 
 * Split out the `libyaml` and `Text.Libyaml` code into its own package. [#145](https://github.com/snoyberg/yaml/issues/145)
