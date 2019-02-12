@@ -1,5 +1,5 @@
 name:        libyaml
-version:     0.1.0.0
+version:     0.1.1.0
 synopsis:    Low-level, streaming YAML interface.
 description: README and API documentation are available at <https://www.stackage.org/package/libyaml>
 category:    Text

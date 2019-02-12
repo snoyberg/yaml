@@ -681,7 +681,7 @@ parserParseOne' parser = allocaBytes eventSize $ \er -> do
 -- | Whether a tag should be rendered explicitly in the output or left
 -- implicit.
 --
--- @since 0.11.1.0
+-- @since 0.1.1.0
 data TagRender = Explicit | Implicit
   deriving (Enum)
 
@@ -693,7 +693,7 @@ toImplicitParam Implicit = 1
 -- collection tags but all scalar tags (unless suppressed with styles
 -- 'NoTag or 'PlainNoTag').
 --
--- @since 0.11.1.0
+-- @since 0.1.1.0
 renderScalarTags :: Event -> TagRender
 renderScalarTags (EventScalar _ _ _ _) = Explicit
 renderScalarTags (EventSequenceStart _ _ _) = Implicit
@@ -703,21 +703,21 @@ renderScalarTags _ = Implicit
 -- | A value for 'formatOptionsRenderTags' that renders all
 -- tags (except 'NoTag' tag and 'PlainNoTag' style).
 --
--- @since 0.11.1.0
+-- @since 0.1.1.0
 renderAllTags :: Event -> TagRender
 renderAllTags _ = Explicit
 
 -- | A value for 'formatOptionsRenderTags' that renders no
 -- tags.
 --
--- @since 0.11.1.0
+-- @since 0.1.1.0
 renderNoTags :: Event -> TagRender
 renderNoTags _ = Implicit
 
 -- | A value for 'formatOptionsRenderCollectionTags' that renders tags
 -- which are instances of 'UriTag'
 --
--- @since 0.11.1.0
+-- @since 0.1.1.0
 renderUriTags :: Event -> TagRender
 renderUriTags (EventScalar _ UriTag{} _ _) = Explicit
 renderUriTags (EventSequenceStart UriTag{} _ _) = Explicit
@@ -748,7 +748,7 @@ setWidth w opts = opts { formatOptionsWidth = w }
 
 -- | Control when and whether tags are rendered to output.
 --
--- @since 0.11.1.0
+-- @since 0.1.1.0
 setTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
 setTagRendering f opts = opts { formatOptionsRenderTags = f }
 
