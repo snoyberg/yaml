@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.0.1
+
+* Better error messages in the `Data.Yaml.Config` module [#168](https://github.com/snoyberg/yaml/issues/168)
+
 ## 0.11.0.0
 
 * Split out the `libyaml` and `Text.Libyaml` code into its own package. [#145](https://github.com/snoyberg/yaml/issues/145)

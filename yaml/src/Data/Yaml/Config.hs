@@ -197,9 +197,9 @@ loadYamlSettings runTimeFiles compileValues envUsage = do
             UseCustomEnv env     -> return $ applyEnvValue   False env    value'
             RequireCustomEnv env -> return $ applyEnvValue   True  env    value'
 
-    case fromJSON value of
-        Error s -> error $ "Could not convert to expected type: " ++ s
-        Success settings -> return settings
+    case Y.parseEither parseJSON value of
+        Left s -> error $ "Could not convert to expected type: " ++ s
+        Right settings -> return settings
 
 -- | Same as @loadYamlSettings@, but get the list of runtime config files from
 -- the command line arguments.
