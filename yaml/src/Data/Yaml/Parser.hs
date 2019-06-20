@@ -8,6 +8,8 @@ module Data.Yaml.Parser where
 import Control.Applicative
 import Control.Exception (Exception)
 import Control.Monad (MonadPlus (..), liftM, ap)
+import Control.Monad.Fail (MonadFail)
+import qualified Control.Monad.Fail as Fail
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (MonadThrow, throwM)
 import Control.Monad.Trans.Writer.Strict (tell, WriterT)
@@ -52,6 +54,10 @@ instance Monad YamlParser where
         case f am of
             Left t -> Left t
             Right x -> unYamlParser (g x) am
+#if !MIN_VERSION_base(4,13,0)
+    fail = Fail.fail
+#endif
+instance MonadFail YamlParser where
     fail = YamlParser . const . Left . pack
 instance MonadPlus YamlParser where
     mzero = fail "mzero"

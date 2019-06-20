@@ -86,6 +86,7 @@ module Data.Yaml
 import Control.Applicative((<$>))
 #endif
 import Control.Exception
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Resource (MonadThrow, throwM)
 import Data.Aeson
@@ -296,5 +297,5 @@ decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
 array :: [Value] -> Value
 array = Array . V.fromList
 
-parseMonad :: Monad m => (a -> Parser b) -> a -> m b
+parseMonad :: MonadFail m => (a -> Parser b) -> a -> m b
 parseMonad p = either fail return . parseEither p

@@ -54,6 +54,7 @@ dependencies:
 when:
   condition: "!impl(ghc >= 8.0)"
   dependencies:
+  - fail >= 4.9 && < 4.10
   - semigroups
 
 library:
