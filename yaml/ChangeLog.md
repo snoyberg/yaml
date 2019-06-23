@@ -1,5 +1,11 @@
 # ChangeLog for yaml
 
+## 0.12
+
+* GHC 8.8/`MonadFail` support:
+  - `Data.Yaml.parseMonad` now requires `MonadFail` instead of `Monad`.
+  - `instance MonadFail YamlParser` now exists.
+
 ## 0.11.0.1
 
 * Better error messages in the `Data.Yaml.Config` module [#168](https://github.com/snoyberg/yaml/issues/168)
