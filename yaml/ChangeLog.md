@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.0.2
+
+* Add `LoadSettingsException` exception and remove error printing from `loadYamlSettings` [#172](https://github.com/snoyberg/yaml/pull/172)
+
 ## 0.11.0.1
 
 * Better error messages in the `Data.Yaml.Config` module [#168](https://github.com/snoyberg/yaml/issues/168)
