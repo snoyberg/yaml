@@ -1,6 +1,6 @@
 # ChangeLog for yaml
 
-## 0.11.0.2
+## 0.11.1.0
 
 * Add `LoadSettingsException` exception and remove error printing from `loadYamlSettings` [#172](https://github.com/snoyberg/yaml/pull/172)
 
