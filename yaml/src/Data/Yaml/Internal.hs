@@ -62,6 +62,7 @@ data ParseException = NonScalarKey
                     | OtherParseException SomeException
                     | NonStringKeyAlias Y.AnchorName Value
                     | CyclicIncludes
+                    | LoadSettingsException FilePath ParseException
     deriving (Show, Typeable)
 
 instance Exception ParseException where
@@ -113,6 +114,7 @@ prettyPrintParseException pe = case pe of
     , "  Value: " ++ show value
     ]
   CyclicIncludes -> "Cyclic includes"
+  LoadSettingsException fp exc -> "Could not parse file as YAML: " ++ fp ++ "\n" ++ prettyPrintParseException exc
 
 defineAnchor :: Value -> String -> ReaderT JSONPath (ConduitM e o Parse) ()
 defineAnchor value name = modify (modifyAnchors $ Map.insert name value)

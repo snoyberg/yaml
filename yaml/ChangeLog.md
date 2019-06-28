@@ -6,9 +6,10 @@
   - `Data.Yaml.parseMonad` now requires `MonadFail` instead of `Monad`.
   - `instance MonadFail YamlParser` now exists.
 
-## 0.11.0.1
+## 0.11.1.0
 
 * Better error messages in the `Data.Yaml.Config` module [#168](https://github.com/snoyberg/yaml/issues/168)
+* Add `LoadSettingsException` exception and remove error printing from `loadYamlSettings` [#172](https://github.com/snoyberg/yaml/pull/172)
 
 ## 0.11.0.0
 

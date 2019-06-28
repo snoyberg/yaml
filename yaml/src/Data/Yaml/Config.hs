@@ -180,9 +180,7 @@ loadYamlSettings runTimeFiles compileValues envUsage = do
     runValues <- forM runTimeFiles $ \fp -> do
         eres <- YI.decodeFileEither fp
         case eres of
-            Left e -> do
-                putStrLn $ "loadYamlSettings: Could not parse file as YAML: " ++ fp
-                throwIO e
+            Left e -> throwIO (Y.LoadSettingsException fp e)
             Right value -> return value
 
     value' <-
