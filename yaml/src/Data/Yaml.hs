@@ -94,6 +94,7 @@ import Data.Aeson
     , Object, Array
     , withObject, withText, withArray, withScientific, withBool
     )
+import qualified Data.Scientific as S
 import qualified Data.ByteString.Builder.Scientific
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Data.ByteString (ByteString)
@@ -215,9 +216,12 @@ objToEvents opts o = (:) EventStreamStart
     objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
     objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
     objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
-    -- Use aeson's implementation which gets rid of annoying decimal points
+
     objToEvents' (Number s) rest =
-      let builder = Data.ByteString.Builder.Scientific.scientificBuilder s
+      let builder
+            -- Special case the 0 exponent to remove the trailing .0
+            | S.base10Exponent s == 0 = BB.integerDec $ S.coefficient s
+            | otherwise = Data.ByteString.Builder.Scientific.scientificBuilder s
           lbs = BB.toLazyByteString builder
           bs = BL.toStrict lbs
        in EventScalar bs IntTag PlainNoTag Nothing : rest

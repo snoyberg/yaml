@@ -11,6 +11,7 @@ import qualified Text.Libyaml as Y
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.Int (Int64)
+import qualified Data.Scientific as S
 
 import Test.HUnit hiding (Test, path)
 
@@ -20,6 +21,7 @@ import qualified Data.Conduit.List as CL
 import Control.Monad
 import Control.Exception (try, SomeException)
 import Test.Hspec
+import Test.Hspec.QuickCheck
 import Data.Either.Compat
 import System.Directory (createDirectory, createDirectoryIfMissing)
 import Test.Mockery.Directory
@@ -309,6 +311,13 @@ spec = do
           , Y.EventSequenceEnd
           ] `shouldReturn`
         "[\"foo\", 99, 99.99, bar, !foo \"foo\", !foo foo]\n"
+
+      prop "Scientific values round-trip" $ \coeff expon -> do
+        let val = D.Number $ S.scientific coeff expon
+        let rendered = D.encode val
+        case D.decodeEither' rendered of
+          Left e -> error $ show (coeff, expon, e)
+          Right val' -> val' `shouldBe` val
 
 specialStrings :: [T.Text]
 specialStrings =
