@@ -94,22 +94,17 @@ import Data.Aeson
     , Object, Array
     , withObject, withText, withArray, withScientific, withBool
     )
-#if MIN_VERSION_aeson(1,0,0)
-import Data.Aeson.Text (encodeToTextBuilder)
-#else
-import Data.Aeson.Encode (encodeToTextBuilder)
-#endif
+import qualified Data.ByteString.Builder.Scientific
 import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy as BL
 import Data.Conduit ((.|), runConduitRes)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Lazy as TL
-import Data.Text.Lazy.Builder (toLazyText)
 import qualified Data.Vector as V
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Text (Text)
@@ -221,7 +216,11 @@ objToEvents opts o = (:) EventStreamStart
     objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
     objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
     -- Use aeson's implementation which gets rid of annoying decimal points
-    objToEvents' n@Number{} rest = EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder n) IntTag PlainNoTag Nothing : rest
+    objToEvents' (Number s) rest =
+      let builder = Data.ByteString.Builder.Scientific.scientificBuilder s
+          lbs = BB.toLazyByteString builder
+          bs = BL.toStrict lbs
+       in EventScalar bs IntTag PlainNoTag Nothing : rest
 
     pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
     pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v

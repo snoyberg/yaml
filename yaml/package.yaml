@@ -1,5 +1,5 @@
 name:        yaml
-version:     0.11.1.0
+version:     0.11.1.1
 synopsis:    Support for parsing and rendering YAML documents.
 description: README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:    Data
@@ -46,7 +46,7 @@ dependencies:
 - vector
 - text
 - attoparsec >=0.11.3.0
-- scientific
+- scientific >= 0.3 # for Data.ByteString.Builder.Scientific
 - filepath
 - directory
 - template-haskell

@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.1.1
+
+* Use the appropriate `Scientific` rendering function to avoid a memory overflow when rendering. The previously used function from `aeson` would not use scientific notation, and could use large amounts of memory for values such as `1e9999999999999`.
+
 ## 0.11.1.0
 
 * Better error messages in the `Data.Yaml.Config` module [#168](https://github.com/snoyberg/yaml/issues/168)
