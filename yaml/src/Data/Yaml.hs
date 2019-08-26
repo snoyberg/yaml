@@ -299,5 +299,10 @@ decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
 array :: [Value] -> Value
 array = Array . V.fromList
 
+#if MIN_VERSION_base(4, 13, 0)
+parseMonad :: MonadFail m => (a -> Parser b) -> a -> m b
+#else
 parseMonad :: Monad m => (a -> Parser b) -> a -> m b
+#endif
 parseMonad p = either fail return . parseEither p
+{-# DEPRECATED parseMonad "With the MonadFail split, this function is going to be removed in the future. Please migrate to parseEither." #-}

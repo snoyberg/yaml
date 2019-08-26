@@ -52,6 +52,9 @@ instance Monad YamlParser where
         case f am of
             Left t -> Left t
             Right x -> unYamlParser (g x) am
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail YamlParser where
+#endif
     fail = YamlParser . const . Left . pack
 instance MonadPlus YamlParser where
     mzero = fail "mzero"
