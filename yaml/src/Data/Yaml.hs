@@ -31,6 +31,7 @@ module Data.Yaml
     , encodeWith
     , encodeFile
     , encodeFileWith
+    , objToEvents
       -- * Decoding
     , decodeEither'
     , decodeFileEither
@@ -176,7 +177,7 @@ encode = encodeWith defaultEncodeOptions
 -- @since 0.10.2.0
 encodeWith :: ToJSON a => EncodeOptions -> a -> ByteString
 encodeWith opts obj = unsafePerformIO $ runConduitRes
-    $ CL.sourceList (objToEvents opts $ toJSON obj)
+    $ CL.sourceList (objToStream opts obj)
    .| Y.encodeWith (encodeOptionsFormat opts)
 
 -- | Encode a value into its YAML representation and save to the given file.
@@ -188,16 +189,22 @@ encodeFile = encodeFileWith defaultEncodeOptions
 -- @since 0.10.2.0
 encodeFileWith :: ToJSON a => EncodeOptions -> FilePath -> a -> IO ()
 encodeFileWith opts fp obj = runConduitRes
-    $ CL.sourceList (objToEvents opts $ toJSON obj)
+    $ CL.sourceList (objToStream opts obj)
    .| Y.encodeFileWith (encodeOptionsFormat opts) fp
 
-objToEvents :: EncodeOptions -> Value -> [Y.Event]
-objToEvents opts o = (:) EventStreamStart
+objToStream :: ToJSON a => EncodeOptions -> a -> [Y.Event]
+objToStream opts o = (:) EventStreamStart
               . (:) EventDocumentStart
-              $ objToEvents' o
+              $ objToEvents opts o
               [ EventDocumentEnd
               , EventStreamEnd
               ]
+
+-- | Encode a value as YAML 'Event's.
+--
+-- @since 0.11.2.0
+objToEvents :: ToJSON a => EncodeOptions -> a -> [Y.Event] -> [Y.Event]
+objToEvents opts o = objToEvents' (toJSON o)
   where
     objToEvents' :: Value -> [Y.Event] -> [Y.Event]
     --objToEvents' (Scalar s) rest = scalarToEvent s : rest

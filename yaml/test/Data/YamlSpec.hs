@@ -29,6 +29,7 @@ import Test.Mockery.Directory
 import qualified Data.Yaml as D
 import qualified Data.Yaml.Pretty as Pretty
 import Data.Yaml (object, array, (.=))
+import Data.Yaml.Internal (decodeHelper_)
 import Data.Maybe
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
@@ -52,6 +53,15 @@ data TestJSON = TestJSON
               } deriving (Show, Eq)
 
 deriveJSON defaultOptions ''TestJSON
+
+testJSON :: TestJSON
+testJSON = TestJSON
+         { string = "str"
+         , number = 2
+         , anArray = V.fromList ["a", "b"]
+         , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
+         , extrastring = "1234-foo"
+         }
 
 shouldDecode :: (Show a, D.FromJSON a, Eq a) => B8.ByteString -> a -> IO ()
 shouldDecode bs expected = do
@@ -86,6 +96,7 @@ spec = do
         it "count scalars" caseCountScalars
         it "largest string" caseLargestString
         it "encode/decode" caseEncodeDecode
+        it "encode/decode events" caseEncodeDecodeEvents
         it "encode/decode file" caseEncodeDecodeFile
         it "interleaved encode/decode" caseInterleave
         it "decode invalid document (without segfault)" caseDecodeInvalidDocument
@@ -159,13 +170,7 @@ spec = do
     describe "decodeFileEither" $ do
         it "loads YAML through JSON into Haskell data" $ do
           tj <- either (error . show) id `fmap` D.decodeFileEither "test/json.yaml"
-          tj `shouldBe` TestJSON
-                          { string = "str"
-                          , number = 2
-                          , anArray = V.fromList ["a", "b"]
-                          , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
-                          , extrastring = "1234-foo"
-                          }
+          tj `shouldBe` testJSON
 
         context "when file does not exist" $ do
             it "returns Left" $ do
@@ -478,6 +483,17 @@ caseEncodeDecode = do
   where
     yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
     yamlBS = B8.pack yamlString
+
+caseEncodeDecodeEvents :: Assertion
+caseEncodeDecodeEvents = do
+    let events = D.objToEvents D.defaultEncodeOptions testJSON []
+    result <- decodeHelper_ . CL.sourceList $ toStream events
+    let (_, value) = either (error . show) id result
+    value @?= testJSON
+  where
+    toStream es =
+      [Y.EventStreamStart, Y.EventDocumentStart] ++ es ++
+      [Y.EventDocumentEnd, Y.EventStreamEnd]
 
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = withFile "" $ \tmpPath -> do

@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.2.0
+
+* Add `objToEvents` function for encoding values as YAML events
+
 ## 0.11.1.2
 
 * Compiles with GHC 8.8.1 (`MonadFail` split)
