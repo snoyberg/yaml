@@ -11,9 +11,14 @@ module Data.Yaml.Internal
     , parse
     , decodeHelper
     , decodeHelper_
+    , textToScientific
+    , stringScalar
+    , defaultStringStyle
+    , isSpecialString
     , specialStrings
     , isNumeric
-    , textToScientific
+    , objToStream
+    , objToEvents
     ) where
 
 #if !MIN_VERSION_base(4,8,0)
@@ -31,6 +36,9 @@ import Data.Aeson.Types hiding (parse)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Builder.Scientific (scientificBuilder)
 import Data.Char (toUpper, ord)
 import Data.List
 import Data.Conduit ((.|), ConduitM, runConduit)
@@ -41,10 +49,10 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Scientific (Scientific)
+import Data.Scientific (Scientific, base10Exponent, coefficient)
 import Data.Text (Text, pack)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8With)
+import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Typeable
 import qualified Data.Vector as V
@@ -301,10 +309,88 @@ decodeHelper_ src = do
             Right
             ((,) (parseStateWarnings st) <$> parseEither parseJSON y)
 
+type StringStyle = Text -> ( Tag, Style )
+
+-- | Encodes a string with the supplied style. This function handles the empty
+-- string case properly to avoid https://github.com/snoyberg/yaml/issues/24
+--
+-- @since 0.11.2.0
+stringScalar :: StringStyle -> Maybe Text -> Text -> Event
+stringScalar _ anchor "" = EventScalar "" NoTag SingleQuoted (T.unpack <$> anchor)
+stringScalar stringStyle anchor s = EventScalar (encodeUtf8 s) tag style (T.unpack <$> anchor)
+  where
+    ( tag, style ) = stringStyle s
+
+-- |
+-- @since 0.11.2.0
+defaultStringStyle :: StringStyle
+defaultStringStyle = \s ->
+    case () of
+      ()
+        | "\n" `T.isInfixOf` s -> ( NoTag, Literal )
+        | isSpecialString s -> ( NoTag, SingleQuoted )
+        | otherwise -> ( StrTag, PlainNoTag )
+
+-- | Determine whether a string must be quoted in YAML and can't appear as plain text.
+-- Useful if you want to use 'setStringStyle'.
+--
+-- @since 0.10.2.0
+isSpecialString :: Text -> Bool
+isSpecialString s = s `HashSet.member` specialStrings || isNumeric s
+
 -- | Strings which must be escaped so as not to be treated as non-string scalars.
+--
+-- @since 0.8.32
 specialStrings :: HashSet.HashSet Text
 specialStrings = HashSet.fromList $ T.words
     "y Y yes Yes YES n N no No NO true True TRUE false False FALSE on On ON off Off OFF null Null NULL ~ *"
 
+-- |
+-- @since 0.8.32
 isNumeric :: Text -> Bool
 isNumeric = either (const False) (const True) . textToScientific
+
+-- | Encode a value as a YAML document stream.
+--
+-- @since 0.11.2.0
+objToStream :: ToJSON a => StringStyle -> a -> [Y.Event]
+objToStream stringStyle o =
+      (:) EventStreamStart
+    . (:) EventDocumentStart
+    $ objToEvents stringStyle o
+        [ EventDocumentEnd
+        , EventStreamEnd
+        ]
+
+-- | Encode a value as a list of 'Event's.
+--
+-- @since 0.11.2.0
+objToEvents :: ToJSON a => StringStyle -> a -> [Y.Event] -> [Y.Event]
+objToEvents stringStyle = objToEvents' . toJSON
+  where
+    objToEvents' (Array list) rest =
+        EventSequenceStart NoTag AnySequence Nothing
+      : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
+
+    objToEvents' (Object o) rest =
+        EventMappingStart NoTag AnyMapping Nothing
+      : foldr pairToEvents (EventMappingEnd : rest) (M.toList o)
+      where
+        pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
+        pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v
+
+    objToEvents' (String s) rest = stringScalar stringStyle Nothing s : rest
+
+    objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
+
+    objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
+    objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
+
+    objToEvents' (Number s) rest =
+      let builder
+            -- Special case the 0 exponent to remove the trailing .0
+            | base10Exponent s == 0 = BB.integerDec $ coefficient s
+            | otherwise = scientificBuilder s
+          lbs = BB.toLazyByteString builder
+          bs = BL.toStrict lbs
+       in EventScalar bs IntTag PlainNoTag Nothing : rest

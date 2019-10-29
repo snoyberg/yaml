@@ -27,6 +27,7 @@ import System.Directory (createDirectory, createDirectoryIfMissing)
 import Test.Mockery.Directory
 
 import qualified Data.Yaml as D
+import qualified Data.Yaml.Internal as Internal
 import qualified Data.Yaml.Pretty as Pretty
 import Data.Yaml (object, array, (.=))
 import Data.Maybe
@@ -52,6 +53,15 @@ data TestJSON = TestJSON
               } deriving (Show, Eq)
 
 deriveJSON defaultOptions ''TestJSON
+
+testJSON :: TestJSON
+testJSON = TestJSON
+         { string = "str"
+         , number = 2
+         , anArray = V.fromList ["a", "b"]
+         , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
+         , extrastring = "1234-foo"
+         }
 
 shouldDecode :: (Show a, D.FromJSON a, Eq a) => B8.ByteString -> a -> IO ()
 shouldDecode bs expected = do
@@ -86,6 +96,7 @@ spec = do
         it "count scalars" caseCountScalars
         it "largest string" caseLargestString
         it "encode/decode" caseEncodeDecode
+        it "encode/decode events" caseEncodeDecodeEvents
         it "encode/decode file" caseEncodeDecodeFile
         it "interleaved encode/decode" caseInterleave
         it "decode invalid document (without segfault)" caseDecodeInvalidDocument
@@ -159,13 +170,7 @@ spec = do
     describe "decodeFileEither" $ do
         it "loads YAML through JSON into Haskell data" $ do
           tj <- either (error . show) id `fmap` D.decodeFileEither "test/json.yaml"
-          tj `shouldBe` TestJSON
-                          { string = "str"
-                          , number = 2
-                          , anArray = V.fromList ["a", "b"]
-                          , hash = HM.fromList [("key1", "value1"), ("key2", "value2")]
-                          , extrastring = "1234-foo"
-                          }
+          tj `shouldBe` testJSON
 
         context "when file does not exist" $ do
             it "returns Left" $ do
@@ -188,18 +193,9 @@ spec = do
 
     it "truncates files" caseTruncatesFiles
 
-    it "quoting keys #137" $ do
-      let keys = T.words "true false NO YES 1.2 1e5 null"
-          bs = D.encode $ M.fromList $ map (, ()) keys
-          text = decodeUtf8 bs
-      forM_ keys $ \key -> do
-        let quoted = T.concat ["'", key, "'"]
-        unless (quoted `T.isInfixOf` text) $ error $ concat
-          [ "Could not find quoted key: "
-          , T.unpack quoted
-          , "\n\n"
-          , T.unpack text
-          ] :: IO ()
+    it "encode quotes special keys #137" $ caseSpecialKeys D.encode
+
+    it "encodePretty quotes special keys #179" $ caseSpecialKeys (Pretty.encodePretty Pretty.defConfig)
 
     describe "non-decimal numbers #135" $ do
       let go str val = it str $ encodeUtf8 (T.pack str) `shouldDecode` val
@@ -479,6 +475,17 @@ caseEncodeDecode = do
     yamlString = "foo: bar\nbaz:\n - bin1\n - bin2\n"
     yamlBS = B8.pack yamlString
 
+caseEncodeDecodeEvents :: Assertion
+caseEncodeDecodeEvents = do
+    let events = Internal.objToEvents D.defaultStringStyle testJSON []
+    result <- Internal.decodeHelper_ . CL.sourceList $ toStream events
+    let (_, value) = either (error . show) id result
+    value @?= testJSON
+  where
+    toStream es =
+      [Y.EventStreamStart, Y.EventDocumentStart] ++ es ++
+      [Y.EventDocumentEnd, Y.EventStreamEnd]
+
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = withFile "" $ \tmpPath -> do
     eList <- runConduitRes $ Y.decodeFile filePath .| CL.consume
@@ -737,6 +744,19 @@ caseTruncatesFiles = withSystemTempFile "truncate.yaml" $ \fp h -> do
     res <- D.decodeFileEither fp
     either (Left . show) Right res `shouldBe` Right val
 
+caseSpecialKeys :: (HashMap Text () -> B8.ByteString) -> Assertion
+caseSpecialKeys encoder = do
+      let keys = T.words "true false NO YES 1.2 1e5 null"
+          bs = encoder $ M.fromList $ map (, ()) keys
+          text = decodeUtf8 bs
+      forM_ keys $ \key -> do
+        let quoted = T.concat ["'", key, "'"]
+        unless (quoted `T.isInfixOf` text) $ error $ concat
+          [ "Could not find quoted key: "
+          , T.unpack quoted
+          , "\n\n"
+          , T.unpack text
+          ] :: IO ()
 
 taggedSequence :: [Y.Event]
 taggedSequence =

@@ -72,6 +72,7 @@ module Data.Yaml
     , isSpecialString
     , EncodeOptions
     , defaultEncodeOptions
+    , defaultStringStyle
     , setStringStyle
     , setFormat
     , FormatOptions
@@ -94,18 +95,10 @@ import Data.Aeson
     , Object, Array
     , withObject, withText, withArray, withScientific, withBool
     )
-import qualified Data.Scientific as S
-import qualified Data.ByteString.Builder.Scientific
-import Data.Aeson.Types (Pair, parseMaybe, parseEither, Parser)
+import Data.Aeson.Types (parseMaybe, parseEither, Parser)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Builder as BB
-import qualified Data.ByteString.Lazy as BL
 import Data.Conduit ((.|), runConduitRes)
 import qualified Data.Conduit.List as CL
-import qualified Data.HashMap.Strict as M
-import qualified Data.HashSet as HashSet
-import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text as T
 import qualified Data.Vector as V
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Text (Text)
@@ -113,13 +106,6 @@ import Data.Text (Text)
 import Data.Yaml.Internal
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile, encodeWith, encodeFileWith)
 import qualified Text.Libyaml as Y
-
--- |
--- @since 0.10.2.0
-data EncodeOptions = EncodeOptions
-  { encodeOptionsStringStyle :: Text -> ( Tag, Style )
-  , encodeOptionsFormat :: FormatOptions
-  }
 
 -- | Set the string style in the encoded YAML. This is a function that decides
 -- for each string the type of YAML string to output.
@@ -145,25 +131,18 @@ setStringStyle s opts = opts { encodeOptionsStringStyle = s }
 setFormat :: FormatOptions -> EncodeOptions -> EncodeOptions
 setFormat f opts = opts { encodeOptionsFormat = f }
 
--- | Determine whether a string must be quoted in YAML and can't appear as plain text.
--- Useful if you want to use 'setStringStyle'.
---
+-- |
 -- @since 0.10.2.0
-isSpecialString :: Text -> Bool
-isSpecialString s = s `HashSet.member` specialStrings || isNumeric s
+data EncodeOptions = EncodeOptions
+  { encodeOptionsStringStyle :: Text -> ( Tag, Style )
+  , encodeOptionsFormat :: FormatOptions
+  }
 
 -- |
 -- @since 0.10.2.0
 defaultEncodeOptions :: EncodeOptions
 defaultEncodeOptions = EncodeOptions
-  { encodeOptionsStringStyle = \s ->
-    -- Empty strings need special handling to ensure they get quoted. This avoids:
-    -- https://github.com/snoyberg/yaml/issues/24
-    case () of
-      ()
-        | "\n" `T.isInfixOf` s -> ( NoTag, Literal )
-        | isSpecialString s -> ( NoTag, SingleQuoted )
-        | otherwise -> ( StrTag, PlainNoTag )
+  { encodeOptionsStringStyle = defaultStringStyle
   , encodeOptionsFormat = defaultFormatOptions
   }
 
@@ -176,7 +155,7 @@ encode = encodeWith defaultEncodeOptions
 -- @since 0.10.2.0
 encodeWith :: ToJSON a => EncodeOptions -> a -> ByteString
 encodeWith opts obj = unsafePerformIO $ runConduitRes
-    $ CL.sourceList (objToEvents opts $ toJSON obj)
+    $ CL.sourceList (objToStream (encodeOptionsStringStyle opts) $ toJSON obj)
    .| Y.encodeWith (encodeOptionsFormat opts)
 
 -- | Encode a value into its YAML representation and save to the given file.
@@ -188,52 +167,8 @@ encodeFile = encodeFileWith defaultEncodeOptions
 -- @since 0.10.2.0
 encodeFileWith :: ToJSON a => EncodeOptions -> FilePath -> a -> IO ()
 encodeFileWith opts fp obj = runConduitRes
-    $ CL.sourceList (objToEvents opts $ toJSON obj)
+    $ CL.sourceList (objToStream (encodeOptionsStringStyle opts) $ toJSON obj)
    .| Y.encodeFileWith (encodeOptionsFormat opts) fp
-
-objToEvents :: EncodeOptions -> Value -> [Y.Event]
-objToEvents opts o = (:) EventStreamStart
-              . (:) EventDocumentStart
-              $ objToEvents' o
-              [ EventDocumentEnd
-              , EventStreamEnd
-              ]
-  where
-    objToEvents' :: Value -> [Y.Event] -> [Y.Event]
-    --objToEvents' (Scalar s) rest = scalarToEvent s : rest
-    objToEvents' (Array list) rest =
-        EventSequenceStart NoTag AnySequence Nothing
-      : foldr objToEvents' (EventSequenceEnd : rest) (V.toList list)
-    objToEvents' (Object pairs) rest =
-        EventMappingStart NoTag AnyMapping Nothing
-      : foldr pairToEvents (EventMappingEnd : rest) (M.toList pairs)
-
-    objToEvents' (String "") rest = EventScalar "" NoTag SingleQuoted Nothing : rest
-
-    objToEvents' (String s) rest = EventScalar (encodeUtf8 s) tag style Nothing : rest
-      where
-        ( tag, style ) = encodeOptionsStringStyle opts s
-    objToEvents' Null rest = EventScalar "null" NullTag PlainNoTag Nothing : rest
-    objToEvents' (Bool True) rest = EventScalar "true" BoolTag PlainNoTag Nothing : rest
-    objToEvents' (Bool False) rest = EventScalar "false" BoolTag PlainNoTag Nothing : rest
-
-    objToEvents' (Number s) rest =
-      let builder
-            -- Special case the 0 exponent to remove the trailing .0
-            | S.base10Exponent s == 0 = BB.integerDec $ S.coefficient s
-            | otherwise = Data.ByteString.Builder.Scientific.scientificBuilder s
-          lbs = BB.toLazyByteString builder
-          bs = BL.toStrict lbs
-       in EventScalar bs IntTag PlainNoTag Nothing : rest
-
-    pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
-    pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v
-
-{- FIXME
-scalarToEvent :: YamlScalar -> Event
-scalarToEvent (YamlScalar v t s) = EventScalar v t s Nothing
--}
-
 
 decode :: FromJSON a
        => ByteString
