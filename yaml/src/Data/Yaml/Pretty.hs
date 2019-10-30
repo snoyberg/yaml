@@ -10,6 +10,7 @@ module Data.Yaml.Pretty
     , getConfDropNull
     , setConfDropNull
     , defConfig
+    , pretty
     ) where
 
 import Prelude hiding (null)
@@ -34,7 +35,7 @@ import Data.Yaml.Builder
 -- @since 0.8.13
 data Config = Config
   { confCompare :: Text -> Text -> Ordering -- ^ Function used to sort keys in objects
-  , confDropNull :: Bool
+  , confDropNull :: Bool -- ^ Drop null values from objects
   }
 
 -- | The default configuration: do not sort objects or drop keys

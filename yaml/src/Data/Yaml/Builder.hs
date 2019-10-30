@@ -47,10 +47,8 @@ import Data.Aeson.Types (Value(..))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import Data.Conduit
-import qualified Data.HashSet as HashSet
 import Data.Scientific (Scientific)
 import Data.Text (Text, unpack)
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
@@ -83,9 +81,7 @@ maybeNamedMapping :: Maybe Text -> [(Text, YamlBuilder)] -> YamlBuilder
 maybeNamedMapping anchor pairs = YamlBuilder $ \rest ->
     EventMappingStart NoTag AnyMapping (unpack <$> anchor) : foldr addPair (EventMappingEnd : rest) pairs
   where
-    addPair (key, YamlBuilder value) after
-        = EventScalar (encodeUtf8 key) StrTag PlainNoTag Nothing
-        : value after
+    addPair (key, YamlBuilder value) after = unYamlBuilder (string key) $ value after
 
 mapping :: [(Text, YamlBuilder)] -> YamlBuilder
 mapping = maybeNamedMapping Nothing
@@ -114,17 +110,7 @@ namedArray name = maybeNamedArray $ Just name
 -- |
 -- @since 0.11.0
 maybeNamedString :: Maybe Text -> Text -> YamlBuilder
--- Empty strings need special handling to ensure they get quoted. This avoids:
--- https://github.com/snoyberg/yaml/issues/24
-maybeNamedString anchor ""  = YamlBuilder (EventScalar "" NoTag SingleQuoted (unpack <$> anchor) :)
-maybeNamedString anchor s   =
-    YamlBuilder (event :)
-  where
-    event
-        -- Make sure that special strings are encoded as strings properly.
-        -- See: https://github.com/snoyberg/yaml/issues/31
-        | s `HashSet.member` specialStrings || isNumeric s = EventScalar (encodeUtf8 s) NoTag SingleQuoted $ unpack <$> anchor
-        | otherwise = EventScalar (encodeUtf8 s) StrTag PlainNoTag $ unpack <$> anchor
+maybeNamedString anchor s = YamlBuilder (stringScalar defaultStringStyle anchor s :)
 
 string :: Text -> YamlBuilder
 string = maybeNamedString Nothing

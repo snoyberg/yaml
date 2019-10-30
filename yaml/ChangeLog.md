@@ -1,5 +1,12 @@
 # ChangeLog for yaml
 
+## 0.11.2.0
+
+* Reduces some of the code duplication between the `encode` and `encodePretty` functions
+* The output of `encodePretty` has been improved:
+    - Multiline strings now use `Literal` style instead of `SingleQuoted`
+    - Special keys are now quoted in maps [#179](https://github.com/snoyberg/yaml/issues/179)
+
 ## 0.11.1.2
 
 * Compiles with GHC 8.8.1 (`MonadFail` split)
