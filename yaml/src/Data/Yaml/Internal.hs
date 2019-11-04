@@ -329,7 +329,7 @@ defaultStringStyle = \s ->
       ()
         | "\n" `T.isInfixOf` s -> ( NoTag, Literal )
         | isSpecialString s -> ( NoTag, SingleQuoted )
-        | otherwise -> ( StrTag, PlainNoTag )
+        | otherwise -> ( NoTag, PlainNoTag )
 
 -- | Determine whether a string must be quoted in YAML and can't appear as plain text.
 -- Useful if you want to use 'setStringStyle'.

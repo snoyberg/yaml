@@ -9,6 +9,9 @@ module Data.Yaml.Builder
     , mapping
     , namedMapping
     , maybeNamedMapping
+    , mappingComplex
+    , namedMappingComplex
+    , maybeNamedMappingComplex
     , array
     , namedArray
     , maybeNamedArray
@@ -37,7 +40,6 @@ module Data.Yaml.Builder
 
 import Prelude hiding (null)
 
-import Control.Arrow (second)
 #if MIN_VERSION_aeson(1,0,0)
 import Data.Aeson.Text (encodeToTextBuilder)
 #else
@@ -66,22 +68,21 @@ class ToYaml a where
     toYaml :: a -> YamlBuilder
 instance ToYaml YamlBuilder where
     toYaml = id
-instance ToYaml a => ToYaml [(Text, a)] where
-    toYaml = mapping . map (second toYaml)
+instance (ToYaml a, ToYaml b) => ToYaml [(a, b)] where
+    toYaml = mappingComplex . map (\(k, v) -> (toYaml k, toYaml v))
 instance ToYaml a => ToYaml [a] where
     toYaml = array . map toYaml
 instance ToYaml Text where
     toYaml = string
 instance ToYaml Int where
-    toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) IntTag PlainNoTag Nothing:)
+    toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) NoTag PlainNoTag Nothing:)
 
 -- |
 -- @since 0.11.0
 maybeNamedMapping :: Maybe Text -> [(Text, YamlBuilder)] -> YamlBuilder
-maybeNamedMapping anchor pairs = YamlBuilder $ \rest ->
-    EventMappingStart NoTag AnyMapping (unpack <$> anchor) : foldr addPair (EventMappingEnd : rest) pairs
+maybeNamedMapping anchor pairs = maybeNamedMappingComplex anchor complexPairs
   where
-    addPair (key, YamlBuilder value) after = unYamlBuilder (string key) $ value after
+    complexPairs = map (\(k, v) -> (string k, v)) pairs
 
 mapping :: [(Text, YamlBuilder)] -> YamlBuilder
 mapping = maybeNamedMapping Nothing
@@ -90,6 +91,24 @@ mapping = maybeNamedMapping Nothing
 -- @since 0.11.0
 namedMapping :: Text -> [(Text, YamlBuilder)] -> YamlBuilder
 namedMapping name = maybeNamedMapping $ Just name
+
+-- |
+-- @since 0.11.2.0
+maybeNamedMappingComplex :: Maybe Text -> [(YamlBuilder, YamlBuilder)] -> YamlBuilder
+maybeNamedMappingComplex anchor pairs = YamlBuilder $ \rest ->
+    EventMappingStart NoTag AnyMapping (unpack <$> anchor) : foldr addPair (EventMappingEnd : rest) pairs
+  where
+    addPair (YamlBuilder key, YamlBuilder value) after = key $ value after
+
+-- |
+-- @since 0.11.2.0
+mappingComplex :: [(YamlBuilder, YamlBuilder)] -> YamlBuilder
+mappingComplex = maybeNamedMappingComplex Nothing
+
+-- |
+-- @since 0.11.2.0
+namedMappingComplex :: Text -> [(YamlBuilder, YamlBuilder)] -> YamlBuilder
+namedMappingComplex name = maybeNamedMappingComplex $ Just name
 
 -- |
 -- @since 0.11.0
@@ -124,7 +143,7 @@ namedString name = maybeNamedString $ Just name
 -- |
 -- @since 0.11.0
 maybeNamedScientific :: Maybe Text -> Scientific -> YamlBuilder
-maybeNamedScientific anchor n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) IntTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedScientific anchor n = YamlBuilder (EventScalar (TE.encodeUtf8 $ TL.toStrict $ toLazyText $ encodeToTextBuilder (Number n)) NoTag PlainNoTag (unpack <$> anchor) :)
 
 scientific :: Scientific -> YamlBuilder
 scientific = maybeNamedScientific Nothing
@@ -141,8 +160,8 @@ number = scientific
 -- |
 -- @since 0.11.0
 maybeNamedBool :: Maybe Text -> Bool -> YamlBuilder
-maybeNamedBool anchor True   = YamlBuilder (EventScalar "true" BoolTag PlainNoTag (unpack <$> anchor) :)
-maybeNamedBool anchor False  = YamlBuilder (EventScalar "false" BoolTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedBool anchor True   = YamlBuilder (EventScalar "true" NoTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedBool anchor False  = YamlBuilder (EventScalar "false" NoTag PlainNoTag (unpack <$> anchor) :)
 
 bool :: Bool -> YamlBuilder
 bool = maybeNamedBool Nothing
@@ -155,7 +174,7 @@ namedBool name = maybeNamedBool $ Just name
 -- |
 -- @since 0.11.0
 maybeNamedNull :: Maybe Text -> YamlBuilder
-maybeNamedNull anchor = YamlBuilder (EventScalar "null" NullTag PlainNoTag (unpack <$> anchor) :)
+maybeNamedNull anchor = YamlBuilder (EventScalar "null" NoTag PlainNoTag (unpack <$> anchor) :)
 
 null :: YamlBuilder
 null = maybeNamedNull Nothing
