@@ -51,6 +51,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Conduit
 import Data.Scientific (Scientific)
 import Data.Text (Text, unpack)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (toLazyText)
@@ -74,8 +75,18 @@ instance ToYaml a => ToYaml [a] where
     toYaml = array . map toYaml
 instance ToYaml Text where
     toYaml = string
+instance ToYaml String where
+    toYaml = string . T.pack
 instance ToYaml Int where
     toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) NoTag PlainNoTag Nothing:)
+instance ToYaml Double where
+    toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) NoTag PlainNoTag Nothing:)
+instance ToYaml Scientific where
+    toYaml = scientific
+instance ToYaml Bool where
+    toYaml = bool
+instance ToYaml a => ToYaml (Maybe a) where
+    toYaml = maybe null toYaml
 
 -- |
 -- @since 0.10.3.0
