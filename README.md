@@ -1,5 +1,7 @@
 # YAML Haskell Library
 
+[![Build Status](https://dev.azure.com/snoyberg/yaml/_apis/build/status/snoyberg.yaml?branchName=master)](https://dev.azure.com/snoyberg/yaml/_build/latest?definitionId=7&branchName=master)
+
 This project contains two haskell packages: `yaml` for higher-level parsing and writing of yaml documents, and `libyaml`
 for lower-level event-based streaming.
 
