@@ -5,7 +5,11 @@
 * Reduces some of the code duplication between the `encode` and `encodePretty` functions
 * The output of `encodePretty` has been improved:
     - Multiline strings now use `Literal` style instead of `SingleQuoted`
-    - Special keys are now quoted in maps [#179](https://github.com/snoyberg/yaml/issues/179)
+    - Special keys are now quoted in mappings [#179](https://github.com/snoyberg/yaml/issues/179)
+* Support for complex keys in mappings: [#182](https://github.com/snoyberg/yaml/issues/182)
+    - Adds `complexMapping` function to `Data.Yaml.Builder`
+    - Decode functions now return a `NonStringKey` error when attempting to decode a mapping with a complex key as it is not possible to decode these to an Aeson `Value`
+* Adds missing `ToYaml` instances
 
 ## 0.11.1.2
 

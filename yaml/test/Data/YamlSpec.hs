@@ -27,6 +27,7 @@ import System.Directory (createDirectory, createDirectoryIfMissing)
 import Test.Mockery.Directory
 
 import qualified Data.Yaml as D
+import qualified Data.Yaml.Builder as B
 import qualified Data.Yaml.Internal as Internal
 import qualified Data.Yaml.Pretty as Pretty
 import Data.Yaml (object, array, (.=))
@@ -65,15 +66,28 @@ testJSON = TestJSON
 
 shouldDecode :: (Show a, D.FromJSON a, Eq a) => B8.ByteString -> a -> IO ()
 shouldDecode bs expected = do
-  actual <- D.decodeThrow bs
-  actual `shouldBe` expected
+    actual <- D.decodeThrow bs
+    actual `shouldBe` expected
+
+shouldDecodeEvents :: B8.ByteString -> [Y.Event] -> IO ()
+shouldDecodeEvents bs expected = do
+    actual <- runConduitRes $ Y.decode bs .| CL.consume
+    map anyStyle actual `shouldBe` map anyStyle expected
+
+anyStyle :: Y.Event -> Y.Event
+anyStyle (Y.EventScalar bs tag _ anchor)     = Y.EventScalar bs tag Y.Any anchor
+anyStyle (Y.EventSequenceStart tag _ anchor) = Y.EventSequenceStart tag Y.AnySequence anchor
+anyStyle (Y.EventMappingStart tag _ anchor)  = Y.EventMappingStart tag Y.AnyMapping anchor
+anyStyle event = event
 
 testEncodeWith :: Y.FormatOptions -> [Y.Event] -> IO BS.ByteString
-testEncodeWith opts es = runConduitRes (CL.sourceList events .| Y.encodeWith opts)
-  where
-    events =
-      [Y.EventStreamStart, Y.EventDocumentStart] ++ es ++
-      [Y.EventDocumentEnd, Y.EventStreamEnd]
+testEncodeWith opts es = runConduitRes $ CL.sourceList (eventStream es) .| Y.encodeWith opts
+
+eventStream :: [Y.Event] -> [Y.Event]
+eventStream events =
+    [Y.EventStreamStart, Y.EventDocumentStart]
+    ++ events
+    ++ [Y.EventDocumentEnd, Y.EventStreamEnd]
 
 main :: IO ()
 main = hspec spec
@@ -112,6 +126,9 @@ spec = do
         it "encode/decode" caseEncodeDecodeDataPretty
         it "encode/decode strings" caseEncodeDecodeStringsPretty
         it "processes datatypes" caseDataTypesPretty
+    describe "Data.Yaml.Builder" $ do
+        it "encode/decode" caseEncodeDecodeDataBuilder
+        it "encode/decode complex mapping" caseEncodeDecodeComplexMappingBuilder
     describe "Data.Yaml aliases" $ do
         it "simple scalar alias" caseSimpleScalarAlias
         it "simple sequence alias" caseSimpleSequenceAlias
@@ -478,13 +495,9 @@ caseEncodeDecode = do
 caseEncodeDecodeEvents :: Assertion
 caseEncodeDecodeEvents = do
     let events = Internal.objToEvents D.defaultStringStyle testJSON []
-    result <- Internal.decodeHelper_ . CL.sourceList $ toStream events
+    result <- Internal.decodeHelper_ . CL.sourceList $ eventStream events
     let (_, value) = either (error . show) id result
     value @?= testJSON
-  where
-    toStream es =
-      [Y.EventStreamStart, Y.EventDocumentStart] ++ es ++
-      [Y.EventDocumentEnd, Y.EventStreamEnd]
 
 caseEncodeDecodeFile :: Assertion
 caseEncodeDecodeFile = withFile "" $ \tmpPath -> do
@@ -535,6 +548,24 @@ sample = array
         , ("bar3", D.String "")
         ]
     , D.String ""
+    , D.Number 1
+    , D.Number 0.1
+    , D.Bool True
+    , D.Null
+    ]
+
+sampleBuilder :: B.YamlBuilder
+sampleBuilder = B.array
+    [ B.string "foo"
+    , B.mapping
+        [ ("bar1", B.string "bar2")
+        , ("bar3", B.string "")
+        ]
+    , B.string ""
+    , B.scientific 1
+    , B.scientific 0.1
+    , B.bool True
+    , B.null
     ]
 
 caseEncodeDecodeData :: Assertion
@@ -543,6 +574,28 @@ caseEncodeDecodeData = D.encode sample `shouldDecode` sample
 caseEncodeDecodeDataPretty :: Assertion
 caseEncodeDecodeDataPretty =
     Pretty.encodePretty Pretty.defConfig sample `shouldDecode` sample
+
+caseEncodeDecodeDataBuilder :: Assertion
+caseEncodeDecodeDataBuilder = do
+    let events = B.unYamlBuilder sampleBuilder []
+    bs <- testEncodeWith Y.defaultFormatOptions events
+    bs `shouldDecodeEvents` eventStream events
+
+caseEncodeDecodeComplexMappingBuilder :: Assertion
+caseEncodeDecodeComplexMappingBuilder = do
+    let events = B.unYamlBuilder builder []
+    bs <- testEncodeWith Y.defaultFormatOptions events
+    bs `shouldDecodeEvents` eventStream events
+  where
+    builder :: B.YamlBuilder
+    builder = B.mappingComplex
+        [ ( B.mapping
+              [ ("foo", B.scientific 1)
+              , ("bar", B.scientific 2)
+              ]
+          , B.bool True
+          )
+        ]
 
 caseEncodeDecodeFileData :: Assertion
 caseEncodeDecodeFileData = withFile "" $ \fp -> do

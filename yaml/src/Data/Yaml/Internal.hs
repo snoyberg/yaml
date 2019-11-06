@@ -31,7 +31,7 @@ import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Control.Monad.State.Strict
 import Control.Monad.Reader
 import Data.Aeson
-import Data.Aeson.Internal (JSONPath, JSONPathElement(..))
+import Data.Aeson.Internal (JSONPath, JSONPathElement(..), formatError)
 import Data.Aeson.Types hiding (parse)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Bits (shiftL, (.|.))
@@ -68,6 +68,7 @@ data ParseException = NonScalarKey
                     | InvalidYaml (Maybe YamlException)
                     | AesonException String
                     | OtherParseException SomeException
+                    | NonStringKey JSONPath
                     | NonStringKeyAlias Y.AnchorName Value
                     | CyclicIncludes
                     | LoadSettingsException FilePath ParseException
@@ -116,6 +117,7 @@ prettyPrintParseException pe = case pe of
         ]
   AesonException s -> "Aeson exception:\n" ++ s
   OtherParseException exc -> "Generic parse exception:\n" ++ show exc
+  NonStringKey path -> formatError path "Non-string keys are not supported"
   NonStringKeyAlias anchor value -> unlines
     [ "Non-string key alias:"
     , "  Anchor name: " ++ anchor
@@ -258,7 +260,9 @@ parseM mergedKeys a front = do
                             Nothing -> liftIO $ throwIO $ UnknownAlias an
                             Just (String t) -> return t
                             Just v -> liftIO $ throwIO $ NonStringKeyAlias an v
-                    _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
+                    _ -> do
+                        path <- ask
+                        liftIO $ throwIO $ NonStringKey path
 
             (mergedKeys', al') <- local (Key s :) $ do
               o <- parseO
@@ -329,7 +333,7 @@ defaultStringStyle = \s ->
       ()
         | "\n" `T.isInfixOf` s -> ( NoTag, Literal )
         | isSpecialString s -> ( NoTag, SingleQuoted )
-        | otherwise -> ( StrTag, PlainNoTag )
+        | otherwise -> ( NoTag, PlainNoTag )
 
 -- | Determine whether a string must be quoted in YAML and can't appear as plain text.
 -- Useful if you want to use 'setStringStyle'.
