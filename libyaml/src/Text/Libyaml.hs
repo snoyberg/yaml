@@ -7,6 +7,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Low-level, streaming YAML interface. For a higher-level interface, see
 -- "Data.Yaml".
@@ -68,6 +69,11 @@ import Data.ByteString (ByteString, packCString, packCStringLen)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Unsafe as BU
+
+#if WINDOWS && __GLASGOW_HASKELL__ >= 806
+import System.Directory (removeFile)
+import qualified Control.Exception
+#endif
 
 data Event =
       EventStreamStart
@@ -788,6 +794,11 @@ encodeFileWith opts filePath =
     bracketP getFile c_fclose $ \file -> runEmitter opts (alloc file) (\u _ -> return u)
   where
     getFile = do
+#if WINDOWS && __GLASGOW_HASKELL__ >= 806
+        -- See: https://github.com/snoyberg/yaml/issues/178#issuecomment-550180027
+        removeFile filePath `Control.Exception.catch`
+          (\(_ :: Control.Exception.IOException) -> pure ())
+#endif
         file <- openFile filePath write_flags "w"
         if file == nullPtr
             then throwIO $ YamlException $ "could not open file for write: " ++ filePath
