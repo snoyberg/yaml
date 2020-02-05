@@ -1,5 +1,9 @@
 # Changelog for libyaml
 
+## 0.1.2
+
+* Upgrade `libyaml` to 0.2.2
+
 ## 0.1.1.1
 
 * Work around GHC 8.6.5 issue on Windows preventing truncated files.  [#178](https://github.com/snoyberg/yaml/issues/178)
