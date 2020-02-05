@@ -9,3 +9,4 @@ yaml.cabal
 /tarballs/
 .dir-locals.el
 *#
+stack.yaml.lock

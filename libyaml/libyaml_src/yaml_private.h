@@ -1,5 +1,5 @@
 #if HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <yaml.h>
@@ -171,14 +171,14 @@ yaml_string_join(
  * Check the octet at the specified position.
  */
 
-#define CHECK_AT(string,octet,offset)                                           \
+#define CHECK_AT(string,octet,offset)                   \
     ((string).pointer[offset] == (yaml_char_t)(octet))
 
 /*
  * Check the current octet in the buffer.
  */
 
-#define CHECK(string,octet) CHECK_AT((string),(octet),0)
+#define CHECK(string,octet) (CHECK_AT((string),(octet),0))
 
 /*
  * Check if the character at the specified position is an alphabetical
@@ -684,7 +684,7 @@ yaml_queue_extend(void **start, void **head, void **tail, void **end);
 #define YAML_MALLOC(size)        (yaml_char_t *)yaml_malloc(size)
 
 /* For Haskell yaml package, since we do not use the configure script */
-#define YAML_VERSION_STRING "0.2.1"
+#define YAML_VERSION_STRING "0.2.2"
 #define YAML_VERSION_MAJOR 0
 #define YAML_VERSION_MINOR 2
-#define YAML_VERSION_PATCH 1
+#define YAML_VERSION_PATCH 2

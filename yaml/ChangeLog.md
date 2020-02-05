@@ -1,5 +1,11 @@
 # ChangeLog for yaml
 
+## 0.11.2.1
+
+* Upgrade libyaml to 0.2.2
+* Compiles with GHC 8.6.5
+* Updated stack LTS to 14.22
+
 ## 0.11.2.0
 
 * Reduces some of the code duplication between the `encode` and `encodePretty` functions
