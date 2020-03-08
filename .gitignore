@@ -5,7 +5,6 @@ cabal-dev/
 cabal.sandbox.config
 .stack-work/
 *~
-yaml.cabal
 /tarballs/
 .dir-locals.el
 *#
