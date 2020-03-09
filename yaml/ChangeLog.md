@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.3.0
+
+* Don't wrap up async exceptions [#185](https://github.com/snoyberg/yaml/issues/185)
+
 ## 0.11.2.0
 
 * Reduces some of the code duplication between the `encode` and `encodePretty` functions

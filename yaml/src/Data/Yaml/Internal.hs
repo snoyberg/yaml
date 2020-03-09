@@ -303,12 +303,13 @@ decodeHelper_ :: FromJSON a
               -> IO (Either ParseException ([Warning], a))
 decodeHelper_ src = do
     x <- try $ runResourceT $ runStateT (runConduit $ src .| runReaderT parse []) (ParseState Map.empty [])
-    return $ case x of
+    case x of
         Left e
-            | Just pe <- fromException e -> Left pe
-            | Just ye <- fromException e -> Left $ InvalidYaml $ Just (ye :: YamlException)
-            | otherwise -> Left $ OtherParseException e
-        Right (y, st) -> either
+            | Just pe <- fromException e -> return $ Left pe
+            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
+            | Just sae <- fromException e -> throwIO (sae :: SomeAsyncException)
+            | otherwise -> return $ Left $ OtherParseException e
+        Right (y, st) -> return $ either
             (Left . AesonException)
             Right
             ((,) (parseStateWarnings st) <$> parseEither parseJSON y)
