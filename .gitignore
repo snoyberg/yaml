@@ -5,7 +5,7 @@ cabal-dev/
 cabal.sandbox.config
 .stack-work/
 *~
-/tarballs/
+tarballs/
 .dir-locals.el
 *#
 stack.yaml.lock
