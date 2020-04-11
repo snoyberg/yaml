@@ -75,7 +75,7 @@ instance ToYaml a => ToYaml [a] where
     toYaml = array . map toYaml
 instance ToYaml Text where
     toYaml = string
-instance ToYaml String where
+instance {-# OVERLAPPING #-} ToYaml String where
     toYaml = string . T.pack
 instance ToYaml Int where
     toYaml i = YamlBuilder (EventScalar (S8.pack $ show i) NoTag PlainNoTag Nothing:)
