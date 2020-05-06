@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.4.0
+
+* add `ToYaml` instance for `String` [#186](https://github.com/snoyberg/yaml/pull/186)
+
 ## 0.11.3.0
 
 * Don't wrap up async exceptions [#185](https://github.com/snoyberg/yaml/issues/185)
