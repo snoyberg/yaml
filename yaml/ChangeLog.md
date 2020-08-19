@@ -1,6 +1,6 @@
 # ChangeLog for yaml
 
-## 0.12.0.0
+## 0.11.5.0
 
 * New functions capable of parsing YAML streams containing multiple documents into a list of results:
   * `decodeAllEither'`

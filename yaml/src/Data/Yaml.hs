@@ -205,7 +205,7 @@ decodeFileEither = fmap (fmap snd) . decodeFileWithWarnings
 
 -- | Like `decodeFileEither`, but decode multiple documents.
 --
--- @since 0.12.0.0
+-- @since 0.11.5.0
 decodeAllFileEither
     :: FromJSON a
     => FilePath
@@ -224,7 +224,7 @@ decodeFileWithWarnings = decodeHelper_ . Y.decodeFile
 
 -- | Like `decodeFileWithWarnings`, but decode multiple documents.
 --
--- @since 0.12.0.0
+-- @since 0.11.5.0
 decodeAllFileWithWarnings
     :: FromJSON a
     => FilePath
@@ -248,7 +248,7 @@ decodeEither' = either Left (either (Left . AesonException) Right)
 
 -- | Like 'decodeEither'', but decode multiple documents.
 --
--- @since 0.12.0.0
+-- @since 0.11.5.0
 decodeAllEither' :: FromJSON a => ByteString -> Either ParseException [a]
 decodeAllEither' = either Left (either (Left . AesonException) Right)
                  . unsafePerformIO
@@ -263,7 +263,7 @@ decodeThrow = either throwM return . decodeEither'
 
 -- | Like `decodeThrow`, but decode multiple documents.
 --
--- @since 0.12.0.0
+-- @since 0.11.5.0
 decodeAllThrow :: (MonadThrow m, FromJSON a) => ByteString -> m [a]
 decodeAllThrow = either throwM return . decodeAllEither'
 
@@ -275,7 +275,7 @@ decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
 
 -- | Like `decodeFileThrow`, but decode multiple documents.
 --
--- @since 0.12.0.0
+-- @since 0.11.5.0
 decodeAllFileThrow :: (MonadIO m, FromJSON a) => FilePath -> m [a]
 decodeAllFileThrow f = liftIO $ decodeAllFileEither f >>= either throwIO return
 
