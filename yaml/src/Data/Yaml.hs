@@ -37,6 +37,16 @@ module Data.Yaml
     , decodeFileWithWarnings
     , decodeThrow
     , decodeFileThrow
+      -- ** Decoding multiple documents
+      --
+      -- | For situations where we need to be able to parse multiple documents
+      -- separated by `---` in a YAML stream, these functions decode a list of
+      -- values rather than a single value.
+    , decodeAllEither'
+    , decodeAllFileEither
+    , decodeAllFileWithWarnings
+    , decodeAllThrow
+    , decodeAllFileThrow
       -- ** More control over decoding
     , decodeHelper
       -- * Types
@@ -193,6 +203,15 @@ decodeFileEither
     -> IO (Either ParseException a)
 decodeFileEither = fmap (fmap snd) . decodeFileWithWarnings
 
+-- | Like `decodeFileEither`, but decode multiple documents.
+--
+-- @since 0.12.0.0
+decodeAllFileEither
+    :: FromJSON a
+    => FilePath
+    -> IO (Either ParseException [a])
+decodeAllFileEither = fmap (fmap snd) . decodeAllFileWithWarnings
+
 -- | A version of `decodeFileEither` that returns warnings along with the parse
 -- result.
 --
@@ -202,6 +221,15 @@ decodeFileWithWarnings
     => FilePath
     -> IO (Either ParseException ([Warning], a))
 decodeFileWithWarnings = decodeHelper_ . Y.decodeFile
+
+-- | Like `decodeFileWithWarnings`, but decode multiple documents.
+--
+-- @since 0.12.0.0
+decodeAllFileWithWarnings
+    :: FromJSON a
+    => FilePath
+    -> IO (Either ParseException ([Warning], [a]))
+decodeAllFileWithWarnings = decodeAllHelper_ . Y.decodeFile
 
 decodeEither :: FromJSON a => ByteString -> Either String a
 decodeEither bs = unsafePerformIO
@@ -218,17 +246,38 @@ decodeEither' = either Left (either (Left . AesonException) Right)
               . fmap (fmap snd) . decodeHelper
               . Y.decode
 
+-- | Like 'decodeEither'', but decode multiple documents.
+--
+-- @since 0.12.0.0
+decodeAllEither' :: FromJSON a => ByteString -> Either ParseException [a]
+decodeAllEither' = either Left (either (Left . AesonException) Right)
+                 . unsafePerformIO
+                 . fmap (fmap snd) . decodeAllHelper
+                 . Y.decode
+
 -- | A version of 'decodeEither'' lifted to MonadThrow
 --
 -- @since 0.8.31
 decodeThrow :: (MonadThrow m, FromJSON a) => ByteString -> m a
 decodeThrow = either throwM return . decodeEither'
 
+-- | Like `decodeThrow`, but decode multiple documents.
+--
+-- @since 0.12.0.0
+decodeAllThrow :: (MonadThrow m, FromJSON a) => ByteString -> m [a]
+decodeAllThrow = either throwM return . decodeAllEither'
+
 -- | A version of 'decodeFileEither' lifted to MonadIO
 --
 -- @since 0.8.31
 decodeFileThrow :: (MonadIO m, FromJSON a) => FilePath -> m a
 decodeFileThrow f = liftIO $ decodeFileEither f >>= either throwIO return
+
+-- | Like `decodeFileThrow`, but decode multiple documents.
+--
+-- @since 0.12.0.0
+decodeAllFileThrow :: (MonadIO m, FromJSON a) => FilePath -> m [a]
+decodeAllFileThrow f = liftIO $ decodeAllFileEither f >>= either throwIO return
 
 -- | Construct a new 'Value' from a list of 'Value's.
 array :: [Value] -> Value

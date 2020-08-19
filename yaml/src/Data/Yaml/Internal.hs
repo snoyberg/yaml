@@ -11,6 +11,8 @@ module Data.Yaml.Internal
     , parse
     , decodeHelper
     , decodeHelper_
+    , decodeAllHelper
+    , decodeAllHelper_
     , textToScientific
     , stringScalar
     , defaultStringStyle
@@ -41,7 +43,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Builder.Scientific (scientificBuilder)
 import Data.Char (toUpper, ord)
 import Data.List
-import Data.Conduit ((.|), ConduitM, runConduit)
+import Data.Conduit ((.|), ConduitM, Void, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
@@ -66,6 +68,7 @@ data ParseException = NonScalarKey
                                       , _expected :: Maybe Event
                                       }
                     | InvalidYaml (Maybe YamlException)
+                    | MultipleDocuments
                     | AesonException String
                     | OtherParseException SomeException
                     | NonStringKey JSONPath
@@ -115,6 +118,7 @@ prettyPrintParseException pe = case pe of
             _  -> ",\n" ++ context ++ ":\n"
         , problem
         ]
+  MultipleDocuments -> "Multiple YAML documents encountered"
   AesonException s -> "Aeson exception:\n" ++ s
   OtherParseException exc -> "Generic parse exception:\n" ++ show exc
   NonStringKey path -> formatError path "Non-string keys are not supported"
@@ -158,24 +162,34 @@ requireEvent e = do
 
 parse :: ReaderT JSONPath (ConduitM Event o Parse) Value
 parse = do
+    docs <- parseAll
+    case docs of
+        [] -> return Null
+        [doc] -> return doc
+        _ -> liftIO $ throwIO MultipleDocuments
+
+parseAll :: ReaderT JSONPath (ConduitM Event o Parse) [Value]
+parseAll = do
     streamStart <- lift CL.head
     case streamStart of
         Nothing ->
             -- empty string input
-            return Null
-        Just EventStreamStart -> do
-            documentStart <- lift CL.head
-            case documentStart of
-                Just EventStreamEnd ->
-                    -- empty file input, comment only string/file input
-                    return Null
-                Just EventDocumentStart -> do
-                    res <- parseO
-                    requireEvent EventDocumentEnd
-                    requireEvent EventStreamEnd
-                    return res
-                _ -> liftIO $ throwIO $ UnexpectedEvent documentStart Nothing
-        _ -> liftIO $ throwIO $ UnexpectedEvent streamStart Nothing
+            return []
+        Just EventStreamStart ->
+            -- empty file input, comment only string/file input
+            parseDocs
+        _ -> missed streamStart
+  where
+    parseDocs = do
+        documentStart <- lift CL.head
+        case documentStart of
+            Just EventStreamEnd -> return []
+            Just EventDocumentStart -> do
+                res <- parseO
+                requireEvent EventDocumentEnd
+                (res :) <$> parseDocs
+            _ -> missed documentStart
+    missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> ReaderT JSONPath (ConduitM Event o Parse) Text
@@ -283,36 +297,56 @@ parseM mergedKeys a front = do
 
           merge xs = (Set.fromList (M.keys xs \\ M.keys front), M.union front xs)
 
+parseSrc :: ReaderT JSONPath (ConduitM Event Void Parse) val
+         -> ConduitM () Event Parse ()
+         -> IO (val, ParseState)
+parseSrc eventParser src = runResourceT $ runStateT
+    (runConduit $ src .| runReaderT eventParser [])
+    (ParseState Map.empty [])
+
+mkHelper :: ReaderT JSONPath (ConduitM Event Void Parse) val -- ^ parse libyaml events as Value or [Value]
+         -> (SomeException -> IO (Either ParseException a))  -- ^ what to do with unhandled exceptions
+         -> ((val, ParseState) -> Either ParseException a)   -- ^ further transform and parse results
+         -> ConduitM () Event Parse ()                       -- ^ the libyaml event (string/file) source
+         -> IO (Either ParseException a)
+mkHelper eventParser onOtherExc extractResults src = catches
+    (extractResults <$> parseSrc eventParser src)
+    [ Handler $ \pe -> return $ Left (pe :: ParseException)
+    , Handler $ \ye -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
+    , Handler $ \sae -> throwIO (sae :: SomeAsyncException)
+    , Handler onOtherExc
+    ]
+
 decodeHelper :: FromJSON a
              => ConduitM () Y.Event Parse ()
              -> IO (Either ParseException ([Warning], Either String a))
-decodeHelper src = do
-    -- This used to be tryAny, but the fact is that catching async
-    -- exceptions is fine here. We'll rethrow them immediately in the
-    -- otherwise clause.
-    x <- try $ runResourceT $ runStateT (runConduit $ src .| runReaderT parse []) (ParseState Map.empty [])
-    case x of
-        Left e
-            | Just pe <- fromException e -> return $ Left pe
-            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
-            | otherwise -> throwIO e
-        Right (y, st) -> return $ Right (parseStateWarnings st, parseEither parseJSON y)
+decodeHelper = mkHelper parse throwIO $ \(v, st) ->
+    Right (parseStateWarnings st, parseEither parseJSON v)
+
+decodeAllHelper :: FromJSON a
+                => ConduitM () Event Parse ()
+                -> IO (Either ParseException ([Warning], Either String [a]))
+decodeAllHelper = mkHelper parseAll throwIO $ \(vs, st) ->
+    Right (parseStateWarnings st, mapM (parseEither parseJSON) vs)
+
+catchLeft :: SomeException -> IO (Either ParseException a)
+catchLeft = return . Left . OtherParseException
 
 decodeHelper_ :: FromJSON a
               => ConduitM () Event Parse ()
               -> IO (Either ParseException ([Warning], a))
-decodeHelper_ src = do
-    x <- try $ runResourceT $ runStateT (runConduit $ src .| runReaderT parse []) (ParseState Map.empty [])
-    case x of
-        Left e
-            | Just pe <- fromException e -> return $ Left pe
-            | Just ye <- fromException e -> return $ Left $ InvalidYaml $ Just (ye :: YamlException)
-            | Just sae <- fromException e -> throwIO (sae :: SomeAsyncException)
-            | otherwise -> return $ Left $ OtherParseException e
-        Right (y, st) -> return $ either
-            (Left . AesonException)
-            Right
-            ((,) (parseStateWarnings st) <$> parseEither parseJSON y)
+decodeHelper_ = mkHelper parse catchLeft $ \(v, st) ->
+    case parseEither parseJSON v of
+        Left e -> Left $ AesonException e
+        Right x -> Right (parseStateWarnings st, x)
+
+decodeAllHelper_ :: FromJSON a
+                 => ConduitM () Event Parse ()
+                 -> IO (Either ParseException ([Warning], [a]))
+decodeAllHelper_ = mkHelper parseAll catchLeft $ \(vs, st) ->
+    case mapM (parseEither parseJSON) vs of
+        Left e -> Left $ AesonException e
+        Right xs -> Right (parseStateWarnings st, xs)
 
 type StringStyle = Text -> ( Tag, Style )
 

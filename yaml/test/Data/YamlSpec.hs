@@ -69,6 +69,11 @@ shouldDecode bs expected = do
     actual <- D.decodeThrow bs
     actual `shouldBe` expected
 
+shouldDecodeAll :: (Show a, D.FromJSON a, Eq a) => B8.ByteString -> [a] -> IO ()
+shouldDecodeAll bs expected = do
+    actual <- D.decodeAllThrow bs
+    actual `shouldBe` expected
+
 shouldDecodeEvents :: B8.ByteString -> [Y.Event] -> IO ()
 shouldDecodeEvents bs expected = do
     actual <- runConduitRes $ Y.decode bs .| CL.consume
@@ -193,6 +198,15 @@ spec = do
             it "returns Left" $ do
                 (D.decodeFileEither "./does_not_exist.yaml" :: IO (Either D.ParseException D.Value)) >>= (`shouldSatisfy` isLeft)
 
+    describe "multiple document support" $ do
+        it "decodes zero-length input" $
+            "" `shouldDecodeAll` ([] :: [D.Value])
+        it "decodes comment-only input" $
+            "# foo\n# bar" `shouldDecodeAll` ([] :: [D.Value])
+        it "decodes a single document stream" $
+            "foo: true" `shouldDecodeAll` [object ["foo" .= True]]
+        it "decodes multiple documents" $
+            "--- 1\n--- 2" `shouldDecodeAll` [D.Number 1, D.Number 2]
 
     describe "round-tripping of special scalars" $ do
         let special = words "y Y On ON false 12345 12345.0 12345a 12e3"

@@ -1,5 +1,14 @@
 # ChangeLog for yaml
 
+## 0.12.0.0
+
+* New functions capable of parsing YAML streams containing multiple documents into a list of results:
+  * `decodeAllEither'`
+  * `decodeAllFileEither`
+  * `decodeAllFileWithWarnings`
+  * `decodeAllThrow`
+  * `decodeAllFileThrow`
+
 ## 0.11.4.0
 
 * add `ToYaml` instance for `String` [#186](https://github.com/snoyberg/yaml/pull/186)

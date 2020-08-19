@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1f75743c2fefefb33f6f3e8a51fce90cb3f286c975d205d7ded3789d5b15c488
+-- hash: 118ef05af05c3228e80397659bc1769f2d5e733cf4111316fa3aebeaeb0d6152
 
 name:           yaml
-version:        0.11.4.0
+version:        0.12.0.0
 synopsis:       Support for parsing and rendering YAML documents.
 description:    README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:       Data
