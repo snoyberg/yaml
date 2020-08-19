@@ -43,7 +43,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Builder.Scientific (scientificBuilder)
 import Data.Char (toUpper, ord)
 import Data.List
-import Data.Conduit ((.|), ConduitM, Void, runConduit)
+import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
@@ -58,6 +58,7 @@ import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Typeable
 import qualified Data.Vector as V
+import Data.Void (Void)
 
 import qualified Text.Libyaml as Y
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
