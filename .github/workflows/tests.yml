@@ -40,5 +40,5 @@ jobs:
         shell: bash
         run: |
             set -ex
-            curl -sSL https://get.haskellstack.org/ | sh -s - -f
+            stack upgrade || curl -sSL https://get.haskellstack.org/ | sh -s - -f
             stack test --bench --no-run-benchmarks --haddock --no-haddock-deps --no-terminal --resolver=${{ matrix.resolver }}
