@@ -72,10 +72,15 @@ executables:
     main: yaml2json.hs
     source-dirs: exe
     dependencies:
+    - optparse-applicative
     - yaml
     when:
     - condition: flag(no-exe)
       buildable: false
+    other-extensions:
+    - CPP
+    - LambdaCase
+    - NamedFieldPuns
   examples:
     main: Main.hs
     source-dirs: examples
