@@ -34,7 +34,7 @@ flags:
     default: true
 
 dependencies:
-- base >=4.9.1 && <5 # GHC 8.0.2 and later
+- base >=4.9.1 && <5 # GHC 8.0.2 and later, meaning that Data.Semigroup is in base
 - bytestring >=0.9.1.4
 - transformers >=0.1
 - mtl
@@ -51,15 +51,12 @@ dependencies:
 - directory
 - template-haskell
 - libyaml >=0.1 && <0.2
-when:
-  condition: "!impl(ghc >= 8.0)"
-  dependencies:
-  - semigroups
+
+ghc-options: -Wall -Wcompat
 
 library:
   other-extensions:
   - LambdaCase
-  ghc-options: -Wall
   source-dirs: src
 
 executables:
@@ -82,7 +79,6 @@ executables:
   examples:
     main: Main.hs
     source-dirs: examples
-    ghc-options: -Wall
     when:
     - condition: flag(no-examples)
       then:
@@ -96,7 +92,7 @@ tests:
   spec:
     main: Spec.hs
     source-dirs: test
-    ghc-options: -Wall "-with-rtsopts=-K1K"
+    ghc-options: "-with-rtsopts=-K1K"
     cpp-options: -DTEST
     dependencies:
     - hspec >=1.3

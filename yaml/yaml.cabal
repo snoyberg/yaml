@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 55c85c8d4d3074a558a82e30a2592ecff9db2e6f1571547c73d26ba44bfc1c20
 
 name:           yaml
 version:        0.11.5.0
@@ -62,8 +60,9 @@ library
       Paths_yaml
   hs-source-dirs:
       src
-  other-extensions: LambdaCase
-  ghc-options: -Wall
+  other-extensions:
+      LambdaCase
+  ghc-options: -Wall -Wcompat
   build-depends:
       aeson >=0.11
     , attoparsec >=0.11.3.0
@@ -73,7 +72,7 @@ library
     , containers
     , directory
     , filepath
-    , libyaml >=0.1 && <0.2
+    , libyaml ==0.1.*
     , mtl
     , resourcet >=0.3 && <1.3
     , scientific >=0.3
@@ -82,9 +81,6 @@ library
     , transformers >=0.1
     , unordered-containers
     , vector
-  if !impl(ghc >= 8.0)
-    build-depends:
-        semigroups
   default-language: Haskell2010
 
 executable examples
@@ -95,7 +91,7 @@ executable examples
       Paths_yaml
   hs-source-dirs:
       examples
-  ghc-options: -Wall
+  ghc-options: -Wall -Wcompat
   build-depends:
       aeson >=0.11
     , attoparsec >=0.11.3.0
@@ -105,7 +101,7 @@ executable examples
     , containers
     , directory
     , filepath
-    , libyaml >=0.1 && <0.2
+    , libyaml ==0.1.*
     , mtl
     , resourcet >=0.3 && <1.3
     , scientific >=0.3
@@ -114,9 +110,6 @@ executable examples
     , transformers >=0.1
     , unordered-containers
     , vector
-  if !impl(ghc >= 8.0)
-    build-depends:
-        semigroups
   if flag(no-examples)
     buildable: False
   else
@@ -131,6 +124,7 @@ executable json2yaml
       Paths_yaml
   hs-source-dirs:
       exe
+  ghc-options: -Wall -Wcompat
   build-depends:
       aeson >=0.11
     , attoparsec >=0.11.3.0
@@ -140,7 +134,7 @@ executable json2yaml
     , containers
     , directory
     , filepath
-    , libyaml >=0.1 && <0.2
+    , libyaml ==0.1.*
     , mtl
     , resourcet >=0.3 && <1.3
     , scientific >=0.3
@@ -150,9 +144,6 @@ executable json2yaml
     , unordered-containers
     , vector
     , yaml
-  if !impl(ghc >= 8.0)
-    build-depends:
-        semigroups
   if flag(no-exe)
     buildable: False
   default-language: Haskell2010
@@ -163,6 +154,7 @@ executable yaml2json
       Paths_yaml
   hs-source-dirs:
       exe
+  ghc-options: -Wall -Wcompat
   build-depends:
       aeson >=0.11
     , attoparsec >=0.11.3.0
@@ -172,7 +164,7 @@ executable yaml2json
     , containers
     , directory
     , filepath
-    , libyaml >=0.1 && <0.2
+    , libyaml ==0.1.*
     , mtl
     , resourcet >=0.3 && <1.3
     , scientific >=0.3
@@ -182,9 +174,6 @@ executable yaml2json
     , unordered-containers
     , vector
     , yaml
-  if !impl(ghc >= 8.0)
-    build-depends:
-        semigroups
   if flag(no-exe)
     buildable: False
   default-language: Haskell2010
@@ -199,7 +188,7 @@ test-suite spec
       Paths_yaml
   hs-source-dirs:
       test
-  ghc-options: -Wall "-with-rtsopts=-K1K"
+  ghc-options: -Wall -Wcompat -with-rtsopts=-K1K
   cpp-options: -DTEST
   build-depends:
       HUnit
@@ -213,7 +202,7 @@ test-suite spec
     , directory
     , filepath
     , hspec >=1.3
-    , libyaml >=0.1 && <0.2
+    , libyaml ==0.1.*
     , mockery
     , mtl
     , raw-strings-qq
@@ -226,7 +215,4 @@ test-suite spec
     , unordered-containers
     , vector
     , yaml
-  if !impl(ghc >= 8.0)
-    build-depends:
-        semigroups
   default-language: Haskell2010
