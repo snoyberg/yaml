@@ -1,7 +1,7 @@
 ## yaml
 
-[![Build Status](https://travis-ci.org/snoyberg/yaml.svg?branch=master)](https://travis-ci.org/snoyberg/yaml)
-[![Build status](https://ci.appveyor.com/api/projects/status/hqy2jketp8m502so/branch/master?svg=true)](https://ci.appveyor.com/project/snoyberg/yaml/branch/master)
+[![GitHub build and test status](https://github.com/snoyberg/yaml/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/snoyberg/yaml/actions/workflows/tests.yml)
+[![Appveyor build status](https://ci.appveyor.com/api/projects/status/hqy2jketp8m502so/branch/master?svg=true)](https://ci.appveyor.com/project/snoyberg/yaml/branch/master)
 
 Provides support for parsing and emitting Yaml documents.
 
