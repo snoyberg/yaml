@@ -1,22 +1,78 @@
-import qualified Data.Aeson as J
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import System.Environment (getArgs)
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
-import qualified Data.Yaml as Y
+import qualified Data.Aeson           as J
+import qualified Data.ByteString      as S
+import qualified Data.ByteString.Lazy as L
+import qualified Data.Yaml            as Y
+#if !MIN_VERSION_base(4,11,0)
+import Data.Semigroup ( Semigroup(..) )
+#endif
+
+import Options.Applicative
+  ( Parser
+  , action, execParser, header, help, helper, info
+  , metavar, strArgument, value
+  )
+
+import System.Exit    ( die )
+
+import Common         ( dashToNothing, versionOption, numericVersionOption )
+
+data Options = Options
+  { optInput  :: Maybe FilePath
+      -- ^ 'Nothing' means @stdin@.
+  , optOutput :: Maybe FilePath
+      -- ^ 'Nothing' means @stdout@.
+  }
+
+-- | Name of the executable.
+
+self :: String
+self = "json2yaml"
+
+-- | Parse options; handle parse errors, @--help@, @--version@.
+
+options :: IO Options
+options =
+  execParser $
+    info (helper <*> versionOption self <*> numericVersionOption <*> programOptions)
+         (header "Reads a JSON document and writes it out as YAML document.")
+
+  where
+  programOptions = Options <$> oInput <*> oOutput
+
+  oInput :: Parser (Maybe FilePath)
+  oInput = dashToNothing <$> do
+    strArgument
+      $  metavar "IN"
+      <> value "-"
+      <> action "file"
+      <> help "The input file containing the JSON document; use '-' for stdin."
+
+  oOutput :: Parser (Maybe FilePath)
+  oOutput = dashToNothing <$> do
+    strArgument
+      $  metavar "OUT"
+      <> value "-"
+      <> action "file"
+      <> help "The file to hold the produced YAML document; use '-' for stdout."
+
+-- | Exit with 'self'-stamped error message.
+
+abort :: String -> IO a
+abort msg = die $ concat [ self, ": ", msg ]
 
 main :: IO ()
 main = do
-    args <- getArgs
-    (input, output) <- case args ++ replicate (2 - length args) "-" of
-        [i, o] -> return (i, o)
-        _ -> fail "Usage: json2yaml [in] [out]"
-    mval <- fmap J.decode $
-        case input of
-            "-" -> L.getContents
-            _ -> L.readFile input
-    case mval of
-        Nothing -> error "Invalid input JSON"
-        Just val -> case output of
-            "-" -> S.putStr $ Y.encode (val :: Y.Value)
-            _ -> Y.encodeFile output val
+  Options{ optInput, optOutput } <- options
+
+  -- Read JSON.
+  mval <- J.decode <$> maybe L.getContents L.readFile optInput
+
+  -- Write YAML.
+  case mval of
+    Nothing  -> abort "Invalid input JSON"
+    Just val -> case optOutput of
+      Nothing -> S.putStr $ Y.encode (val :: Y.Value)
+      Just f  -> Y.encodeFile f val
