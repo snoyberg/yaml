@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.6.0
+
+* `yaml2json`: add `--help` and `--version` options [#197](https://github.com/snoyberg/yaml/pull/197)
+
 ## 0.11.5.0
 
 * New functions capable of parsing YAML streams containing multiple documents into a list of results:
