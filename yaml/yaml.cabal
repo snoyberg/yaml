@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           yaml
-version:        0.11.5.0
+version:        0.11.6.0
 synopsis:       Support for parsing and rendering YAML documents.
 description:    README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:       Data
@@ -151,6 +151,7 @@ executable json2yaml
 executable yaml2json
   main-is: yaml2json.hs
   other-modules:
+      Common
       Paths_yaml
   hs-source-dirs:
       exe
