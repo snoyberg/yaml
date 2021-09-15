@@ -64,6 +64,7 @@ executables:
     main: json2yaml.hs
     source-dirs: exe
     dependencies:
+    - optparse-applicative
     - yaml
     when:
     - condition: flag(no-exe)
