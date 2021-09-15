@@ -16,3 +16,11 @@ Usage examples can be found in the `Data.Yaml` documentation or in the [examples
 * `Data.Yaml.Include` supports adding `!include` directives to your YAML files.
 * `Data.Yaml.Builder` and `Data.Yaml.Parser` allow more fine-grained control of parsing an rendering, as opposed to just using the aeson typeclass and datatype system for parsing and rendering.
 * `Data.Yaml.Aeson` is currently a re-export of `Data.Yaml` to explicitly choose to use the aeson-compatible API.
+
+### Executables
+
+Converters `json2yaml` and `yaml2json` can be built by disabling flag `no-exe`, e.g., one of:
+```
+cabal install yaml -f-no-exe
+stack install yaml --flag yaml:-no-exe
+```
