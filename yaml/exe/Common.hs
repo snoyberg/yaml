@@ -28,6 +28,16 @@ homepage = "https://github.com/snoyberg/yaml/"
 version :: String
 version = intercalate "." $ map show $ versionBranch Paths.version
 
+-- | The version header including given program name and 'homepage'.
+
+versionText :: String -> String
+versionText self = unwords
+  [ self
+  , "version"
+  , version
+  , homepage  -- concat [ "<", homepage, ">" ]
+  ]
+
 -- | Option @--numeric-version@.
 
 numericVersionOption :: Parser (a -> a)
@@ -41,13 +51,11 @@ numericVersionOption =
 
 versionOption :: String -> Parser (a -> a)
 versionOption self =
-  infoOption (unwords versionWords)
+  infoOption (versionText self)
     $  long "version"
     <> short 'V'
     <> hidden
     <> help "Show version info."
-  where
-  versionWords = [ self, "version", version, homepage ]
 
 -- * Misc
 ---------------------------------------------------------------------------
