@@ -3,6 +3,8 @@
 ## 0.11.6.0
 
 * `yaml2json`: add `--help` and `--version` options [#197](https://github.com/snoyberg/yaml/pull/197)
+* `json2yaml`: add `--help` and `--version` options [#198](https://github.com/snoyberg/yaml/pull/198)
+* Add the `-o` options to both `yaml2json` and `json2yaml` [#200](https://github.com/snoyberg/yaml/pull/200)
 
 ## 0.11.5.0
 
