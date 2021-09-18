@@ -2,31 +2,31 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-import Prelude hiding (putStr, getContents)
-
 import Data.Aeson           (encode, Value)
-import Data.ByteString      (getContents)
-import Data.ByteString.Lazy (putStr)
+import qualified Data.ByteString      as S (getContents)
+import qualified Data.ByteString.Lazy as L (putStr, writeFile)
 #if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup       (Semigroup(..))
 #endif
 import Data.Yaml            (decodeFileEither, decodeEither')
+import System.Exit          (die)
 
 import Options.Applicative
   ( Parser
-  , action, execParser, header, help, helper, info
-  , metavar, strArgument
+  , action, execParser, headerDoc, help, helper, info
+  , long, metavar, short, strArgument, strOption, value
   )
-
-import System.Exit
-import System.IO (stderr, hPrint)
+import Options.Applicative.Help.Pretty
+  ( vcat, text )
 
 import Common
-  ( versionOption, numericVersionOption, dashToNothing )
+  ( versionText, versionOption, numericVersionOption, dashToNothing )
 
-newtype Options = Options
+data Options = Options
   { optInput :: Maybe FilePath
       -- ^ 'Nothing' means @stdin@.
+  , optOutput :: Maybe FilePath
+      -- ^ 'Nothing' means @stdout@.
   }
 
 -- | Name of the executable.
@@ -40,27 +40,48 @@ options :: IO Options
 options =
   execParser $
     info (helper <*> versionOption self <*> numericVersionOption <*> programOptions)
-         (header "Reads given YAML document and prints it in JSON format to standard out.")
+         (headerDoc hdoc)
 
   where
-  programOptions = Options <$> oInput
+  hdoc = Just $ vcat $ map text
+    [ versionText self
+    , "Convert YAML to JSON."
+    ]
+
+  programOptions = Options <$> oInput <*> oOutput
 
   oInput :: Parser (Maybe FilePath)
   oInput = dashToNothing <$> do
     strArgument
-      $  metavar "FILE"
+      $  metavar "IN"
+      <> value "-"
       <> action "file"
-      <> help "The input file containing the YAML document; use '-' for stdin."
+      <> help "The input file containing the YAML document; use '-' for stdin (default)."
 
-showJSON :: Show a => Either a Value -> IO b
-showJSON = \case
-  Left  err -> hPrint stderr err >> exitFailure
-  Right res -> putStr (encode (res :: Value)) >> exitSuccess
+  oOutput :: Parser (Maybe FilePath)
+  oOutput = dashToNothing <$> do
+    strOption
+      $  long "output"
+      <> short 'o'
+      <> value "-"
+      <> metavar "OUT"
+      <> action "file"
+      <> help "The file to hold the produced JSON document; use '-' for stdout (default)."
+
 
 main :: IO ()
 main = do
-  Options{ optInput } <- options
-  showJSON =<< case optInput of
+  Options{ optInput, optOutput } <- options
+
+  -- Input YAML.
+  result <- case optInput of
     -- strict getContents will read in all of stdin at once
-    Nothing -> decodeEither' <$> getContents
+    Nothing -> decodeEither' <$> S.getContents
     Just f  -> decodeFileEither f
+
+  -- Output JSON.
+  case result of
+    Left  err -> die $ show err
+    Right val -> do
+      let json = encode (val :: Value)
+      maybe L.putStr L.writeFile optOutput json

@@ -45,8 +45,7 @@ options =
   where
   hdoc = Just $ vcat $ map text
     [ versionText self
-    , ""
-    , "Reads a JSON document and writes it out as YAML document."
+    , "Convert JSON to YAML."
     ]
   fdoc = Just $ text $ concat
     [ "The old call pattern '"
