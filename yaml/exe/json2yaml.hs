@@ -10,14 +10,16 @@ import Data.Semigroup ( Semigroup(..) )
 #endif
 
 import Options.Applicative
-  ( Parser
-  , action, execParser, header, help, helper, info
-  , metavar, strArgument, value
+  ( Parser, (<|>)
+  , action, execParser, footerDoc, headerDoc, help, helper, hidden, info
+  , long, metavar, short, strArgument, strOption, value
   )
+import Options.Applicative.Help.Pretty
+  ( vcat, text )
 
 import System.Exit    ( die )
 
-import Common         ( dashToNothing, versionOption, numericVersionOption )
+import Common         ( dashToNothing, versionText, versionOption, numericVersionOption )
 
 data Options = Options
   { optInput  :: Maybe FilePath
@@ -37,9 +39,21 @@ options :: IO Options
 options =
   execParser $
     info (helper <*> versionOption self <*> numericVersionOption <*> programOptions)
-         (header "Reads a JSON document and writes it out as YAML document.")
+      $  headerDoc hdoc
+      <> footerDoc fdoc
 
   where
+  hdoc = Just $ vcat $ map text
+    [ versionText self
+    , "Convert JSON to YAML."
+    ]
+  fdoc = Just $ text $ concat
+    [ "The old call pattern '"
+    , self
+    , " IN OUT' is also accepted, but deprecated."
+    ]
+
+  programOptions :: Parser Options
   programOptions = Options <$> oInput <*> oOutput
 
   oInput :: Parser (Maybe FilePath)
@@ -48,15 +62,29 @@ options =
       $  metavar "IN"
       <> value "-"
       <> action "file"
-      <> help "The input file containing the JSON document; use '-' for stdin."
+      <> help "The input file containing the JSON document; use '-' for stdin (default)."
 
   oOutput :: Parser (Maybe FilePath)
   oOutput = dashToNothing <$> do
+    oOutputExplicit <|> oOutputImplicit
+
+  oOutputExplicit :: Parser FilePath
+  oOutputExplicit =
+    strOption
+      $  long "output"
+      <> short 'o'
+      <> metavar "OUT"
+      <> action "file"
+      -- <> help "The file to hold the produced YAML document; use '-' for stdout (default)."
+
+  oOutputImplicit :: Parser FilePath
+  oOutputImplicit =
     strArgument
       $  metavar "OUT"
       <> value "-"
       <> action "file"
-      <> help "The file to hold the produced YAML document; use '-' for stdout."
+      <> hidden
+      <> help "The file to hold the produced YAML document; use '-' for stdout (default)."
 
 -- | Exit with 'self'-stamped error message.
 
