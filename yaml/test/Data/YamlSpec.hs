@@ -32,10 +32,18 @@ import qualified Data.Yaml.Internal as Internal
 import qualified Data.Yaml.Pretty as Pretty
 import Data.Yaml (object, array, (.=))
 import Data.Maybe
+import qualified Data.HashMap.Strict as HM
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.KeyMap as M
+import qualified Data.Aeson.Key as K
+import Data.Aeson.KeyMap (KeyMap)
+#else
 import qualified Data.HashMap.Strict as M
+#endif
 import qualified Data.Text as T
 import Data.Aeson.TH
 import Data.Scientific (Scientific)
+import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector (Vector)
@@ -44,6 +52,22 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import System.IO (hClose)
 import System.IO.Temp (withSystemTempFile)
+
+#if MIN_VERSION_aeson(2,0,0)
+fromText :: T.Text -> K.Key
+fromText = K.fromText
+
+toText :: K.Key -> T.Text
+toText = K.toText
+#else
+fromText :: T.Text -> T.Text
+fromText = id
+
+toText :: Key -> T.Text
+toText = id
+
+type KeyMap a = M.HashMap Text a
+#endif
 
 data TestJSON = TestJSON
               { string :: Text
@@ -179,7 +203,7 @@ spec = do
 
     describe "special keys" $ do
         let tester key = it (T.unpack key) $
-                let value = object [key .= True]
+                let value = object [fromText key .= True]
                  in D.encode value `shouldDecode` value
         mapM_ tester specialStrings
 
@@ -551,7 +575,7 @@ mkStrScalar :: String -> D.Value
 mkStrScalar = D.String . T.pack
 
 mappingKey :: D.Value-> String -> D.Value
-mappingKey (D.Object m) k = (fromJust . M.lookup (T.pack k) $ m)
+mappingKey (D.Object m) k = (fromJust . M.lookup (fromText $ T.pack k) $ m)
 mappingKey _ _ = error "expected Object"
 
 sample :: D.Value
@@ -658,7 +682,9 @@ caseSimpleSequenceAlias =
 caseSimpleMappingAlias :: Assertion
 caseSimpleMappingAlias =
     "map: &anch\n  key1: foo\n  key2: baz\nmap2: *anch" `shouldDecode`
-    object [(T.pack "map", object [("key1", mkScalar "foo"), ("key2", (mkScalar "baz"))]), (T.pack "map2", object [("key1", (mkScalar "foo")), ("key2", mkScalar "baz")])]
+    object [(packStr "map", object [("key1", mkScalar "foo"), ("key2", (mkScalar "baz"))]), (packStr "map2", object [("key1", (mkScalar "foo")), ("key2", mkScalar "baz")])]
+  where
+    packStr = fromText . T.pack
 
 caseMappingAliasBeforeAnchor :: Assertion
 caseMappingAliasBeforeAnchor =
@@ -811,10 +837,10 @@ caseTruncatesFiles = withSystemTempFile "truncate.yaml" $ \fp h -> do
     res <- D.decodeFileEither fp
     either (Left . show) Right res `shouldBe` Right val
 
-caseSpecialKeys :: (HashMap Text () -> B8.ByteString) -> Assertion
+caseSpecialKeys :: (KeyMap () -> B8.ByteString) -> Assertion
 caseSpecialKeys encoder = do
       let keys = T.words "true false NO YES 1.2 1e5 null"
-          bs = encoder $ M.fromList $ map (, ()) keys
+          bs = encoder $ M.fromList $ map (, ()) $ fmap fromText keys
           text = decodeUtf8 bs
       forM_ keys $ \key -> do
         let quoted = T.concat ["'", key, "'"]

@@ -33,6 +33,13 @@ import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Control.Monad.State.Strict
 import Control.Monad.Reader
 import Data.Aeson
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as M
+import Data.Aeson.KeyMap (KeyMap)
+#else
+import qualified Data.HashMap.Strict as M
+#endif
 import Data.Aeson.Internal (JSONPath, JSONPathElement(..), formatError)
 import Data.Aeson.Types hiding (parse)
 import qualified Data.Attoparsec.Text as Atto
@@ -45,14 +52,13 @@ import Data.Char (toUpper, ord)
 import Data.List
 import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
-import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as HashSet
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Scientific (Scientific, base10Exponent, coefficient)
-import Data.Text (Text, pack)
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import Data.Text.Encoding.Error (lenientDecode)
@@ -62,6 +68,22 @@ import Data.Void (Void)
 
 import qualified Text.Libyaml as Y
 import Text.Libyaml hiding (encode, decode, encodeFile, decodeFile)
+
+#if MIN_VERSION_aeson(2,0,0)
+fromText :: T.Text -> K.Key
+fromText = K.fromText
+
+toText :: K.Key -> T.Text
+toText = K.toText
+#else
+fromText :: T.Text -> T.Text
+fromText = id
+
+toText :: Key -> T.Text
+toText = id
+
+type KeyMap a = M.HashMap Text a
+#endif
 
 data ParseException = NonScalarKey
                     | UnknownAlias { _anchorName :: Y.AnchorName }
@@ -255,9 +277,9 @@ parseS !n a front = do
             o <- local (Index n :) parseO
             parseS (succ n) a $ front . (:) o
 
-parseM :: Set Text
+parseM :: Set Key
        -> Y.Anchor
-       -> M.HashMap Text Value
+       -> KeyMap Value
        -> ReaderT JSONPath (ConduitM Event o Parse) Value
 parseM mergedKeys a front = do
     me <- lift CL.head
@@ -268,12 +290,12 @@ parseM mergedKeys a front = do
             return res
         _ -> do
             s <- case me of
-                    Just (EventScalar v tag style a') -> parseScalar v a' style tag
+                    Just (EventScalar v tag style a') -> fromText <$> parseScalar v a' style tag
                     Just (EventAlias an) -> do
                         m <- lookupAnchor an
                         case m of
                             Nothing -> liftIO $ throwIO $ UnknownAlias an
-                            Just (String t) -> return t
+                            Just (String t) -> return $ fromText t
                             Just v -> liftIO $ throwIO $ NonStringKeyAlias an v
                     _ -> do
                         path <- ask
@@ -286,7 +308,7 @@ parseM mergedKeys a front = do
                           path <- reverse <$> ask
                           addWarning (DuplicateKey path)
                       return (Set.delete s mergedKeys, M.insert s o front)
-              if s == pack "<<"
+              if s == "<<"
                          then case o of
                                   Object l  -> return (merge l)
                                   Array l -> return $ merge $ foldl' mergeObjects M.empty $ V.toList l
@@ -417,7 +439,7 @@ objToEvents stringStyle = objToEvents' . toJSON
       : foldr pairToEvents (EventMappingEnd : rest) (M.toList o)
       where
         pairToEvents :: Pair -> [Y.Event] -> [Y.Event]
-        pairToEvents (k, v) = objToEvents' (String k) . objToEvents' v
+        pairToEvents (k, v) = objToEvents' (String $ toText k) . objToEvents' v
 
     objToEvents' (String s) rest = stringScalar stringStyle Nothing s : rest
 

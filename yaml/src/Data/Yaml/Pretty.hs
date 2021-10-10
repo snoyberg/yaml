@@ -18,10 +18,16 @@ import Prelude hiding (null)
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
 #endif
+import Data.Bifunctor (first)
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as HM
+#else
+import qualified Data.HashMap.Strict as HM
+#endif
 import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import Data.Function (on)
-import qualified Data.HashMap.Strict as HM
 import Data.List (sortBy)
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
@@ -30,6 +36,14 @@ import Data.Text (Text)
 import qualified Data.Vector as V
 
 import Data.Yaml.Builder
+
+#if MIN_VERSION_aeson(2,0,0)
+toText :: Key -> Text
+toText = K.toText
+#else
+toText :: Key -> Text
+toText = id
+#endif
 
 -- |
 -- @since 0.8.13
@@ -72,7 +86,7 @@ pretty cfg = go
                             select
                               | confDropNull cfg = HM.filter (/= Null)
                               | otherwise        = id
-                        in mapping (sort $ HM.toList $ HM.map go $ select o)
+                        in mapping (sort $ fmap (first toText) $ HM.toList $ HM.map go $ select o)
         go (Array a)  = array (go <$> V.toList a)
         go Null       = null
         go (String s) = string s

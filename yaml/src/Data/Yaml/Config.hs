@@ -33,7 +33,13 @@ import Data.Monoid
 import Data.Semigroup
 import Data.List.NonEmpty (nonEmpty)
 import Data.Aeson
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as H
+import Data.Aeson.KeyMap (KeyMap)
+#else
 import qualified Data.HashMap.Strict as H
+#endif
 import Data.Text (Text, pack)
 import System.Environment (getArgs, getEnvironment)
 import Control.Arrow ((***))
@@ -44,6 +50,16 @@ import qualified Data.Yaml as Y
 import qualified Data.Yaml.Include as YI
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+
+#if MIN_VERSION_aeson(2,0,0)
+fromText :: T.Text -> Key
+fromText = K.fromText
+#else
+fromText :: T.Text -> T.Text
+fromText = id
+
+type KeyMap a = H.HashMap T.Text a
+#endif
 
 newtype MergedValue = MergedValue { getMergedValue :: Value }
 
@@ -64,7 +80,7 @@ mergeValues x _ = x
 --
 -- @since 0.8.16
 applyEnvValue :: Bool -- ^ require an environment variable to be present?
-              -> H.HashMap Text Text -> Value -> Value
+              -> KeyMap Text -> Value -> Value
 applyEnvValue requireEnv' env =
     goV
   where
@@ -74,7 +90,7 @@ applyEnvValue requireEnv' env =
         t2 <- T.stripPrefix "_env:" t1
         let (name, t3) = T.break (== ':') t2
             mdef = fmap parseValue $ T.stripPrefix ":" t3
-        Just $ case H.lookup name env of
+        Just $ case H.lookup (fromText name) env of
             Just val ->
                 -- If the default value parses as a String, we treat the
                 -- environment variable as a raw value and do not parse it.
@@ -101,8 +117,8 @@ applyEnvValue requireEnv' env =
 -- | Get the actual environment as a @HashMap@ from @Text@ to @Text@.
 --
 -- @since 0.8.16
-getCurrentEnv :: IO (H.HashMap Text Text)
-getCurrentEnv = fmap (H.fromList . map (pack *** pack)) getEnvironment
+getCurrentEnv :: IO (KeyMap Text)
+getCurrentEnv = fmap (H.fromList . map (fromText . pack *** pack)) getEnvironment
 
 -- | A convenience wrapper around 'applyEnvValue' and 'getCurrentEnv'
 --
@@ -118,8 +134,8 @@ applyCurrentEnv requireEnv' orig = flip (applyEnvValue requireEnv') orig <$> get
 data EnvUsage = IgnoreEnv
               | UseEnv
               | RequireEnv
-              | UseCustomEnv (H.HashMap Text Text)
-              | RequireCustomEnv (H.HashMap Text Text)
+              | UseCustomEnv (KeyMap Text)
+              | RequireCustomEnv (KeyMap Text)
 
 -- | Do not use any environment variables, instead relying on defaults values
 -- in the config file.
@@ -146,14 +162,14 @@ requireEnv = RequireEnv
 -- @HashMap@ as the environment.
 --
 -- @since 0.8.16
-useCustomEnv :: H.HashMap Text Text -> EnvUsage
+useCustomEnv :: KeyMap Text -> EnvUsage
 useCustomEnv = UseCustomEnv
 
 -- | Same as 'requireEnv', but instead of the actual environment, use the
 -- provided @HashMap@ as the environment.
 --
 -- @since 0.8.16
-requireCustomEnv :: H.HashMap Text Text -> EnvUsage
+requireCustomEnv :: KeyMap Text -> EnvUsage
 requireCustomEnv = RequireCustomEnv
 
 -- | Load the settings from the following three sources:
