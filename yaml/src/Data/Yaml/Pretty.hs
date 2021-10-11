@@ -43,6 +43,8 @@ toText = K.toText
 #else
 toText :: Key -> Text
 toText = id
+
+type Key = Text
 #endif
 
 -- |

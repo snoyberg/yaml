@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.7.0
+
+* Support `aeson` 2 [#202](https://github.com/snoyberg/yaml/pull/202)
+
 ## 0.11.6.0
 
 * `yaml2json`: add `--help` and `--version` options [#197](https://github.com/snoyberg/yaml/pull/197)

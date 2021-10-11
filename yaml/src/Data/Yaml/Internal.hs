@@ -83,6 +83,7 @@ toText :: Key -> T.Text
 toText = id
 
 type KeyMap a = M.HashMap Text a
+type Key = Text
 #endif
 
 data ParseException = NonScalarKey
