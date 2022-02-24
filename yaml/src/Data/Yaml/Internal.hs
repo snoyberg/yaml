@@ -16,7 +16,7 @@ module Data.Yaml.Internal
     , decodeAllHelper_
     , textToScientific
     , stringScalar
-    , Stringstyle
+    , StringStyle
     , defaultStringStyle
     , isSpecialString
     , specialStrings
