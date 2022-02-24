@@ -9,12 +9,14 @@ module Data.Yaml.Internal
     , prettyPrintParseException
     , Warning(..)
     , parse
+    , Parse
     , decodeHelper
     , decodeHelper_
     , decodeAllHelper
     , decodeAllHelper_
     , textToScientific
     , stringScalar
+    , Stringstyle
     , defaultStringStyle
     , isSpecialString
     , specialStrings
