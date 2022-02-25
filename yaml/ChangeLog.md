@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.8.0
+
+* Export `Parse` and `StringStyle` [#204](https://github.com/snoyberg/yaml/pull/204)
+
 ## 0.11.7.0
 
 * Support `aeson` 2 [#202](https://github.com/snoyberg/yaml/pull/202)
