@@ -11,6 +11,7 @@ module Data.Yaml.Internal
     , parse
     , parseStream
     , Parse
+    , ParseState (..)
     , decodeHelper
     , decodeHelper_
     , decodeAllHelper
