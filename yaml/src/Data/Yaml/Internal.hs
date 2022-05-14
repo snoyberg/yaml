@@ -256,7 +256,7 @@ parseArrayStreaming !n a = do
         Just EventSequenceEnd -> lift $ CL.drop 1
         _ -> do
             local (Index n :) parseO >>= lift . yield
-            parseArrayStreaming (succ n) a
+            parseArrayStreaming (n+1) a
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> ReaderT JSONPath (ConduitM Event o Parse) Text
