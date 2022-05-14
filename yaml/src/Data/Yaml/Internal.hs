@@ -247,7 +247,7 @@ parseSubStream = do
     me <- lift CL.head
     case me of
       Just (EventSequenceStart _ _ a) -> parseArrayStreaming 0 a
-      _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
+      _ -> liftIO $ throwIO $ UnexpectedEvent me $ Just $ EventSequenceStart NoTag AnySequence Nothing
 
 parseArrayStreaming :: Int -> Y.Anchor -> ReaderT JSONPath (ConduitM Event Value Parse) ()
 parseArrayStreaming !n a = do
