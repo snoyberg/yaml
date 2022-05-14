@@ -236,10 +236,27 @@ parseStream = do
         case documentStart of
             Just EventStreamEnd -> return ()
             Just EventDocumentStart -> do
-                res <- parseO >>= lift . yield
+                parseSubStream
+                requireEvent EventDocumentEnd
                 parseDocs
             _ -> missed documentStart
     missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
+
+parseSubStream :: ReaderT JSONPath (ConduitM Event Value Parse) ()
+parseSubStream = do
+    me <- lift CL.head
+    case me of
+      Just (EventSequenceStart _ _ a) -> parseArrayStreaming 0 a
+      _ -> liftIO $ throwIO $ UnexpectedEvent me Nothing
+
+parseArrayStreaming :: Int -> Y.Anchor -> ReaderT JSONPath (ConduitM Event Value Parse) ()
+parseArrayStreaming !n a = do
+    me <- lift CL.peek
+    case me of
+        Just EventSequenceEnd -> lift $ CL.drop 1
+        _ -> do
+            local (Index n :) parseO >>= lift . yield
+            parseArrayStreaming (succ n) a
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> ReaderT JSONPath (ConduitM Event o Parse) Text
