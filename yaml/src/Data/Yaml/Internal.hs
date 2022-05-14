@@ -9,6 +9,7 @@ module Data.Yaml.Internal
     , prettyPrintParseException
     , Warning(..)
     , parse
+    , parseStream
     , Parse
     , decodeHelper
     , decodeHelper_
@@ -52,7 +53,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Builder.Scientific (scientificBuilder)
 import Data.Char (toUpper, ord)
 import Data.List
-import Data.Conduit ((.|), ConduitM, runConduit)
+import Data.Conduit ((.|), ConduitM, runConduit, yield)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as HashSet
 import           Data.Map (Map)
@@ -214,6 +215,29 @@ parseAll = do
                 res <- parseO
                 requireEvent EventDocumentEnd
                 (res :) <$> parseDocs
+            _ -> missed documentStart
+    missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
+
+-- | Parse a stream of values.
+parseStream :: ReaderT JSONPath (ConduitM Event Value Parse) ()
+parseStream = do
+    streamStart <- lift CL.head
+    case streamStart of
+        Nothing ->
+            -- empty string input
+            return ()
+        Just EventStreamStart ->
+            -- empty file input, comment only string/file input
+            parseDocs
+        _ -> missed streamStart
+  where
+    parseDocs = do
+        documentStart <- lift CL.head
+        case documentStart of
+            Just EventStreamEnd -> return ()
+            Just EventDocumentStart -> do
+                res <- parseO >>= lift . yield
+                parseDocs
             _ -> missed documentStart
     missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
 
