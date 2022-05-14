@@ -218,7 +218,11 @@ parseAll = do
             _ -> missed documentStart
     missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
 
--- | Parse a stream of values.
+-- | Parse a yaml file (as a stream of events) to a stream of values.
+--   It only accepts documents whose top-level entity is an array.
+--
+--   In combination with 'Y.decodeFile', it can be used to consume
+--   a yaml file that consists in a very large list of values.
 parseStream :: ReaderT JSONPath (ConduitM Event Value Parse) ()
 parseStream = do
     streamStart <- lift CL.head
