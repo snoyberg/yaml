@@ -31,7 +31,7 @@ dependencies:
 - base >=4.9.1 && <5 # GHC 8.0.2 and later
 - bytestring >=0.9.1.4
 - conduit >=1.2.8 && <1.4
-- resourcet >=0.3 && <1.3
+- resourcet >=0.3 && <1.4
 
 library:
   c-sources: c/helper.c

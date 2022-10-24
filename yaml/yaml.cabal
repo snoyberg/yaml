@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           yaml
-version:        0.11.7.0
+version:        0.11.8.0
 synopsis:       Support for parsing and rendering YAML documents.
 description:    README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:       Data
@@ -74,7 +74,7 @@ library
     , filepath
     , libyaml ==0.1.*
     , mtl
-    , resourcet >=0.3 && <1.3
+    , resourcet >=0.3 && <1.4
     , scientific >=0.3
     , template-haskell
     , text
@@ -103,20 +103,20 @@ executable examples
     , filepath
     , libyaml ==0.1.*
     , mtl
-    , resourcet >=0.3 && <1.3
+    , resourcet >=0.3 && <1.4
     , scientific >=0.3
     , template-haskell
     , text
     , transformers >=0.1
     , unordered-containers
     , vector
+  default-language: Haskell2010
   if flag(no-examples)
     buildable: False
   else
     build-depends:
         raw-strings-qq
       , yaml
-  default-language: Haskell2010
 
 executable json2yaml
   main-is: json2yaml.hs
@@ -138,7 +138,7 @@ executable json2yaml
     , libyaml ==0.1.*
     , mtl
     , optparse-applicative
-    , resourcet >=0.3 && <1.3
+    , resourcet >=0.3 && <1.4
     , scientific >=0.3
     , template-haskell
     , text
@@ -146,9 +146,9 @@ executable json2yaml
     , unordered-containers
     , vector
     , yaml
+  default-language: Haskell2010
   if flag(no-exe)
     buildable: False
-  default-language: Haskell2010
 
 executable yaml2json
   main-is: yaml2json.hs
@@ -174,7 +174,7 @@ executable yaml2json
     , libyaml ==0.1.*
     , mtl
     , optparse-applicative
-    , resourcet >=0.3 && <1.3
+    , resourcet >=0.3 && <1.4
     , scientific >=0.3
     , template-haskell
     , text
@@ -182,9 +182,9 @@ executable yaml2json
     , unordered-containers
     , vector
     , yaml
+  default-language: Haskell2010
   if flag(no-exe)
     buildable: False
-  default-language: Haskell2010
 
 test-suite spec
   type: exitcode-stdio-1.0
@@ -214,7 +214,7 @@ test-suite spec
     , mockery
     , mtl
     , raw-strings-qq
-    , resourcet >=0.3 && <1.3
+    , resourcet >=0.3 && <1.4
     , scientific >=0.3
     , template-haskell
     , temporary
