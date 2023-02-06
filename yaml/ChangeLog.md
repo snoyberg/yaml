@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.9.0
+
+* Data.Yaml.Pretty: provide key-sorting function with path to parent object [#206](https://github.com/snoyberg/yaml/pull/206)
+
 ## 0.11.8.0
 
 * Export `Parse` and `StringStyle` [#204](https://github.com/snoyberg/yaml/pull/204)
