@@ -7,6 +7,7 @@ module Data.Yaml.Pretty
     , Config
     , getConfCompare
     , setConfCompare
+    , setConfComparePos
     , getConfDropNull
     , setConfDropNull
     , defConfig
@@ -50,7 +51,7 @@ type Key = Text
 -- |
 -- @since 0.8.13
 data Config = Config
-  { confCompare :: Text -> Text -> Ordering -- ^ Function used to sort keys in objects
+  { confCompare :: JSONPath -> Text -> Text -> Ordering -- ^ Function used to sort keys in objects
   , confDropNull :: Bool -- ^ Drop null values from objects
   }
 
@@ -62,14 +63,20 @@ defConfig = Config mempty False
 
 -- |
 -- @since 0.8.13
-getConfCompare :: Config -> Text -> Text -> Ordering
+getConfCompare :: Config -> JSONPath -> Text -> Text -> Ordering
 getConfCompare = confCompare
 
 -- | Sets ordering for object keys
 --
 -- @since 0.8.13
 setConfCompare :: (Text -> Text -> Ordering) -> Config -> Config
-setConfCompare cmp c = c { confCompare = cmp }
+setConfCompare cmp c = c { confCompare = \_ps -> cmp }
+
+-- | Set ordering for object keys that depends on location of object in the document.
+--
+-- @since 0.11.9
+setConfComparePos :: (JSONPath -> Text -> Text -> Ordering) -> Config -> Config
+setConfComparePos cmp c = c { confCompare = cmp }
 
 -- |
 -- @since 0.8.24
@@ -83,17 +90,17 @@ setConfDropNull :: Bool -> Config -> Config
 setConfDropNull m c = c { confDropNull = m }
 
 pretty :: Config -> Value -> YamlBuilder
-pretty cfg = go
-  where go (Object o) = let sort = sortBy (confCompare cfg `on` fst)
-                            select
-                              | confDropNull cfg = HM.filter (/= Null)
-                              | otherwise        = id
-                        in mapping (sort $ fmap (first toText) $ HM.toList $ HM.map go $ select o)
-        go (Array a)  = array (go <$> V.toList a)
-        go Null       = null
-        go (String s) = string s
-        go (Number n) = scientific n
-        go (Bool b)   = bool b
+pretty cfg = go []
+  where go ps (Object o) = let sort = sortBy (confCompare cfg (reverse ps) `on` fst)
+                               select
+                                 | confDropNull cfg = HM.filter (/= Null)
+                                 | otherwise        = id
+                        in mapping (sort $ fmap (first toText) $ HM.toList $ HM.mapWithKey (\k -> go (Key (toText k): ps)) $ select o)
+        go ps (Array a) = array $ zipWith (\ix -> go (Index ix: ps)) [0..] (V.toList a)
+        go _ Null       = null
+        go _ (String s) = string s
+        go _ (Number n) = scientific n
+        go _ (Bool b)   = bool b
 
 -- | Configurable 'encode'.
 --
