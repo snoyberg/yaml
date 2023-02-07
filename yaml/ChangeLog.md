@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.10.0
+
+* Undo previous change (breakage with aeson 2)
+
 ## 0.11.9.0
 
 * Data.Yaml.Pretty: provide key-sorting function with path to parent object [#206](https://github.com/snoyberg/yaml/pull/206)
