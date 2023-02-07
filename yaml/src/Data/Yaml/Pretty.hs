@@ -23,6 +23,9 @@ import Data.Bifunctor (first)
 #if MIN_VERSION_aeson(2,0,0)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as HM
+#if !MIN_VERSION_aeson(2,1,0)
+import qualified Data.HashMap.Strict as HashMap
+#endif
 #else
 import qualified Data.HashMap.Strict as HM
 #endif
@@ -38,15 +41,35 @@ import qualified Data.Vector as V
 
 import Data.Yaml.Builder
 
-#if MIN_VERSION_aeson(2,0,0)
+-- aeson changed the representation of keys and objects
+-- in version 2.0.0 but only introduced mapWithKey in
+-- 2.1.0.
+#if MIN_VERSION_aeson(2,1,0)
+mapKeyMapWithKey :: (Key -> a -> b) -> HM.KeyMap a -> HM.KeyMap b
+mapKeyMapWithKey = HM.mapWithKey
+
 toText :: Key -> Text
 toText = K.toText
+#elif MIN_VERSION_aeson(2,0,0)
+mapKeyMapWithKey :: (Key -> a -> b) -> HM.KeyMap a -> HM.KeyMap b
+mapKeyMapWithKey = HM.fromHashMap . HashMap.mapWithKey . HM.toHashMap
+
+toText :: Key -> Text
+toText = K.toText
+
 #else
+mapKeyMapWithKey :: (Key -> a -> b) -> KeyMap a -> KeyMap b
+mapKeyMapWithKey = HM.MapWithKey
+
 toText :: Key -> Text
 toText = id
 
 type Key = Text
+type KeyMap a = HM.HashMap Text a
 #endif
+
+
+
 
 -- |
 -- @since 0.8.13
@@ -95,7 +118,7 @@ pretty cfg = go []
                                select
                                  | confDropNull cfg = HM.filter (/= Null)
                                  | otherwise        = id
-                        in mapping (sort $ fmap (first toText) $ HM.toList $ HM.mapWithKey (\k -> go (Key k : ps)) $ select o)
+                        in mapping (sort $ fmap (first toText) $ HM.toList $ mapKeyMapWithKey (\k -> go (Key k : ps)) $ select o)
         go ps (Array a) = array $ zipWith (\ix -> go (Index ix: ps)) [0..] (V.toList a)
         go _ Null       = null
         go _ (String s) = string s
