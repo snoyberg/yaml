@@ -95,7 +95,7 @@ pretty cfg = go []
                                select
                                  | confDropNull cfg = HM.filter (/= Null)
                                  | otherwise        = id
-                        in mapping (sort $ fmap (first toText) $ HM.toList $ HM.mapWithKey (\k -> go (Key (toText k): ps)) $ select o)
+                        in mapping (sort $ fmap (first toText) $ HM.toList $ HM.mapWithKey (\k -> go (Key k : ps)) $ select o)
         go ps (Array a) = array $ zipWith (\ix -> go (Index ix: ps)) [0..] (V.toList a)
         go _ Null       = null
         go _ (String s) = string s
