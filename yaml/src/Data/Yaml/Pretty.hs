@@ -26,7 +26,7 @@ import qualified Data.Aeson.KeyMap as HM
 #else
 import qualified Data.HashMap.Strict as HM
 #endif
-import Data.Aeson.Types
+import Data.Aeson.Types (JSONPath, JSONPathElement(Key, Index), Value(..), ToJSON(toJSON), Key)
 import Data.ByteString (ByteString)
 import Data.Function (on)
 import Data.List (sortBy)
