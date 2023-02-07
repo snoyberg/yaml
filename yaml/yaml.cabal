@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
 name:           yaml
-version:        0.11.8.0
+version:        0.11.9.0
 synopsis:       Support for parsing and rendering YAML documents.
 description:    README and API documentation are available at <https://www.stackage.org/package/yaml>
 category:       Data
