@@ -9,7 +9,9 @@ module Data.Yaml.Internal
     , prettyPrintParseException
     , Warning(..)
     , parse
+    , parseStream
     , Parse
+    , ParseState (..)
     , decodeHelper
     , decodeHelper_
     , decodeAllHelper
@@ -52,7 +54,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Builder.Scientific (scientificBuilder)
 import Data.Char (toUpper, ord)
 import Data.List
-import Data.Conduit ((.|), ConduitM, runConduit)
+import Data.Conduit ((.|), ConduitM, runConduit, yield)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as HashSet
 import           Data.Map (Map)
@@ -216,6 +218,50 @@ parseAll = do
                 (res :) <$> parseDocs
             _ -> missed documentStart
     missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
+
+-- | Parse a yaml file (as a stream of events) to a stream of values.
+--   It only accepts documents whose top-level entity is an array.
+--
+--   In combination with 'Y.decodeFile', it can be used to consume
+--   a yaml file that consists in a very large list of values.
+parseStream :: ReaderT JSONPath (ConduitM Event Value Parse) ()
+parseStream = do
+    streamStart <- lift CL.head
+    case streamStart of
+        Nothing ->
+            -- empty string input
+            return ()
+        Just EventStreamStart ->
+            -- empty file input, comment only string/file input
+            parseDocs
+        _ -> missed streamStart
+  where
+    parseDocs = do
+        documentStart <- lift CL.head
+        case documentStart of
+            Just EventStreamEnd -> return ()
+            Just EventDocumentStart -> do
+                parseSubStream
+                requireEvent EventDocumentEnd
+                parseDocs
+            _ -> missed documentStart
+    missed event = liftIO $ throwIO $ UnexpectedEvent event Nothing
+
+parseSubStream :: ReaderT JSONPath (ConduitM Event Value Parse) ()
+parseSubStream = do
+    me <- lift CL.head
+    case me of
+      Just (EventSequenceStart _ _ a) -> parseArrayStreaming 0 a
+      _ -> liftIO $ throwIO $ UnexpectedEvent me $ Just $ EventSequenceStart NoTag AnySequence Nothing
+
+parseArrayStreaming :: Int -> Y.Anchor -> ReaderT JSONPath (ConduitM Event Value Parse) ()
+parseArrayStreaming !n a = do
+    me <- lift CL.peek
+    case me of
+        Just EventSequenceEnd -> lift $ CL.drop 1
+        _ -> do
+            local (Index n :) parseO >>= lift . yield
+            parseArrayStreaming (n+1) a
 
 parseScalar :: ByteString -> Anchor -> Style -> Tag
             -> ReaderT JSONPath (ConduitM Event o Parse) Text
