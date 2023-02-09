@@ -51,7 +51,7 @@ import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Builder.Scientific (scientificBuilder)
 import Data.Char (toUpper, ord)
-import Data.List
+import qualified Data.List as List
 import Data.Conduit ((.|), ConduitM, runConduit)
 import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as HashSet
@@ -314,14 +314,14 @@ parseM mergedKeys a front = do
               if s == "<<"
                          then case o of
                                   Object l  -> return (merge l)
-                                  Array l -> return $ merge $ foldl' mergeObjects M.empty $ V.toList l
+                                  Array l -> return $ merge $ List.foldl' mergeObjects M.empty $ V.toList l
                                   _          -> al
                          else al
             parseM mergedKeys' a al'
     where mergeObjects al (Object om) = M.union al om
           mergeObjects al _           = al
 
-          merge xs = (Set.fromList (M.keys xs \\ M.keys front), M.union front xs)
+          merge xs = (Set.fromList (M.keys xs List.\\ M.keys front), M.union front xs)
 
 parseSrc :: ReaderT JSONPath (ConduitM Event Void Parse) val
          -> ConduitM () Event Parse ()
