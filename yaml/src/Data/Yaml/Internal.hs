@@ -34,7 +34,11 @@ import Control.Monad (when, unless)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Control.Monad.State.Strict
 import Control.Monad.Reader
+#if MIN_VERSION_aeson(2,1,2)
+import Data.Aeson hiding (AesonException)
+#else
 import Data.Aeson
+#endif
 #if MIN_VERSION_aeson(2,0,0)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as M
