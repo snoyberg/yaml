@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.11.0
+
+* Fix ambiguous occurrence `AesonException`
+
 ## 0.11.10.0
 
 * Undo previous change (breakage with aeson 2)
