@@ -225,10 +225,10 @@ foreign import ccall unsafe "fdopen"
              -> IO File
 foreign import ccall unsafe "fclose"
     c_fclose :: File
-             -> IO ()
+             -> IO CInt
 
 foreign import ccall unsafe "fclose_helper"
-    c_fclose_helper :: File -> IO ()
+    c_fclose_helper :: File -> IO CInt
 
 foreign import ccall unsafe "yaml_parser_parse"
     c_yaml_parser_parse :: Parser -> EventRaw -> IO CInt
@@ -659,7 +659,8 @@ decodeFileMarked file =
                         c_yaml_parser_set_input_file ptr file'
                         return (ptr, file')
     cleanup (ptr, file') = do
-        c_fclose_helper file'
+        res <- c_fclose_helper file'
+        when (res /= 0) $ throwIO $ YamlException $ "could not close file: " ++ file
         c_yaml_parser_delete ptr
         free ptr
 
@@ -791,8 +792,12 @@ encodeFileWith :: MonadResource m
            -> FilePath
            -> ConduitM Event o m ()
 encodeFileWith opts filePath =
-    bracketP getFile c_fclose $ \file -> runEmitter opts (alloc file) (\u _ -> return u)
+    bracketP getFile cleanup $ \file -> runEmitter opts (alloc file) (\u _ -> return u)
   where
+    cleanup file = do
+      res <- c_fclose file
+      when (res /= 0) $ throwIO $ YamlException $ "could not close file: " ++ filePath
+
     getFile = do
 #if WINDOWS && __GLASGOW_HASKELL__ >= 806
         -- See: https://github.com/snoyberg/yaml/issues/178#issuecomment-550180027
