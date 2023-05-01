@@ -1,5 +1,9 @@
 # Changelog for libyaml
 
+## 0.1.3
+
+* Correct signature for `fclose`
+
 ## 0.1.2
 
 * Upgrade `libyaml` to 0.2.2
