@@ -10,7 +10,7 @@ github:      snoyberg/yaml
 stability:   stable
 
 extra-source-files:
-- c/helper.h
+- include/helper.h
 - libyaml_src/yaml_private.h
 - libyaml_src/yaml.h
 - libyaml_src/LICENSE
@@ -37,7 +37,7 @@ library:
   c-sources: c/helper.c
   ghc-options: -Wall
   include-dirs:
-    - c
+    - include
   source-dirs: src
   when:
   - condition: flag(no-unicode)
