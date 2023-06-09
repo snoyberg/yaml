@@ -17,7 +17,7 @@ import Options.Applicative
   , long, metavar, short, strArgument, strOption, value
   )
 import Options.Applicative.Help.Pretty
-  ( vcat, text )
+  ( vcat, pretty )
 
 import Common
   ( versionText, versionOption, numericVersionOption, dashToNothing )
@@ -43,7 +43,7 @@ options =
          (headerDoc hdoc)
 
   where
-  hdoc = Just $ vcat $ map text
+  hdoc = Just $ vcat $ map pretty
     [ versionText self
     , "Convert YAML to JSON."
     ]

@@ -15,7 +15,7 @@ import Options.Applicative
   , long, metavar, short, strArgument, strOption, value
   )
 import Options.Applicative.Help.Pretty
-  ( vcat, text )
+  ( vcat, pretty )
 
 import System.Exit    ( die )
 
@@ -43,11 +43,11 @@ options =
       <> footerDoc fdoc
 
   where
-  hdoc = Just $ vcat $ map text
+  hdoc = Just $ vcat $ map pretty
     [ versionText self
     , "Convert JSON to YAML."
     ]
-  fdoc = Just $ text $ concat
+  fdoc = Just $ pretty $ concat
     [ "The old call pattern '"
     , self
     , " IN OUT' is also accepted, but deprecated."
