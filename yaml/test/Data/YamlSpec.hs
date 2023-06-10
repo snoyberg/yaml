@@ -822,9 +822,9 @@ casePreservesScientificPrecision = do
     -- However, it didn't work (and still doesn't work with aeson < 0.7)
     -- for two reasons:
     --
-    -- * We use 'Data.Text.Read.double', which is not as accurate as it
+    -- - We use 'Data.Text.Read.double', which is not as accurate as it
     -- can be;
-    -- * Even if we used 'Data.Text.Read.rational' we would not get good
+    -- - Even if we used 'Data.Text.Read.rational' we would not get good
     -- results, because of <https://github.com/bos/text/issues/34>.
     "x: 9.78159610558926e-5" `shouldDecode` object
         [ "x" .= D.Number (read "9.78159610558926e-5") ]
