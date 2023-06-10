@@ -121,3 +121,5 @@ tests:
     - base-compat
     - temporary
     - raw-strings-qq
+    build-tools:
+    - hspec-discover
