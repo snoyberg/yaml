@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.11.1
+
+* For optparse-applicative-0.18: use `pretty` instead of `text` [#216](https://github.com/snoyberg/yaml/pull/216)
+
 ## 0.11.11.0
 
 * Fix ambiguous occurrence `AesonException`
