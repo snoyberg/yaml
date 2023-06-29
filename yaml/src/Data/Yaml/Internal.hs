@@ -46,8 +46,12 @@ import Data.Aeson.KeyMap (KeyMap)
 #else
 import qualified Data.HashMap.Strict as M
 #endif
-import Data.Aeson.Internal (JSONPath, JSONPathElement(..), formatError)
+#if MIN_VERSION_aeson(2,2,0)
+import Data.Aeson.Types hiding (AesonException, parse)
+#else
 import Data.Aeson.Types hiding (parse)
+import Data.Aeson.Internal (formatError)
+#endif
 import qualified Data.Attoparsec.Text as Atto
 import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
