@@ -50,7 +50,7 @@ import qualified Data.HashMap.Strict as M
 import Data.Aeson.Types hiding (AesonException, parse)
 #else
 import Data.Aeson.Types hiding (parse)
-import Data.Aeson.Internal (formatError)
+import Data.Aeson.Internal (JSONPath, JSONPathElement(..), formatError)
 #endif
 import qualified Data.Attoparsec.Text as Atto
 import Data.Bits (shiftL, (.|.))

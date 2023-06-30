@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Yaml.IncludeSpec (main, spec) where
@@ -6,7 +7,11 @@ import           Test.Hspec
 import           Data.List (isPrefixOf)
 import qualified Data.ByteString.Lazy as LB
 import           Data.Aeson
+#if MIN_VERSION_aeson(2,2,0)
 import           Data.Aeson.Types (JSONPathElement(..))
+#else
+import           Data.Aeson.Internal (JSONPathElement(..))
+#endif
 import           Data.Yaml (ParseException(InvalidYaml))
 import           Data.Yaml.Include
 import           Data.Yaml.Internal
