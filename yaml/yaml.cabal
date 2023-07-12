@@ -198,6 +198,8 @@ test-suite spec
       test
   ghc-options: -Wall -Wcompat -with-rtsopts=-K1K
   cpp-options: -DTEST
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       HUnit
     , aeson >=0.11
