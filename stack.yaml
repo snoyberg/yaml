@@ -1,4 +1,4 @@
-resolver: nightly-2023-07-10
+resolver: lts-22.13
 
 flags:
   yaml:
