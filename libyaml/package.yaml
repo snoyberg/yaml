@@ -56,7 +56,8 @@ library:
       include-dirs:
       - libyaml_src
     else:
-      extra-libraries: yaml
+      pkg-config-dependencies:
+        - yaml-0.1
   - condition: os(windows)
     cpp-options: -DWINDOWS
     dependencies:
