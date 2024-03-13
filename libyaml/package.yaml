@@ -11,9 +11,6 @@ stability:   stable
 
 extra-source-files:
 - include/helper.h
-- libyaml_src/yaml_private.h
-- libyaml_src/yaml.h
-- libyaml_src/LICENSE
 - README.md
 - ChangeLog.md
 
@@ -44,17 +41,8 @@ library:
     cpp-options: -D__NO_UNICODE__
   - condition: ! '!(flag(system-libyaml))'
     then:
-      c-sources:
-      - libyaml_src/api.c
-      - libyaml_src/dumper.c
-      - libyaml_src/emitter.c
-      - libyaml_src/loader.c
-      - libyaml_src/parser.c
-      - libyaml_src/reader.c
-      - libyaml_src/scanner.c
-      - libyaml_src/writer.c
-      include-dirs:
-      - libyaml_src
+      dependencies:
+        - libyaml-clib
     else:
       pkg-config-dependencies:
         - yaml-0.1

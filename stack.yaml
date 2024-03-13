@@ -7,3 +7,6 @@ flags:
 packages:
   - yaml
   - libyaml
+
+extra-deps:
+  - libyaml-clib-0.2.5
