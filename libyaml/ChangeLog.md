@@ -1,5 +1,10 @@
 # Changelog for libyaml
 
+## 0.1.4
+
+* Use libyaml-clib for the cbits
+* Use pkg-config to link to system yaml
+
 ## 0.1.3
 
 * Correct signature for `fclose`

@@ -34,7 +34,7 @@ flags:
     default: true
 
 dependencies:
-- base >=4.9.1 && <5 # GHC 8.0.2 and later, meaning that Data.Semigroup is in base
+- base >=4.14 && <5 # GHC 8.10.1 and later
 - bytestring >=0.9.1.4
 - transformers >=0.1
 - mtl

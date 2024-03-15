@@ -1,13 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: a4a2ff005241200ba50deeae68beae02301af696425274c2ed0c3cb59b07d0ac
 
 name:           libyaml
-version:        0.1.3
+version:        0.1.4
 synopsis:       Low-level, streaming YAML interface.
 description:    README and API documentation are available at <https://www.stackage.org/package/libyaml>
 category:       Text
@@ -21,9 +19,6 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     include/helper.h
-    libyaml_src/yaml_private.h
-    libyaml_src/yaml.h
-    libyaml_src/LICENSE
     README.md
     ChangeLog.md
 
@@ -62,20 +57,11 @@ library
   if flag(no-unicode)
     cpp-options: -D__NO_UNICODE__
   if !(flag(system-libyaml))
-    include-dirs:
-        libyaml_src
-    c-sources:
-        libyaml_src/api.c
-        libyaml_src/dumper.c
-        libyaml_src/emitter.c
-        libyaml_src/loader.c
-        libyaml_src/parser.c
-        libyaml_src/reader.c
-        libyaml_src/scanner.c
-        libyaml_src/writer.c
+    build-depends:
+        libyaml-clib
   else
-    extra-libraries:
-        yaml
+    pkgconfig-depends:
+        yaml-0.1
   if os(windows)
     cpp-options: -DWINDOWS
     build-depends:

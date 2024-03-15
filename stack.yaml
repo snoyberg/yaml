@@ -1,4 +1,4 @@
-resolver: nightly-2023-07-10
+resolver: lts-22.13
 
 flags:
   yaml:
@@ -7,3 +7,6 @@ flags:
 packages:
   - yaml
   - libyaml
+
+extra-deps:
+  - libyaml-clib-0.2.5
