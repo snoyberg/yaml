@@ -5,7 +5,7 @@
 -- In particular, merging environment variables with yaml values
 --
 -- 'loadYamlSettings' is a high-level API for loading YAML and merging environment variables.
--- A yaml value of @_env:ENV_VAR:default@ will lookup the environment variable @ENV_VAR@.
+-- A yaml value of @_env:ENV_VAR:default@ or just @_env:ENV_VAR@ will lookup the environment variable @ENV_VAR@.
 --
 -- On a historical note, this code was taken directly from the yesod web framework's configuration module.
 module Data.Yaml.Config
@@ -184,6 +184,11 @@ requireCustomEnv = RequireCustomEnv
 -- from the actual environment, you can use:
 --
 -- > loadYamlSettings ["config/foo.yaml"] [] useEnv
+--
+-- Alternatively you can configure settings through the Yaml @Value@ directly in Haskell.
+-- For example, to load up settings from only from environment variables, you can use:
+--
+-- > loadYamlSettings [] [object ["connectionString" .= ("_env:DATABASE_URL" :: String)]] requireEnv
 --
 -- @since 0.8.16
 loadYamlSettings
