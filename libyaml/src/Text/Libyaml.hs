@@ -776,7 +776,7 @@ encodeWith opts =
     close _ fbuf = withForeignPtr fbuf $ \b -> do
         ptr' <- c_get_buffer_buff b
         len <- c_get_buffer_used b
-        fptr <- newForeignPtr_ $ castPtr ptr'
+        fptr <- newForeignPtr finalizerFree $ castPtr ptr'
         return $ B.fromForeignPtr fptr 0 $ fromIntegral len
 
 
