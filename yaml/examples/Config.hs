@@ -28,7 +28,7 @@ packages:
   - ./yesod
   - ./yesod-eventsource
   - ./yesod-websockets
-
+# clean war and attacker
 # Needed for LTS 2
 extra-deps:
 - wai-app-static-3.1.4.1
