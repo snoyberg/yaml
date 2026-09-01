@@ -85,9 +85,13 @@ module Data.Yaml
     , defaultStringStyle
     , setStringStyle
     , setFormat
+    , stringStyleL
+    , formatL
     , FormatOptions
     , defaultFormatOptions
     , setWidth
+    , widthL
+    , tagRenderingL
       -- * Deprecated
     , decode
     , decodeFile
@@ -140,6 +144,18 @@ setStringStyle s opts = opts { encodeOptionsStringStyle = s }
 -- @since 0.10.2.0
 setFormat :: FormatOptions -> EncodeOptions -> EncodeOptions
 setFormat f opts = opts { encodeOptionsFormat = f }
+
+-- | van Laarhoven-encoded lens for `EncodeOptions` @stringStyle@
+--
+-- @since 0.11.12.0
+stringStyleL :: forall f. Functor f => (StringStyle -> f StringStyle) -> EncodeOptions -> f EncodeOptions
+stringStyleL f s = (\a -> s {encodeOptionsStringStyle = a}) <$> f (encodeOptionsStringStyle s)
+
+-- | van Laarhoven-encoded lens for `EncodeOptions` @format@
+--
+-- @since 0.11.12.0
+formatL :: forall f. Functor f => (FormatOptions -> f FormatOptions) -> EncodeOptions -> f EncodeOptions
+formatL f s = (\a -> s {encodeOptionsFormat = a}) <$> f (encodeOptionsFormat s)
 
 -- |
 -- @since 0.10.2.0

@@ -1,5 +1,9 @@
 # Changelog for libyaml
 
+## 0.1.5
+
+* Add lenses for `FormatOptions`
+
 ## 0.1.4
 
 * Use libyaml-clib for the cbits

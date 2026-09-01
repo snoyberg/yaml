@@ -34,6 +34,8 @@ module Text.Libyaml
     , defaultFormatOptions
     , setWidth
     , setTagRendering
+    , widthL
+    , tagRenderingL
     , renderScalarTags
     , renderAllTags
     , renderNoTags
@@ -758,6 +760,18 @@ setWidth w opts = opts { formatOptionsWidth = w }
 -- @since 0.1.1.0
 setTagRendering :: (Event -> TagRender) -> FormatOptions -> FormatOptions
 setTagRendering f opts = opts { formatOptionsRenderTags = f }
+
+-- | van Laarhoven-encoded lens for `FormatOptions` @width@
+--
+-- @since 0.1.5
+widthL :: forall f. Functor f => (Maybe Int -> f (Maybe Int)) -> FormatOptions -> f FormatOptions
+widthL f s = (\a -> s {formatOptionsWidth = a}) <$> f (formatOptionsWidth s)
+
+-- | van Laarhoven-encoded lens for `FormatOptions` @tagRendering@
+--
+-- @since 0.1.5
+tagRenderingL :: forall f. Functor f => ((Event -> TagRender) -> f (Event -> TagRender)) -> FormatOptions -> f FormatOptions
+tagRenderingL f s = (\a -> s {formatOptionsRenderTags = a}) <$> f (formatOptionsRenderTags s)
 
 encode :: MonadResource m => ConduitM Event o m ByteString
 encode = encodeWith defaultFormatOptions

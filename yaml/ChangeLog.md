@@ -1,5 +1,9 @@
 # ChangeLog for yaml
 
+## 0.11.12.0
+
+* Add lenses for `EncodeOptions`
+
 ## 0.11.11.2
 
 * Compat with aeson 2.2
